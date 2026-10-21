@@ -9,9 +9,9 @@
     <true/>
 
     <!--
-        Enhanced Security (hardened process), opt-in through the hardened option of Scripts/build-app.sh.
+        Enhanced Security (hardened process), opt-in through `vmr build-app --hardened`.
         Everything above this comment must stay identical to VMRunner.entitlements
-        (Scripts/build-app.sh checks that the hardened file is a superset).
+        (`vmr build-app` checks that the hardened file is a superset).
         Keep double hyphens out of this comment: the kernel's entitlement parser rejects them.
         The default-OFF memory-tagging family (checked-allocations, ...) is deliberately not enabled.
     -->

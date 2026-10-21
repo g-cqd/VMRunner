@@ -7,8 +7,8 @@ decision: ADR-0018
 # 0021 — A small, fast, hard-to-misread CI and a provenance-attested release
 
 Done: merge queue, cache hygiene, tag-triggered release with attestation, Scorecard, dependency review, templates.
-Under way: collapse the repeated jobs into one lane matrix, run the analyzers through `vmr` so the lock is the single source
-of truth, skip heavy lanes for documentation-only changes, and add the documentation check.
+Also done: one lane matrix, the analyzers run through `vmr` so the lock is the single source of truth, heavy lanes skipped for
+documentation-only changes, and the documentation check.
 
 ## Owed
 
