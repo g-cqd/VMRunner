@@ -13,6 +13,8 @@ enum SetupError: LocalizedError {
     case invalidMachineModel(String)
     case unsupportedHost(String)
     case missingFile(String)
+    /// The OpenPGP signature that should vouch for `file` is missing, malformed or wrong; `reason` completes "because ...".
+    case signatureRejected(file: String, reason: String)
     case rosettaUnavailable
 
     var errorDescription: String? {
@@ -34,6 +36,8 @@ enum SetupError: LocalizedError {
             reason
         case .missingFile(let path):
             "File not found: \(path)"
+        case .signatureRejected(let file, let reason):
+            "Refusing \(file): its OpenPGP signature cannot be trusted, because \(reason)."
         case .rosettaUnavailable:
             "Rosetta for Linux isn't installed. Install it from the VM's settings."
         }
@@ -109,8 +113,11 @@ final class RedirectPolicy: NSObject, URLSessionTaskDelegate, Sendable {
 }
 
 enum Network {
+    /// The size cap of a small document unless the caller asks for less.
+    static let smallLimit = 4 << 20
+
     /// Fetches a small document (catalog JSON, a directory listing) with a hard size cap.
-    static func fetchSmall(_ url: URL, limit: Int = 4 << 20) async throws -> Data {
+    static func fetchSmall(_ url: URL, limit: Int = smallLimit) async throws -> Data {
         _ = try DownloadPolicy.validate(url)
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         let (bytes, response) = try await URLSession.shared.bytes(for: request, delegate: RedirectPolicy())
@@ -145,6 +152,34 @@ enum Checksums {
         guard actual.caseInsensitiveCompare(checksum.value) == .orderedSame else {
             throw SetupError.checksumMismatch(file: url.lastPathComponent, expected: checksum.value, actual: actual)
         }
+    }
+
+    /// Streams the file through the hash that `check`'s signature uses and verifies the signature over it, so a signed
+    /// installer is proven by its own bytes. Cancelling the caller stops the read.
+    /// - Throws: `SetupError.signatureRejected` naming `name` if the signature does not match.
+    static func verify(_ url: URL, named name: String, signedBy check: PGP.Check) async throws {
+        let work = Task.detached(priority: .utility) { try signedDigest(of: url, using: check) }
+        let digest = try await withTaskCancellationHandler {
+            try await work.value
+        } onCancel: {
+            work.cancel()
+        }
+        do {
+            try check.verify(digest)
+        } catch {
+            throw SetupError.signatureRejected(file: name, reason: error.localizedDescription)
+        }
+    }
+
+    private static func signedDigest(of url: URL, using check: PGP.Check) throws -> PGP.Digest {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var digest = check.makeDigest()
+        while let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty {
+            try Task.checkCancellation()
+            digest.update(chunk)
+        }
+        return digest
     }
 
     // 4 MiB chunks measured fastest for FileHandle reads (1 MiB: -16%, 16 MiB: -78% on an M3, 1 GB file).
@@ -296,33 +331,46 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
 enum ImageStore {
     /// The cached file at `destination` if it is still good, or nil if there is none or it no longer matches `checksum`.
     ///
-    /// A cached file is reused only after its checksum is checked again: some images (Debian's `mini.iso`) keep one file
-    /// name while their content changes, and a corrupted or replaced file must never reach an installer. A file that
-    /// fails is deleted so the caller downloads a fresh one. Without a checksum there is nothing to verify against.
+    /// A cached file is reused only after its checksum and, when the vendor signs the installer, its signature are checked
+    /// again: some images (Debian's `mini.iso`) keep one file name while their content changes, and a corrupted or replaced
+    /// file must never reach an installer. A file that fails is deleted so the caller downloads a fresh one. Without a
+    /// checksum or a signature there is nothing to verify against.
     @MainActor
-    static func validCachedFile(at destination: URL, checksum: Checksum?, job: SetupJob) async throws -> URL? {
+    static func validCachedFile(at destination: URL, checksum: Checksum?, signature: PGP.Check? = nil, job: SetupJob) async throws -> URL? {
         guard FileManager.default.fileExists(atPath: destination.path) else { return nil }
-        guard let checksum else { return destination }
+        guard checksum != nil || signature != nil else { return destination }
         job.title = "Checking \(destination.lastPathComponent)"
         job.fraction = nil
         do {
-            try await Checksums.verify(destination, against: checksum)
+            try await verify(destination, named: destination.lastPathComponent, checksum: checksum, signature: signature)
             return destination
         } catch SetupError.checksumMismatch {
             Log.storage.notice("Cached \(destination.lastPathComponent, privacy: .public) is stale or damaged; downloading again")
             try FileManager.default.removeItem(at: destination)
             return nil
+        } catch SetupError.signatureRejected {
+            Log.storage.notice("Cached \(destination.lastPathComponent, privacy: .public) fails its signature; downloading again")
+            try FileManager.default.removeItem(at: destination)
+            return nil
         }
     }
 
-    /// Downloads `remote` into the shared image cache (or reuses it), verifying the checksum when known.
+    /// Checks `file` against the published checksum and the vendor's signature, whichever there are. Both must pass.
+    static func verify(_ file: URL, named name: String, checksum: Checksum?, signature: PGP.Check?) async throws {
+        if let checksum { try await Checksums.verify(file, against: checksum) }
+        if let signature { try await Checksums.verify(file, named: name, signedBy: signature) }
+    }
+
+    /// Downloads `remote` into the shared image cache (or reuses it), verifying the checksum and the signature when known.
     @MainActor
-    static func fetch(_ remote: URL, checksum: Checksum?, job: SetupJob, imagesDirectory: URL = AppPaths.images) async throws -> URL {
+    static func fetch(
+        _ remote: URL, checksum: Checksum?, signature: PGP.Check? = nil, job: SetupJob, imagesDirectory: URL = AppPaths.images
+    ) async throws -> URL {
         _ = try DownloadPolicy.validate(remote)
         let name = try DownloadPolicy.cacheFileName(for: remote)
         let destination = imagesDirectory.appending(path: name)
         try AppPaths.createPrivateDirectory(imagesDirectory)
-        if let cached = try await validCachedFile(at: destination, checksum: checksum, job: job) { return cached }
+        if let cached = try await validCachedFile(at: destination, checksum: checksum, signature: signature, job: job) { return cached }
 
         job.title = "Downloading \(name)"
         job.fraction = 0
@@ -336,10 +384,10 @@ enum ImageStore {
         defer { try? FileManager.default.removeItem(at: temporary) }
         try Task.checkCancellation()
 
-        if let checksum {
+        if checksum != nil || signature != nil {
             job.title = "Verifying \(name)"
             job.fraction = nil
-            try await Checksums.verify(temporary, against: checksum)
+            try await verify(temporary, named: name, checksum: checksum, signature: signature)
         }
         // Another setup may have finished the same download meanwhile; keep its file.
         if !FileManager.default.fileExists(atPath: destination.path) {

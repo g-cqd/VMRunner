@@ -38,7 +38,7 @@ open build/VMRunner.app --args --start "My VM"     # by name or UUID
 
 | | macOS guest | Linux guest |
 |---|---|---|
-| Media | Latest supported image from Apple, any signed build from [ipsw.me](https://ipsw.me), or a local `.ipsw` | Newest aarch64 ISO of CentOS Stream 9/10, Debian stable, Alpine Linux or Ubuntu Server LTS (resolved from each vendor's own pinned host, SHA-256 verified), or a local ISO |
+| Media | Latest supported image from Apple, any signed build from [ipsw.me](https://ipsw.me), or a local `.ipsw` | Newest aarch64 ISO of CentOS Stream 9/10, Debian stable, Alpine Linux or Ubuntu Server LTS (resolved from each vendor's own pinned host, SHA-256 verified, and for Ubuntu Server and Alpine Linux the vendor's OpenPGP signature checked against a pinned key), or a local ISO |
 | Boot | `VZMacOSBootLoader`, installed with `VZMacOSInstaller` | UEFI (`VZEFIBootLoader`), installer ISO attached over USB |
 | First-boot account | Skips Setup Assistant on macOS 27 guests (`VZMacGuestProvisioningOptions`) | – |
 | Extras | Recovery boot, trackpad or mouse | Nested virtualization (M3+), Rosetta for x86_64 binaries, SPICE clipboard, Secure Boot (host macOS 27+) |

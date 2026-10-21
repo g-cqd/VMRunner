@@ -78,7 +78,7 @@ struct ChecksumSourceTests {
     @Test func aProviderOutsideTheAllowListIsRefusedBeforeAnyRequest() async {
         let provider = LinuxProvider(
             host: "downloads.example.com", directoryPath: "/alpine/", iso: .fixed(path: "alpine-virt-3.24.2-aarch64.iso"),
-            checksum: .sibling(suffix: "sha256"), format: .gnu)
+            checksum: .sibling(suffix: "sha256"), format: .gnu, trust: HTTPSOnlyTrust())
         await #expect {
             try await provider.resolve()
         } throws: { error in

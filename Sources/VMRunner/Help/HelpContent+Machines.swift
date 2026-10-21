@@ -73,15 +73,22 @@ extension HelpCatalog {
                 "• **Alpine Linux** is a small diskless system that runs from memory until you install it to disk. It does not "
                     + "support Secure Boot, so leave that off for it.",
                 "• **Ubuntu Server** is a live-server ISO of about 3 GB that installs offline.",
+                "Every download is checked against the checksum the project publishes. For **Ubuntu Server** and **Alpine Linux**, "
+                    + "the project's OpenPGP signature is checked too, against a key built into VMRunner; a missing or wrong signature "
+                    + "stops the setup with a message. CentOS Stream and the Debian netboot image have no signature check, so only "
+                    + "HTTPS from the project's own server protects them.",
                 "• **Other ISO** lets you install from any arm64 installer you already have. It must boot with UEFI and support "
                     + "virtio disks and networking, which most current arm64 Linux distributions do. Other arm64 systems, "
                     + "such as the BSDs, may work too, but that has not been tested here.",
                 "Windows is not supported: Apple's framework has no supported way to run it. See the Limits topic.",
             ],
             advanced: [
-                "Each download is checked against the checksum the project publishes next to the ISO. That proves the file arrived "
-                    + "intact "
-                    + "from that server; it does not prove who built it. Only HTTPS from a short list of project hosts is allowed."
+                "A checksum fetched from the same server proves the file arrived intact, not who built it. A valid signature proves "
+                    + "that the holder of the project's key signed it: Ubuntu signs its SHA256SUMS list and Alpine signs the ISO itself, "
+                    + "and VMRunner checks both and refuses the download on any failure instead of falling back to the checksum alone.",
+                "The keys are built into the app, so VMRunner cannot see a key being revoked or expiring, and a new key needs an app "
+                    + "update. A signature does not say the software is safe, and an older signed file still verifies. Only HTTPS from "
+                    + "a short list of project hosts is allowed.",
             ],
             related: [.installerISO, .secureBoot]
         ),

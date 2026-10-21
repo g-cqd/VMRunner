@@ -97,20 +97,20 @@ enum LinuxCatalog {
         LinuxImage(
             id: "debian-stable-netboot-mini", name: "Debian stable", medium: "netboot mini ISO", install: "network install",
             approximateSize: "~200 MB", supportsSecureBoot: true,
-            trustNotes:
-                "Published by the Debian Project on deb.debian.org; its SHA-256 index is covered by Debian's signed Release file.",
+            trustNotes: "Published by the Debian Project on deb.debian.org; its SHA-256 index is covered by Debian's signed Release file, "
+                + "which the app does not check.",
             provider: .debianNetbootMini),
         LinuxImage(
             id: "alpine-virt", name: "Alpine Linux", medium: "virt ISO", install: "diskless live system",
             approximateSize: "~93 MB", supportsSecureBoot: false,
-            trustNotes: "Published by the Alpine Linux project; the SHA-256 is fetched over HTTPS from the same server. "
-                + "The ISO has a detached OpenPGP signature (.asc) that the app does not check.",
+            trustNotes: "Published by the Alpine Linux project. The ISO's detached OpenPGP signature (.asc) is checked against "
+                + "the release signer's key built into the app; the SHA-256, fetched over HTTPS from the same server, is checked as well.",
             provider: .alpineVirt),
         LinuxImage(
             id: "ubuntu-server-26.04", name: "Ubuntu Server 26.04 LTS", medium: "live server ISO", install: "offline install",
             approximateSize: "~3 GB", supportsSecureBoot: true,
-            trustNotes: "Published by Canonical; the SHA-256 is fetched over HTTPS from the same server. "
-                + "SHA256SUMS has a detached OpenPGP signature (SHA256SUMS.gpg) that the app does not check.",
+            trustNotes: "Published by Canonical. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.gpg) from "
+                + "the Ubuntu CD image key built into the app, or the download is refused.",
             provider: .ubuntuServer(release: "26.04")),
     ]
 
@@ -120,40 +120,44 @@ enum LinuxCatalog {
         LinuxImage(
             id: "debian-stable-netinst", name: "Debian stable", medium: "netinst ISO", install: "network install",
             approximateSize: "~700 MB", supportsSecureBoot: true,
-            trustNotes: "Published by the Debian Project; SHA256SUMS has a detached OpenPGP signature (SHA256SUMS.sign). "
+            trustNotes: "Published by the Debian Project. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.sign) "
+                + "from the Debian CD signing key built into the app. "
                 + "Blocked: the ISO download redirects to a third-party mirror, which the redirect policy refuses.",
             provider: .debianNetinst),
         LinuxImage(
             id: "almalinux-10-boot", name: "AlmaLinux 10", medium: "boot ISO", install: "network install",
             approximateSize: "~1.1 GB", supportsSecureBoot: true,
-            trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message.",
+            trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message "
+                + "that the app does not check.",
             provider: .almaLinux(release: 10, flavor: "boot")),
         LinuxImage(
             id: "almalinux-10-minimal", name: "AlmaLinux 10", medium: "minimal ISO", install: "offline install",
             approximateSize: "~1.7 GB", supportsSecureBoot: true,
-            trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message.",
+            trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message "
+                + "that the app does not check.",
             provider: .almaLinux(release: 10, flavor: "minimal")),
         LinuxImage(
             id: "rocky-10-boot", name: "Rocky Linux 10", medium: "boot ISO", install: "network install",
             approximateSize: "~1.1 GB", supportsSecureBoot: true,
-            trustNotes:
-                "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature (.asc).",
+            trustNotes: "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature "
+                + "(.asc) that the app does not check.",
             provider: .rocky(release: 10, flavor: "boot")),
         LinuxImage(
             id: "rocky-10-minimal", name: "Rocky Linux 10", medium: "minimal ISO", install: "offline install",
             approximateSize: "~2.4 GB", supportsSecureBoot: true,
-            trustNotes:
-                "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature (.asc).",
+            trustNotes: "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature "
+                + "(.asc) that the app does not check.",
             provider: .rocky(release: 10, flavor: "minimal")),
         LinuxImage(
             id: "fedora-server-44-netinst", name: "Fedora Server 44", medium: "netinst ISO", install: "network install",
             approximateSize: "~1.3 GB", supportsSecureBoot: true,
-            trustNotes: "Published by the Fedora Project; the CHECKSUM file is an inline OpenPGP clear-signed message.",
+            trustNotes: "Published by the Fedora Project. The CHECKSUM file must be an inline OpenPGP clear-signed message made by "
+                + "the Fedora 44 release key built into the app, or the download is refused.",
             provider: .fedoraServerNetinst(release: 44)),
     ]
 
-    /// Finds the newest ISO of `image` and its published SHA-256.
-    static func resolve(_ image: LinuxImage) async throws -> ImageSource {
+    /// Finds the newest ISO of `image` and its published SHA-256, and proves the checksum with whatever vouches for it.
+    static func resolve(_ image: LinuxImage) async throws -> ResolvedImage {
         try await image.provider.resolve()
     }
 }

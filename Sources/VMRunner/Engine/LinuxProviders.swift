@@ -27,8 +27,16 @@ struct LinuxRelease: Equatable, Sendable {
     var version: String
 }
 
+/// What `LinuxProvider.resolve` found: where the installer is, the checksum it must have, and, when the vendor signs the
+/// installer itself, the signature to check once it is downloaded.
+struct ResolvedImage: Sendable {
+    var source: ImageSource
+    var imageSignature: PGP.Check?
+}
+
 /// How one distribution publishes an installer ISO and its SHA-256: where to look, which file is the newest,
-/// and how to read the checksum. Adding a distribution means describing it here, not writing new fetch code.
+/// how to read the checksum, and what vouches for it. Adding a distribution means describing it here, not writing new
+/// fetch code.
 struct LinuxProvider: Sendable {
     /// How the ISO is found.
     enum ISO: Sendable {
@@ -100,6 +108,8 @@ struct LinuxProvider: Sendable {
     var iso: ISO
     var checksum: ChecksumLocation
     var format: ChecksumFormat
+    /// What vouches for the checksum file. Every provider states it: `HTTPSOnlyTrust` is a choice, not a default.
+    var trust: any ChecksumTrust
 
     /// The HTTPS URL of the provider's directory.
     func directoryURL() throws(SetupError) -> URL {
@@ -150,23 +160,31 @@ struct LinuxProvider: Sendable {
         return candidates.max { $0.version < $1.version }?.release
     }
 
-    /// Finds the newest ISO and its published SHA-256.
-    /// - Throws: `SetupError` if the directory has no matching ISO or the checksum file has no line for it.
-    func resolve() async throws -> ImageSource {
+    /// Finds the newest ISO and its published SHA-256, and proves the checksum file with `trust` before reading it.
+    /// - Parameters:
+    ///   - now: The time signatures are judged by.
+    ///   - fetch: How the listing, the checksum file and signatures are downloaded.
+    /// - Returns: The installer's location and checksum, and its signature when the vendor signs the installer itself.
+    /// - Throws: `SetupError` if the directory has no matching ISO, the checksum file has no line for it, or the trust the
+    ///   provider relies on refuses it (`SetupError.signatureRejected`).
+    func resolve(now: Date = Date(), fetch: SmallFetch = { try await Network.fetchSmall($0, limit: $1) }) async throws -> ResolvedImage {
         let directory = try directoryURL()
         let release: LinuxRelease
         switch iso {
         case .fixed(let path):
             release = LinuxRelease(path: path, version: "")
         case .newest(let prefix, let suffix):
-            guard let newest = Self.newest(inListing: try await Self.text(at: directory), prefix: prefix, suffix: suffix) else {
+            let listing = try Self.text(of: try await fetch(directory, Network.smallLimit), at: directory)
+            guard let newest = Self.newest(inListing: listing, prefix: prefix, suffix: suffix) else {
                 throw SetupError.missingFile("a matching ISO in \(directory)")
             }
             release = newest
         }
-        // A signature fetch and its verification go here, beside the checksum file's own fetch and before it is read.
-        let checksumText = try await Self.text(at: try checksumURL(for: release))
-        return try source(for: release, checksumText: checksumText)
+        let checksumURL = try checksumURL(for: release)
+        let file = try await fetch(checksumURL, Network.smallLimit)
+        let vouched = try await trust.vouch(
+            for: file, at: checksumURL, image: directory.appending(path: release.path), now: now, fetch: fetch)
+        return ResolvedImage(source: try source(for: release, checksumText: vouched.text), imageSignature: vouched.imageSignature)
     }
 
     /// `release` as a remote image with the SHA-256 that `checksumText` lists for exactly that file.
@@ -178,9 +196,9 @@ struct LinuxProvider: Sendable {
         return .remote(try directoryURL().appending(path: release.path), checksum: Checksum(algorithm: .sha256, value: digest))
     }
 
-    private static func text(at url: URL) async throws -> String {
-        let data = try await Network.fetchSmall(url)
-        guard let text = String(bytes: data, encoding: .utf8) else { throw SetupError.missingFile("readable text at \(url)") }
+    /// The UTF-8 text of a downloaded document.
+    static func text(of data: Data, at url: URL) throws(SetupError) -> String {
+        guard let text = String(bytes: data, encoding: .utf8) else { throw .missingFile("readable text at \(url)") }
         return text
     }
 }
@@ -192,35 +210,40 @@ extension LinuxProvider {
         Self(
             host: "mirror.stream.centos.org", directoryPath: "/\(release)-stream/BaseOS/aarch64/iso/",
             iso: .newest(prefix: "CentOS-Stream-\(release)-", suffix: "-aarch64-\(flavor).iso"),
-            checksum: .sibling(suffix: "SHA256SUM"), format: .bsd)
+            checksum: .sibling(suffix: "SHA256SUM"), format: .bsd, trust: HTTPSOnlyTrust())
     }
 
+    /// `SHA256SUMS` is signed by the Debian CD signing key (`SHA256SUMS.sign`).
     static let debianNetinst = Self(
         host: "cdimage.debian.org", directoryPath: "/debian-cd/current/arm64/iso-cd/",
         iso: .newest(prefix: "debian-", suffix: "-arm64-netinst.iso"),
-        checksum: .shared(fileName: "SHA256SUMS"), format: .gnu)
+        checksum: .shared(fileName: "SHA256SUMS"), format: .gnu,
+        trust: SignedChecksumTrust(placement: .detached(suffix: "sign"), keys: [PGP.PinnedKeys.debianCD]))
 
+    /// This index is covered by Debian's signed Release file, not by a signature of its own, so it is trusted for its host only.
     static let debianNetbootMini = Self(
         host: "deb.debian.org", directoryPath: "/debian/dists/stable/main/installer-arm64/current/images/",
-        iso: .fixed(path: "netboot/mini.iso"), checksum: .shared(fileName: "SHA256SUMS"), format: .gnu)
+        iso: .fixed(path: "netboot/mini.iso"), checksum: .shared(fileName: "SHA256SUMS"), format: .gnu, trust: HTTPSOnlyTrust())
 
+    /// The `.sha256` beside an ISO is not signed; the ISO's own signature (`.asc`) is checked after the download.
     static let alpineVirt = Self(
         host: "dl-cdn.alpinelinux.org", directoryPath: "/alpine/latest-stable/releases/aarch64/",
         iso: .newest(prefix: "alpine-virt-", suffix: "-aarch64.iso"),
-        checksum: .sibling(suffix: "sha256"), format: .gnu)
+        checksum: .sibling(suffix: "sha256"), format: .gnu,
+        trust: SignedImageTrust(suffix: "asc", keys: [PGP.PinnedKeys.alpineCopa]))
 
     static func almaLinux(release: Int, flavor: String) -> Self {
         Self(
             host: "repo.almalinux.org", directoryPath: "/almalinux/\(release)/isos/aarch64/",
             iso: .newest(prefix: "AlmaLinux-", suffix: "-aarch64-\(flavor).iso"),
-            checksum: .shared(fileName: "CHECKSUM"), format: .bsd)
+            checksum: .shared(fileName: "CHECKSUM"), format: .bsd, trust: HTTPSOnlyTrust())
     }
 
     static func rocky(release: Int, flavor: String) -> Self {
         Self(
             host: "download.rockylinux.org", directoryPath: "/pub/rocky/\(release)/isos/aarch64/",
             iso: .newest(prefix: "Rocky-", suffix: "-aarch64-\(flavor).iso"),
-            checksum: .sibling(suffix: "CHECKSUM"), format: .bsd)
+            checksum: .sibling(suffix: "CHECKSUM"), format: .bsd, trust: HTTPSOnlyTrust())
     }
 
     /// The live-server installer of an Ubuntu release such as `26.04`; its point releases (`26.04.1`) share the directory.
@@ -228,13 +251,17 @@ extension LinuxProvider {
         Self(
             host: "cdimage.ubuntu.com", directoryPath: "/ubuntu/releases/\(release)/release/",
             iso: .newest(prefix: "ubuntu-", suffix: "-live-server-arm64.iso"),
-            checksum: .shared(fileName: "SHA256SUMS"), format: .gnu)
+            checksum: .shared(fileName: "SHA256SUMS"), format: .gnu,
+            trust: SignedChecksumTrust(placement: .detached(suffix: "gpg"), keys: [PGP.PinnedKeys.ubuntuCDImage]))
     }
 
+    /// The CHECKSUM file is a cleartext-signed message made by that release's Fedora key; a release the app pins no key for
+    /// is refused, not read without a signature.
     static func fedoraServerNetinst(release: Int) -> Self {
         Self(
             host: "dl.fedoraproject.org", directoryPath: "/pub/fedora/linux/releases/\(release)/Server/aarch64/iso/",
             iso: .newest(prefix: "Fedora-Server-netinst-aarch64-", suffix: ".iso"),
-            checksum: .sharedPerRelease { "Fedora-Server-\($0)-aarch64-CHECKSUM" }, format: .bsd)
+            checksum: .sharedPerRelease { "Fedora-Server-\($0)-aarch64-CHECKSUM" }, format: .bsd,
+            trust: SignedChecksumTrust(placement: .cleartext, keys: PGP.PinnedKeys.fedora(release: release)))
     }
 }

@@ -134,8 +134,9 @@ enum Provisioner {
             }
             job.title = "Looking up the newest \(entry.name)"
             job.fraction = nil
-            guard case .remote(let url, let checksum) = try await LinuxCatalog.resolve(entry) else { return nil }
-            return try await ImageStore.fetch(url, checksum: checksum, job: job)
+            let resolved = try await LinuxCatalog.resolve(entry)
+            guard case .remote(let url, let checksum) = resolved.source else { return nil }
+            return try await ImageStore.fetch(url, checksum: checksum, signature: resolved.imageSignature, job: job)
         case .remote(let url, let checksum):
             return try await ImageStore.fetch(url, checksum: checksum, job: job)
         }
