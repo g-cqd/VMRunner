@@ -68,6 +68,10 @@ public final class TestClock: Clock, Sendable {
     /// deterministically: spin until `sleeperCount == N`, then `advance`.
     public var sleeperCount: Int { state.withLock { $0.sleepers.count } }
 
+    /// How many `waitForAdditionalSleepers` calls are registered. A test that starts one in a separate task
+    /// uses it to know the baseline is taken before it parks anything else.
+    var additionalWaiterCount: Int { state.withLock { $0.registrationWaiters.count } }
+
     public func sleep(until deadline: Instant, tolerance: Duration? = nil) async throws {
         try Task.checkCancellation()
         let id = state.withLock { $0.sleepers.makeID() }

@@ -74,6 +74,8 @@ struct TestClockRendezvousTests {
                 try await clock.waitForAdditionalSleepers(2)
                 released.withLock { $0 = true }
             }
+            // The baseline is taken when the waiter registers, so park nothing more until it has.
+            while clock.additionalWaiterCount < 1 { await Task.yield() }
             parkSleepers(1, on: clock, in: &group)
             try? await clock.waitForSleepers(atLeast: 3)
 
@@ -133,6 +135,7 @@ struct TestClockRendezvousTests {
         // The cumulative baseline did NOT fall back, so "one more" means one genuinely new park.
         try await withThrowingTaskGroup(of: Void.self) { group in
             let waiter = Task { try await clock.waitForAdditionalSleepers(1) }
+            while clock.additionalWaiterCount < 1 { await Task.yield() }
             parkSleepers(1, on: clock, in: &group)
             try await waiter.value
             clock.runToLastSleeper()
