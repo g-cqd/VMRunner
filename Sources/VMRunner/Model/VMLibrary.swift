@@ -166,7 +166,10 @@ final class VMLibrary {
         // Secure Boot lives in the firmware variable store, not in the VZ configuration, so the framework
         // can't tell that saved state no longer matches. Drop it. A different network device (NAT, none, or the
         // user-mode stack) is a different device configuration, which saved state can't be restored into.
-        if previous.secureBoot != config.secureBoot || previous.networkMode != config.networkMode {
+        // Turning suspend off or disposable on promises that no memory image is kept (the exposure summary says so), so
+        // the image already on disk goes too.
+        let forbidsSavedState = (previous.allowsSuspend && !config.allowsSuspend) || (!previous.ephemeral && config.ephemeral)
+        if previous.secureBoot != config.secureBoot || previous.networkMode != config.networkMode || forbidsSavedState {
             bundle(config.id).discardSavedState()
         }
         machines[index] = config

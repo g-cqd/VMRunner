@@ -110,6 +110,41 @@ struct LibraryTests {
         #expect(!library.bundle(config.id).hasSavedState)
     }
 
+    @Test func turningSuspendOffOrDisposableOnDropsSavedState() throws {
+        let (library, directory) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let original = try addMachine(to: library)
+        let bundle = library.bundle(original.id)
+
+        var noSuspend = original
+        noSuspend.allowsSuspend = false
+        library.update(noSuspend)
+        #expect(!bundle.hasSavedState, "the exposure summary says no memory image is written once suspend is off")
+
+        try Data("memory".utf8).write(to: bundle.savedState)
+        var disposable = noSuspend
+        disposable.ephemeral = true
+        library.update(disposable)
+        #expect(!bundle.hasSavedState, "a disposable machine keeps no memory image either")
+    }
+
+    @Test func turningSuspendOnOrDisposableOffKeepsSavedState() throws {
+        let (library, directory) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var config = try addMachine(to: library)
+        config.ephemeral = true
+        config.allowsSuspend = false
+        library.update(config)
+        let bundle = library.bundle(config.id)
+        try Data("memory".utf8).write(to: bundle.savedState)
+
+        config.ephemeral = false
+        config.allowsSuspend = true
+        library.update(config)
+
+        #expect(bundle.hasSavedState, "loosening a setting writes nothing, and there is nothing to promise")
+    }
+
     @Test func settingsThatDontAffectFirmwareKeepSavedState() throws {
         let (library, directory) = try makeLibrary()
         defer { try? FileManager.default.removeItem(at: directory) }

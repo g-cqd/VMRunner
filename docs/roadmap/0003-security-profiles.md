@@ -13,3 +13,6 @@ Hardened detach it, the posture and the exposure summary count it, and re-attach
 
 A configuration file is data, so the host paths it names (shared folders, extra disks, the installer image) are honoured
 only for paths the user approved in this app; Start asks about the rest (ADR-0024).
+
+Turning suspend off, or disposable on, deletes a saved memory image already on disk, because the exposure summary says no
+memory snapshot is written.
