@@ -116,12 +116,6 @@ struct ChecksumParsingTests {
         #expect(Format.gnu.sha256(for: "x.iso", in: "\(upper)  x.iso\r\n") == String(repeating: "ab", count: 32))
         #expect(Format.bsd.sha256(for: "x.iso", in: "SHA256 (x.iso) = \(upper)\r\n") == String(repeating: "ab", count: 32))
     }
-
-    @Test func firstDigestParserKeepsItsOriginalBehavior() {
-        #expect(LinuxCatalog.parseSHA256(Sample.centOS) == "5ac47d11e9b4deb578f6c9fb0ba9b43f3ee19b3c3f8ce9c0b7b459ee4531c530")
-        #expect(LinuxCatalog.parseSHA256(String(repeating: "a", count: 65)) == nil)
-        #expect(LinuxCatalog.parseSHA256("no digest here") == nil)
-    }
 }
 
 struct NewestReleaseTests {

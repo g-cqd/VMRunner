@@ -155,15 +155,4 @@ enum LinuxCatalog {
     static func resolve(_ image: LinuxImage) async throws -> ImageSource {
         try await image.provider.resolve()
     }
-
-    /// The first SHA-256 digest (64 hexadecimal digits as a whole word) in `text`, lowercased, whichever line
-    /// carries it. Use `LinuxProvider.ChecksumFormat.sha256(for:in:)` when the text lists several files.
-    static func parseSHA256(_ text: String) -> String? {
-        let digest = Regex {
-            Anchor.wordBoundary
-            Repeat(count: 64) { .asciiHexDigit }
-            Anchor.wordBoundary
-        }
-        return text.firstMatch(of: digest).map { String($0.output).lowercased() }
-    }
 }

@@ -17,7 +17,8 @@ final class ConfigEditorModel {
     /// Raw images can grow but never shrink, so the stepper floor is the size when the editor opened.
     private(set) var diskFloorGiB: Int
 
-    private let library: VMLibrary
+    // Unowned: the library (through its machine models) owns this model, so a strong reference would be a cycle.
+    private unowned let library: VMLibrary
 
     init(id: UUID, library: VMLibrary) {
         self.id = id

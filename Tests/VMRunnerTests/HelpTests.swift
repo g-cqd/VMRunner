@@ -5,12 +5,12 @@ import Testing
 
 struct HelpCatalogTests {
     @Test func everyTopicHasAnEntry() {
-        let missing = Set(HelpTopic.allCases).subtracting(HelpCatalog.coveredTopics)
+        let missing = Set(HelpTopic.allCases).subtracting(Set(HelpCatalog.entries.keys))
         #expect(missing.isEmpty, "topics without help text: \(missing.map(\.rawValue).sorted())")
     }
 
     @Test func noEntryIsOrphanedFromTheTopicList() {
-        #expect(HelpCatalog.coveredTopics.isSubset(of: Set(HelpTopic.allCases)))
+        #expect(Set(HelpCatalog.entries.keys).isSubset(of: Set(HelpTopic.allCases)))
     }
 
     @Test(arguments: HelpTopic.allCases)
@@ -38,7 +38,7 @@ struct HelpCatalogTests {
     @Test(arguments: HelpTopic.allCases)
     func relatedTopicsAreRealAndNotSelfReferential(topic: HelpTopic) {
         #expect(!topic.entry.related.contains(topic))
-        #expect(topic.entry.related.allSatisfy { HelpCatalog.coveredTopics.contains($0) })
+        #expect(topic.entry.related.allSatisfy { Set(HelpCatalog.entries.keys).contains($0) })
     }
 
     @Test func eachAreaHasAtLeastOneTopic() {

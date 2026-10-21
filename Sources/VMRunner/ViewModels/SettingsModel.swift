@@ -11,7 +11,7 @@ final class SettingsModel {
 
     func refresh() async {
         let images = AppPaths.images
-        cacheBytes = await Task.detached(priority: .utility) { Self.allocatedBytes(in: images) }.value
+        cacheBytes = await Task.detached(priority: .utility) { DiskUsage.allocatedBytes(in: images) }.value
     }
 
     func clearImages() async {
@@ -36,15 +36,5 @@ final class SettingsModel {
                 "Couldn't create \(directory.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
         NSWorkspace.shared.activateFileViewerSelecting([directory])
-    }
-
-    nonisolated private static func allocatedBytes(in url: URL) -> Int64 {
-        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey]
-        guard let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys)) else { return 0 }
-        var total: Int64 = 0
-        for case let file as URL in files {
-            total += Int64((try? file.resourceValues(forKeys: keys).totalFileAllocatedSize) ?? 0)
-        }
-        return total
     }
 }

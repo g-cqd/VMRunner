@@ -13,7 +13,8 @@ struct StorageSection: View {
     var body: some View {
         Section {
             Stepper(
-                value: Binding(get: { diskGiB }, set: resize), in: floorGiB...EditorLimits.maxDiskGiB, step: EditorLimits.diskStepGiB
+                value: Binding(get: { diskGiB }, set: { resize($0) }), in: floorGiB...EditorLimits.maxDiskGiB,
+                step: EditorLimits.diskStepGiB
             ) {
                 LabeledContent("Disk size", value: "\(diskGiB) GiB")
             }

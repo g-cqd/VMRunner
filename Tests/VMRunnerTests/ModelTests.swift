@@ -110,7 +110,8 @@ struct APFSTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let source = dir.appending(path: "a.img")
         try Data(repeating: 0xAB, count: 256 << 20).write(to: source)
-        try #require(APFS.supportsCloning(at: dir), "test volume must be APFS")
+        let supportsCloning = try dir.resourceValues(forKeys: [.volumeSupportsFileCloningKey]).volumeSupportsFileCloning
+        try #require(supportsCloning == true, "test volume must be APFS")
 
         let before = try freeBytes(dir)
         let copy = dir.appending(path: "b.img")

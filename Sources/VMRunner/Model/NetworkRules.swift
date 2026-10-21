@@ -54,18 +54,11 @@ struct DomainRule: Hashable, Sendable, Codable, CustomStringConvertible {
     }
 
     init(from decoder: any Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let text = try container.decode(String.self)
-        do {
-            try self.init(text)
-        } catch {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid domain rule: \(error)")
-        }
+        self = try StringRuleCoding.decode(decoder, kind: "domain rule") { try Self($0) }
     }
 
     func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(description)
+        try StringRuleCoding.encode(description, to: encoder)
     }
 }
 
@@ -180,17 +173,10 @@ struct URLRule: Hashable, Sendable, Codable, CustomStringConvertible {
     }
 
     init(from decoder: any Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let text = try container.decode(String.self)
-        do {
-            try self.init(text)
-        } catch {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid URL rule: \(error)")
-        }
+        self = try StringRuleCoding.decode(decoder, kind: "URL rule") { try Self($0) }
     }
 
     func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(description)
+        try StringRuleCoding.encode(description, to: encoder)
     }
 }

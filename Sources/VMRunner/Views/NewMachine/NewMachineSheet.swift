@@ -46,14 +46,7 @@ private struct ResourcesSection: View {
 
     var body: some View {
         Section {
-            Stepper(value: $cpuCount, in: ConfigurationBuilder.cpuRange) {
-                LabeledContent("CPU cores", value: "\(cpuCount)")
-            }
-            .settingHelp(.cpuCores)
-            Stepper(value: $memoryMiB, in: ConfigurationBuilder.memoryRangeMiB, step: EditorLimits.newMemoryStepMiB) {
-                LabeledContent("Memory", value: "\(memoryMiB / 1024) GiB")
-            }
-            .settingHelp(.memory)
+            CoreAndMemorySteppers(cpuCount: $cpuCount, memoryMiB: $memoryMiB, memoryStepMiB: EditorLimits.newMemoryStepMiB)
             Stepper(value: $diskGiB, in: EditorLimits.newDiskGiB, step: EditorLimits.diskStepGiB) {
                 LabeledContent("Disk", value: "\(diskGiB) GiB")
             }

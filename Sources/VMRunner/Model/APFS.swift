@@ -22,22 +22,6 @@ enum APFS {
             throw CloneError(source: source, code: errno)
         }
     }
-
-    /// Replaces `destination` with a clone of `source`, leaving the old file in place if cloning fails.
-    static func replace(_ destination: URL, withCloneOf source: URL) throws {
-        let staging = destination.deletingLastPathComponent().appending(path: ".\(UUID().uuidString).clone")
-        try clone(source, to: staging)
-        do {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: staging)
-        } catch {
-            VMBundle(url: staging.deletingLastPathComponent()).remove(staging)
-            throw error
-        }
-    }
-
-    static func supportsCloning(at url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.volumeSupportsFileCloningKey]).volumeSupportsFileCloning) ?? false
-    }
 }
 
 enum SnapshotError: LocalizedError {

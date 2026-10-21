@@ -29,7 +29,8 @@ final class MachineModel {
     let editor: ConfigEditorModel
     var confirmingDelete = false
 
-    private let library: VMLibrary
+    // Unowned: the library owns its models, so a strong reference back would be a retain cycle.
+    private unowned let library: VMLibrary
 
     init(id: UUID, library: VMLibrary) {
         self.id = id

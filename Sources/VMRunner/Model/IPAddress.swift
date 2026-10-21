@@ -113,8 +113,7 @@ extension IPAddress: Codable {
     }
 
     func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(description)
+        try StringRuleCoding.encode(description, to: encoder)
     }
 }
 
@@ -195,18 +194,11 @@ struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
     private static func mask6(_ prefix: Int) -> UInt128 { UInt128.max << (128 - prefix) }
 
     init(from decoder: any Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let text = try container.decode(String.self)
-        do {
-            try self.init(text)
-        } catch {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid address rule: \(error)")
-        }
+        self = try StringRuleCoding.decode(decoder, kind: "address rule") { try Self($0) }
     }
 
     func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(description)
+        try StringRuleCoding.encode(description, to: encoder)
     }
 }
 

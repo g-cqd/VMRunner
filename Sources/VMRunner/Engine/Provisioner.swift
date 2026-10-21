@@ -11,6 +11,19 @@ enum Provisioner {
         }
     }
 
+    /// Creates the machine's folder and a sparse disk image, unless a resumed setup already made them.
+    @MainActor
+    private static func createBundleAndDisk(for config: VMConfig, in bundle: VMBundle, job: SetupJob) throws {
+        job.title = "Creating machine"
+        job.fraction = nil
+        // A machine deleted while its media was verifying must not be recreated on disk.
+        try Task.checkCancellation()
+        try bundle.create()
+        if !FileManager.default.fileExists(atPath: bundle.disk.path) {
+            try DiskImage.create(at: bundle.disk, gibibytes: config.diskGiB)
+        }
+    }
+
     // MARK: Linux
 
     @MainActor
@@ -23,14 +36,7 @@ enum Provisioner {
             config.installerAttached = true
         }
 
-        job.title = "Creating machine"
-        job.fraction = nil
-        // A machine deleted while its media was verifying must not be recreated on disk.
-        try Task.checkCancellation()
-        try bundle.create()
-        if !FileManager.default.fileExists(atPath: bundle.disk.path) {
-            try DiskImage.create(at: bundle.disk, gibibytes: config.diskGiB)
-        }
+        try createBundleAndDisk(for: config, in: bundle, job: job)
         _ = try VZEFIVariableStore(creatingVariableStoreAt: bundle.efiVariables, options: [.allowOverwrite])
         try VZGenericMachineIdentifier().dataRepresentation.write(to: bundle.machineIdentifier)
 
@@ -63,12 +69,7 @@ enum Provisioner {
         let version = image.operatingSystemVersion
         config.guestVersion = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion) (\(image.buildVersion))"
 
-        job.title = "Creating machine"
-        try Task.checkCancellation()
-        try bundle.create()
-        if !FileManager.default.fileExists(atPath: bundle.disk.path) {
-            try DiskImage.create(at: bundle.disk, gibibytes: config.diskGiB)
-        }
+        try createBundleAndDisk(for: config, in: bundle, job: job)
         _ = try VZMacAuxiliaryStorage(
             creatingStorageAt: bundle.auxiliaryStorage, hardwareModel: requirements.hardwareModel, options: [.allowOverwrite])
         try requirements.hardwareModel.dataRepresentation.write(to: bundle.hardwareModel)

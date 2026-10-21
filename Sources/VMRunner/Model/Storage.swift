@@ -66,15 +66,7 @@ struct VMBundle: Sendable {
     }
 
     /// Bytes actually allocated on disk (the disk image is sparse).
-    var allocatedBytes: Int64 {
-        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey]
-        guard let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys)) else { return 0 }
-        var total: Int64 = 0
-        for case let file as URL in files {
-            total += Int64((try? file.resourceValues(forKeys: keys).totalFileAllocatedSize) ?? 0)
-        }
-        return total
-    }
+    var allocatedBytes: Int64 { DiskUsage.allocatedBytes(in: url) }
 
     /// Removes a file, logging anything other than "already gone".
     func remove(_ file: URL) {
@@ -86,6 +78,19 @@ struct VMBundle: Sendable {
             Log.storage.error(
                 "Couldn't remove \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
+    }
+}
+
+enum DiskUsage {
+    /// Total bytes allocated on disk for every file under `directory`. Walks the tree, so call it off the main thread.
+    static func allocatedBytes(in directory: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey]
+        guard let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: Array(keys)) else { return 0 }
+        var total: Int64 = 0
+        for case let file as URL in files {
+            total += Int64((try? file.resourceValues(forKeys: keys).totalFileAllocatedSize) ?? 0)
+        }
+        return total
     }
 }
 

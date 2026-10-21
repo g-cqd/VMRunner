@@ -132,14 +132,6 @@ struct ChecksumTests {
 }
 
 struct CatalogTests {
-    @Test func parsesCentOSChecksumFile() {
-        let text = """
-            # CentOS-Stream-10-20261019.0-aarch64-boot.iso: 1026574336 bytes
-            SHA256 (CentOS-Stream-10-20261019.0-aarch64-boot.iso) = 5ac47d11e9b4deb578f6c9fb0ba9b43f3ee19b3c3f8ce9c0b7b459ee4531c530
-            """
-        #expect(LinuxCatalog.parseSHA256(text) == "5ac47d11e9b4deb578f6c9fb0ba9b43f3ee19b3c3f8ce9c0b7b459ee4531c530")
-    }
-
     @Test func ipswDecodingKeepsOnlySignedGuestCapableBuilds() throws {
         let json = """
             {"firmwares":[

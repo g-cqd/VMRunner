@@ -61,12 +61,9 @@ struct HelpEntry: Sendable {
 }
 
 enum HelpCatalog {
-    private static let entries: [HelpTopic: HelpEntry] = [
+    static let entries: [HelpTopic: HelpEntry] = [
         machines, hardware, networkAndSecurity, snapshotsAndApp,
     ].reduce(into: [:]) { $0.merge($1) { first, _ in first } }
-
-    /// Every topic that has an entry. Compared against `HelpTopic.allCases` in tests.
-    static var coveredTopics: Set<HelpTopic> { Set(entries.keys) }
 
     static func entry(for topic: HelpTopic) -> HelpEntry {
         entries[topic]
