@@ -29,3 +29,13 @@ A review of the stack with the guest as the attacker produced a series of fixes,
 ## Still owed
 
 Validation against real macOS and Linux guests: DHCP and MTU handling, checksum offload, throughput through the framework.
+
+Left open on purpose after the review:
+
+- Address blocks derived from domain rules, so that a domain rule outlives the name table's expiry (ADR-0028 records the
+  gap: domain rules stay advisory).
+- A pool of resolver workers in place of one short-lived thread per lookup (at most 32 at a time).
+- A byte bound on the queue of frames waiting for the guest's socket (it is bounded by count today).
+- Answered DNS events are not folded the way refusals are, and a DNS-over-TCP answer that finds the guest-bound ring full
+  is dropped without a trace.
+- An explicit, separate opt-in for one kind of the floor (ADR-0029), should a guest ever need the Mac's loopback services.
