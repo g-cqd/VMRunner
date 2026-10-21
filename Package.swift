@@ -119,6 +119,7 @@ let package = Package(
                 "ContainerSpikeCore",
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
             ],
             path: "Sources/ContainerSpike", swiftSettings: hardening),
 

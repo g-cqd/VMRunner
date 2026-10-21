@@ -6,16 +6,51 @@ import Synchronization
 
 /// The run flow of the package's sample command-line tool, in the order that tool uses: a kernel, a container manager that
 /// pulls the init image, a pull of alpine, create, start, wait, stop. It runs `uname -a` and records what each step cost.
+/// With a loopback network the container also pings its gateway, and the frames its network device delivered are reported.
 struct ContainerFlow {
     /// The init image, matched to the pinned package release: the guest and the host speak a versioned protocol.
     static let initReference = "ghcr.io/apple/containerization/vminit:0.52.1"
     static let imageReference = "docker.io/library/alpine:3.24.2"
-    static let command = ["uname", "-a"]
 
     let layout: SpikeLayout
+    let network: SpikeArguments.Network
+
+    /// The container's command. The ping has no reply to get, so the shell ends with status 0 regardless; the frames the
+    /// ping caused are the result, not the ping's own status.
+    private var command: [String] {
+        switch network {
+        case .none: ["uname", "-a"]
+        case .loopback: ["/bin/sh", "-c", "uname -a; ping -c 1 -W 2 \(NetworkVerdict.gatewayAddress) >/dev/null 2>&1; exit 0"]
+        }
+    }
 
     /// Appends each completed phase to `report`, so a failure half way still tells how far the run got.
     func run(kernel: URL, report: inout SpikeReport) async throws {
+        guard network == .loopback else {
+            try await execute(kernel: kernel, link: nil, report: &report)
+            return
+        }
+        let link = try LoopbackLink()
+        let collector = Task {
+            var seen: [FrameSummary] = []
+            for await bytes in link.frames {
+                if let frame = FrameSummary.parse(bytes) { seen.append(frame) }
+            }
+            return seen
+        }
+        var failure: (any Error)?
+        do {
+            try await execute(kernel: kernel, link: link, report: &report)
+        } catch {
+            failure = error
+        }
+        link.stop()
+        report.frames = await collector.value
+        report.networkVerdict = NetworkVerdict.evaluate(frames: report.frames)
+        if let failure { throw failure }
+    }
+
+    private func execute(kernel: URL, link: LoopbackLink?, report: inout SpikeReport) async throws {
         let clock = ContinuousClock()
         var started = clock.now
         func finishPhase(_ name: String) {
@@ -26,7 +61,8 @@ struct ContainerFlow {
         var manager = try await ContainerManager(
             kernel: Kernel(path: kernel, platform: .linuxArm),
             initfsReference: Self.initReference,
-            root: layout.imageStore
+            root: layout.imageStore,
+            network: link.map { LoopbackNetwork(link: $0) }
         )
         finishPhase("init-image")
 
@@ -36,13 +72,14 @@ struct ContainerFlow {
         let id = "spike-\(UUID().uuidString.prefix(8).lowercased())"
         let capture = OutputCapture()
         let memory = UInt64(512) << 20
+        let command = command
         let container = try await manager.create(
-            id, image: image, rootfsSizeInBytes: UInt64(1) << 30, networking: false,
+            id, image: image, rootfsSizeInBytes: UInt64(1) << 30, networking: link != nil,
             vm: VMResources(cpus: 2, memoryInBytes: memory + VMResources.guestMemoryOverhead)
         ) { config in
             config.cpus = 2
             config.memoryInBytes = memory
-            config.process.arguments = Self.command
+            config.process.arguments = command
             config.process.stdout = capture
             config.process.stderr = capture
         }

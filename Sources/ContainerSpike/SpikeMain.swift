@@ -15,14 +15,12 @@ enum SpikeMain {
     static func run(_ arguments: SpikeArguments) async -> Int32 {
         let layout = SpikeLayout(scratch: arguments.scratch)
         var report = SpikeReport()
-        var status = SpikeStatus.setupFailed
         do {
             try FileManager.default.createDirectory(
                 at: layout.scratch, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             Console.line("scratch: \(layout.scratch.path)")
             let kernel = try await KernelProvider.ensureKernel(layout: layout)
-            try await ContainerFlow(layout: layout).run(kernel: kernel, report: &report)
-            status = report.verdict?.processStatus ?? SpikeStatus.setupFailed
+            try await ContainerFlow(layout: layout, network: arguments.network).run(kernel: kernel, report: &report)
         } catch {
             Console.line("error: \(error)", to: .error)
         }
@@ -30,6 +28,6 @@ enum SpikeMain {
         for line in report.lines {
             Console.line(line)
         }
-        return status
+        return report.processStatus
     }
 }

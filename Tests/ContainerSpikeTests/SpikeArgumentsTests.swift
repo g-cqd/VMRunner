@@ -30,6 +30,18 @@ struct SpikeArgumentsTests {
         #expect(try scratch(["out/../scratch"]) == "/work/dir/scratch")
     }
 
+    private func network(_ arguments: [String]) throws -> SpikeArguments.Network? {
+        guard case .run(let parsed) = try SpikeArguments.parse(arguments, currentDirectory: current) else { return nil }
+        return parsed.network
+    }
+
+    @Test
+    func theNetworkIsNoneUnlessAskedForByName() throws {
+        #expect(try network(["/tmp/spike"]) == SpikeArguments.Network.none)
+        #expect(try network(["--network", "loopback", "/tmp/spike"]) == .loopback)
+        #expect(try network(["/tmp/spike", "--network", "none"]) == SpikeArguments.Network.none)
+    }
+
     @Test
     func helpWinsOverEverythingElse() throws {
         #expect(try SpikeArguments.parse(["/tmp/spike", "-h"], currentDirectory: current) == .help)
@@ -42,6 +54,9 @@ struct SpikeArgumentsTests {
         #expect(failure([""]) == .missingScratchDirectory)
         #expect(failure(["/a", "/b"]) == .extraArgument("/b"))
         #expect(failure(["/a", "--bridge"]) == .unknownOption("--bridge"))
+        #expect(failure(["--network", "loopback"]) == .missingScratchDirectory)
+        #expect(failure(["/a", "--network"]) == .missingValue(option: "--network"))
+        #expect(failure(["/a", "--network", "nat"]) == .unknownNetwork("nat"))
     }
 
     @Test

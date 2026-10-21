@@ -14,13 +14,38 @@ struct SpikeReportTests {
         #expect(SpikeVerdict.evaluate(exitCode: -1, output: uname) == .commandFailed(exitCode: -1))
     }
 
+    private func status(_ verdict: SpikeVerdict?, network: NetworkVerdict? = nil) -> Int32 {
+        var report = SpikeReport()
+        report.verdict = verdict
+        report.networkVerdict = network
+        return report.processStatus
+    }
+
     @Test
-    func onlyAPassExitsZero() {
-        #expect(SpikeVerdict.passed.processStatus == 0)
-        #expect(SpikeVerdict.commandFailed(exitCode: 3).processStatus == SpikeStatus.failed)
-        #expect(SpikeVerdict.unexpectedOutput.processStatus == SpikeStatus.failed)
+    func onlyAPassExitsZeroAndARunThatNeverReachedAVerdictIsASetupFailure() {
+        #expect(status(.passed) == SpikeStatus.passed)
+        #expect(status(.passed, network: .passed) == SpikeStatus.passed)
+        #expect(status(.commandFailed(exitCode: 3)) == SpikeStatus.failed)
+        #expect(status(.unexpectedOutput, network: .passed) == SpikeStatus.failed)
+        #expect(status(.passed, network: .noFrames) == SpikeStatus.failed)
+        #expect(status(nil) == SpikeStatus.setupFailed)
+        #expect(status(nil, network: .noFrames) == SpikeStatus.setupFailed)
         let statuses = [SpikeStatus.passed, SpikeStatus.failed, SpikeStatus.usage, SpikeStatus.setupFailed]
         #expect(Set(statuses).count == statuses.count, "each outcome has its own status")
+    }
+
+    @Test
+    func theNetworkExperimentAddsItsFramesAndVerdictToTheReport() {
+        var report = SpikeReport()
+        report.verdict = .passed
+        report.networkVerdict = .noFrames
+        #expect(
+            report.lines.suffix(3) == [
+                "verdict: passed", "frames-seen: 0", "network-verdict: failed: no frame reached the host end of the link",
+            ])
+        report.frames = (0..<25).compactMap { _ in FrameSummary.parse([UInt8](repeating: 0, count: 60)) }
+        #expect(report.lines.filter { $0.hasPrefix("frame: ") }.count == 20, "the listing is capped")
+        #expect(report.lines.contains("frames-seen: 25"), "the count is not")
     }
 
     @Test

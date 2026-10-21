@@ -21,9 +21,6 @@ public enum SpikeVerdict: Equatable, Sendable {
         case .unexpectedOutput: "failed: the output does not contain \(Self.expectedArchitecture)"
         }
     }
-
-    /// The spike's own exit status: 0 for a pass, ``SpikeStatus/failed`` otherwise.
-    public var processStatus: Int32 { self == .passed ? SpikeStatus.passed : SpikeStatus.failed }
 }
 
 /// Exit statuses of the `ContainerSpike` executable, in the `sysexits.h` style the repository's tooling uses.
@@ -49,12 +46,25 @@ public struct SpikeReport: Equatable, Sendable {
         }
     }
 
+    /// How many frames the report lists; the count line says how many there were.
+    private static let listedFrames = 20
+
     public var phases: [Phase] = []
     public var output = ""
     public var exitCode: Int32?
     public var verdict: SpikeVerdict?
+    /// The frames the guest's network device delivered, and what they show. Both stay empty without a loopback network.
+    public var frames: [FrameSummary] = []
+    public var networkVerdict: NetworkVerdict?
 
     public init() {}
+
+    /// The spike's own exit status: ``SpikeStatus/passed`` only when the run reached a verdict and every verdict passed;
+    /// ``SpikeStatus/setupFailed`` when the run never reached one; ``SpikeStatus/failed`` otherwise.
+    public var processStatus: Int32 {
+        guard let verdict else { return SpikeStatus.setupFailed }
+        return verdict == .passed && (networkVerdict ?? .passed) == .passed ? SpikeStatus.passed : SpikeStatus.failed
+    }
 
     /// `duration` as seconds with two decimals, rounded half up. A negative duration reads as zero.
     public static func seconds(_ duration: Duration) -> String {
@@ -71,6 +81,11 @@ public struct SpikeReport: Equatable, Sendable {
         lines.append("output: \(trimmed)")
         lines.append("exit-status: \(exitCode.map(String.init) ?? "none")")
         lines.append("verdict: \(verdict?.summary ?? "not reached")")
+        if let networkVerdict {
+            lines.append("frames-seen: \(frames.count)")
+            lines += frames.prefix(Self.listedFrames).map { "frame: \($0)" }
+            lines.append("network-verdict: \(networkVerdict.summary)")
+        }
         return lines
     }
 }
