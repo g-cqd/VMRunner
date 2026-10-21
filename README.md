@@ -187,7 +187,8 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
 - **Analyzers** are the pinned, checksum-verified releases listed in `Scripts/analyzers.lock`, run by
   `vmr analyzers` (binaries land in the git-ignored `.tools/`; the SHA-256 of each archive is checked against the
   lock, not against the release's own checksum file, before anything is unpacked or run; an installed binary is reused
-  only while its digest matches the stamp the verified install wrote, and never when git tracks files under `.tools/`):
+  only while its digest matches the stamp the verified install wrote, and never when git tracks files under `.tools/`;
+  the lock also records each tag's commit for a reviewer to compare, but that field is informational and nothing checks it):
   `arcleak` (retain cycles, anchor leaks, premature releases; any finding fails), `dolly` (duplicate code; exact
   clones fail, near and structural clones are advisory) and `deadwood` (unused and dead code, production mode; any
   finding fails). Configuration: `.arcleak.json`, `.dolly.json`, `.deadwood.json`. Existing findings can be

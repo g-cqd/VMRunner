@@ -98,7 +98,7 @@ struct AnalyzerInstaller: Sendable {
         guard (try? FileManager.default.attributesOfItem(atPath: toolsDirectory.path)) != nil else { return }
         // A relative pathspec from the parent: it holds when a temporary directory is reached through a symlink.
         let spec = CommandSpec(
-            executable: "git",
+            executable: "/usr/bin/git",  // absolute, like tar: PATH decides nothing here
             arguments: ["ls-files", "--error-unmatch", "--", toolsDirectory.lastPathComponent],
             workingDirectory: toolsDirectory.deletingLastPathComponent()
         )

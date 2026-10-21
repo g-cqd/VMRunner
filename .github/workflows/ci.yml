@@ -121,8 +121,8 @@ jobs:
       - name: Assert tests ran
         if: ${{ matrix.assert }}
         run: |
-          total="$(grep -Eo 'Test run with [0-9]+ tests?' .build-ci/lane.log | awk '{ total += $4 } END { print total + 0 }')"
-          echo "Swift Testing ran ${total} test(s)"
+          total="$(cat .build-ci/test-results*.xml 2>/dev/null | grep -c '<testcase ' || true)"
+          echo "the result files hold ${total} test case(s)"
           [ "$total" -ge 1 ] || { echo "::error::the run executed no tests"; exit 1; }
       - name: Save build cache
         if: ${{ matrix.cache && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}

@@ -2,7 +2,8 @@
 # analyzers` and by every gate step and hook that runs SwiftLint).
 #
 # <TOOL>_VERSION                release tag without its prefix: "v" for the analyzers, none for SwiftLint
-# <TOOL>_COMMIT                 full commit SHA the tag points at (provenance)
+# <TOOL>_COMMIT                 full commit SHA the tag points at. INFORMATIONAL: kept so a reviewer can compare it with
+#                               the tag; nothing verifies it. The archive digest below is the only check.
 # <TOOL>_SHA256_MACOS_ARM64     SHA-256 of the release archive, verified before anything is executed. The archive is
 #                               <tool>-<version>-macos-arm64.tar.gz for an analyzer and portable_swiftlint.zip (a
 #                               universal binary) for SwiftLint. Not read from the release's own checksum file, so
@@ -13,6 +14,9 @@
 # here. CI runs `swift run vmr check` steps against this file, so nothing else carries the versions. Fingerprints in the
 # baselines can move between analyzer versions: regenerate them with `swift run vmr analyzers baseline`. A new SwiftLint
 # version can report new violations: fix them in the same change.
+#
+# Each value is validated before use: the version is [0-9A-Za-z.+-]+, the commit 40 and the digest 64 hexadecimal digits,
+# and a key written twice rejects the file.
 #
 # Release archives are fetched from the address built in Sources/DevTools/Analyzers/ReleaseDownloader.swift.
 

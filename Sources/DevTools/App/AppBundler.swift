@@ -112,7 +112,8 @@ struct AppBundler {
 
     /// `codesign -dv` output, which must show the `runtime` flag.
     private func verifyHardenedRuntime() async throws -> String {
-        let result = try await ProcessRunner.run(CommandSpec(executable: "codesign", arguments: ["-dv", "--verbose=4", appURL.path]))
+        let result = try await ProcessRunner.run(
+            CommandSpec(executable: "/usr/bin/codesign", arguments: ["-dv", "--verbose=4", appURL.path]))
         let output = result.standardError + result.standardOutput
         guard output.contains(#/flags=0x[0-9a-f]+\([^)]*runtime/#) else {
             throw ToolError("hardened runtime flag is missing from the signature")
@@ -125,7 +126,8 @@ struct AppBundler {
         if let directory, let flags = directory.range(of: "flags=") {
             Output.out("code signature: \(directory[flags.lowerBound...])")
         }
-        let architectures = try await ProcessRunner.run(CommandSpec(executable: "lipo", arguments: ["-archs", executableURL.path]))
+        let architectures = try await ProcessRunner.run(
+            CommandSpec(executable: "/usr/bin/lipo", arguments: ["-archs", executableURL.path]))
         Output.out("architecture:   \(architectures.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
         if options.hardened {
             Output.out("profile:        hardened (Enhanced Security entitlements)")

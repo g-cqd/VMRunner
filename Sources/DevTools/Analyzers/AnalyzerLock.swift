@@ -75,7 +75,8 @@ struct AnalyzerPin: Equatable, Sendable {
     let release: ReleaseSpec
     /// The release tag without its prefix.
     let version: String
-    /// The full commit SHA the tag points at (provenance).
+    /// The full commit SHA the tag points at. Informational: it is recorded so a human can compare it with the tag, and
+    /// nothing checks it. The archive digest below is the only thing the installer verifies.
     let commit: String
     /// SHA-256 of the archive, verified before anything from it is listed, unpacked or run.
     let sha256: String
@@ -85,14 +86,18 @@ struct AnalyzerPin: Equatable, Sendable {
 }
 
 /// The pins file: `KEY=VALUE` lines, `#` comments, keys `<TOOL>_VERSION`, `<TOOL>_COMMIT` and
-/// `<TOOL>_SHA256_MACOS_ARM64`, for each analyzer and for SwiftLint.
+/// `<TOOL>_SHA256_MACOS_ARM64`, for each analyzer and for SwiftLint. The values end up in paths and addresses and decide
+/// what is trusted, so a pin is rejected unless each has its exact shape, and a key written twice rejects the whole file.
 struct AnalyzerLock: Equatable {
     static let relativePath = "Scripts/analyzers.lock"
 
     let values: [String: String]
+    /// Keys the file assigns more than once, sorted.
+    let duplicateKeys: [String]
 
     init(text: String) {
         var parsed: [String: String] = [:]
+        var duplicates: Set<String> = []
         for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#"), let separator = line.firstIndex(of: "=") else { continue }
@@ -101,9 +106,10 @@ struct AnalyzerLock: Equatable {
             if value.count >= 2, let first = value.first, first == "\"" || first == "'", value.last == first {
                 value = String(value.dropFirst().dropLast())
             }
-            parsed[key] = value
+            if parsed.updateValue(value, forKey: key) != nil { duplicates.insert(key) }
         }
         values = parsed
+        duplicateKeys = duplicates.sorted()
     }
 
     static func load(root: URL) throws -> Self {
@@ -117,18 +123,34 @@ struct AnalyzerLock: Equatable {
     }
 
     func pin(for release: ReleaseSpec) throws -> AnalyzerPin {
+        guard duplicateKeys.isEmpty else {
+            throw ToolError("\(Self.relativePath) assigns \(duplicateKeys.joined(separator: ", ")) more than once")
+        }
         let prefix = release.name.uppercased()
-        func value(_ field: String) throws -> String {
+        func value(_ field: String, shape: String, matching isValid: (String) -> Bool) throws -> String {
             guard let found = values["\(prefix)_\(field)"], !found.isEmpty else {
                 throw ToolError("\(Self.relativePath) has no \(prefix)_\(field)")
+            }
+            guard isValid(found) else {
+                throw ToolError("\(Self.relativePath): \(prefix)_\(field) '\(found)' is not \(shape)")
             }
             return found
         }
         return AnalyzerPin(
             release: release,
-            version: try value("VERSION"),
-            commit: try value("COMMIT"),
-            sha256: try value("SHA256_MACOS_ARM64").lowercased()
+            version: try value("VERSION", shape: "a version ([0-9A-Za-z.+-]+)") { $0.allSatisfy { Self.versionCharacters.contains($0) } },
+            commit: try value("COMMIT", shape: "40 lowercase hex digits") { Self.isHex($0, count: 40) },
+            sha256: try value("SHA256_MACOS_ARM64", shape: "64 hex digits") { Self.isHex($0.lowercased(), count: 64) }.lowercased()
         )
+    }
+
+    private static let versionCharacters = Set("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.+-")
+
+    private static func isHex(_ text: String, count: Int) -> Bool {
+        // Bytes, not Characters: a digit with a combining mark is one Character but not a hex digit.
+        text.utf8.count == count
+            && text.utf8.allSatisfy {
+                ($0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9")) || ($0 >= UInt8(ascii: "a") && $0 <= UInt8(ascii: "f"))
+            }
     }
 }

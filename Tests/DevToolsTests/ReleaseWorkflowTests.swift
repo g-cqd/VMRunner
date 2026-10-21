@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-/// What `release.yml` promises about integrity, read as text: there is no workflow runner in the tests.
+/// What the workflows promise about integrity, read as text: there is no workflow runner in the tests.
 struct ReleaseWorkflowTests {
     private static let workflows = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appending(path: ".github/workflows")
@@ -33,5 +33,14 @@ struct ReleaseWorkflowTests {
         #expect(!release.contains("github.repository_visibility"), "that property is not part of the github context")
         #expect(release.contains("if: ${{ github.event.repository.private == false }}"), "the attestation is for public repositories")
         #expect(release.contains("if: ${{ github.event.repository.private != false }}"), "and the skip is announced")
+    }
+
+    @Test
+    func ciCountsTestCasesInTheResultFilesNotInTheLog() throws {
+        let ci = try Self.text("ci.yml")
+        #expect(ci.contains("--xunit-output .build-ci/test-results.xml"), "the test lane writes result files")
+        #expect(ci.contains("cat .build-ci/test-results*.xml"), "the assertion reads them")
+        #expect(ci.contains("grep -c '<testcase '"))
+        #expect(!ci.contains("Test run with"), "a line of the log is not evidence that tests ran")
     }
 }

@@ -16,21 +16,46 @@ struct PureLogicTests {
         #expect(Coverage.describe(minimum: 55.5) == "55.5")
     }
 
+    private static let validCommit = String(repeating: "a", count: 40)
+    private static let validDigest = String(repeating: "b", count: 64)
+
+    /// A lock for arcleak with one field replaced.
+    private static func lockText(version: String = "0.10.2", commit: String = validCommit, sha256: String = validDigest) -> String {
+        "ARCLEAK_VERSION=\(version)\nARCLEAK_COMMIT=\(commit)\nARCLEAK_SHA256_MACOS_ARM64=\(sha256)\n"
+    }
+
     @Test
     func theLockIsKeyValueWithComments() throws {
         let lock = AnalyzerLock(
             text: """
                 # comment
                 ARCLEAK_VERSION=0.10.2
-                ARCLEAK_COMMIT=abc
+                ARCLEAK_COMMIT=\(Self.validCommit)
 
-                ARCLEAK_SHA256_MACOS_ARM64="DEADBEEF"
+                ARCLEAK_SHA256_MACOS_ARM64="\(Self.validDigest.uppercased())"
                 """
         )
         let pin = try lock.pin(for: .arcleak)
-        #expect(pin == AnalyzerPin(release: AnalyzerTool.arcleak.release, version: "0.10.2", commit: "abc", sha256: "deadbeef"))
+        #expect(
+            pin == AnalyzerPin(release: AnalyzerTool.arcleak.release, version: "0.10.2", commit: Self.validCommit, sha256: Self.validDigest)
+        )
         #expect(pin.archiveName == "arcleak-0.10.2-macos-arm64.tar.gz")
         #expect(throws: ToolError.self) { try lock.pin(for: .dolly) }
+    }
+
+    @Test(arguments: [
+        (Self.lockText(version: "1.0/../../x"), "ARCLEAK_VERSION '1.0/../../x' is not a version"),
+        (Self.lockText(version: "1 0"), "ARCLEAK_VERSION '1 0' is not a version"),
+        (Self.lockText(commit: "abc"), "ARCLEAK_COMMIT 'abc' is not 40 lowercase hex digits"),
+        (Self.lockText(commit: String(repeating: "A", count: 40)), "is not 40 lowercase hex digits"),
+        (Self.lockText(sha256: String(repeating: "g", count: 64)), "is not 64 hex digits"),
+        (Self.lockText(sha256: String(repeating: "b", count: 63)), "is not 64 hex digits"),
+        (Self.lockText(sha256: String(repeating: "5\u{301}", count: 64)), "is not 64 hex digits"),
+        (Self.lockText() + "ARCLEAK_VERSION=0.10.3\n", "assigns ARCLEAK_VERSION more than once"),
+    ])
+    func aMalformedOrRepeatedLockValueIsRejected(text: String, message: String) {
+        let error = #expect(throws: ToolError.self) { try AnalyzerLock(text: text).pin(for: .arcleak) }
+        #expect(error?.message.contains(message) == true, "\(error?.message ?? "no error")")
     }
 
     @Test

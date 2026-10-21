@@ -30,7 +30,7 @@ enum BuildTools {
     }
 
     static func codesign(_ arguments: [String]) async throws {
-        let result = try await ProcessRunner.run(CommandSpec(executable: "codesign", arguments: arguments), output: .inherit)
+        let result = try await ProcessRunner.run(CommandSpec(executable: "/usr/bin/codesign", arguments: arguments), output: .inherit)
         guard result.succeeded else { throw ToolError("codesign \(arguments[0]) failed", status: result.status) }
     }
 
@@ -43,7 +43,8 @@ enum BuildTools {
     static func verifyEntitlements(
         of url: URL, expected: Entitlements.Dictionary, isRelease: Bool, expectation: String
     ) async throws -> Entitlements.Dictionary {
-        let result = try await ProcessRunner.run(CommandSpec(executable: "codesign", arguments: ["-d", "--entitlements", ":-", url.path]))
+        let result = try await ProcessRunner.run(
+            CommandSpec(executable: "/usr/bin/codesign", arguments: ["-d", "--entitlements", ":-", url.path]))
         guard result.succeeded else { throw ToolError("codesign could not read the entitlements: \(result.standardError)") }
         let effective = try Entitlements.parse(Data(result.standardOutput.utf8))
         let problems = Entitlements.problems(effective: effective, expected: expected, isRelease: isRelease)
