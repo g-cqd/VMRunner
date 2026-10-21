@@ -1,0 +1,26 @@
+# Pinned releases of the g-cqd static analyzers VMRunner gates on (sourced by Scripts/analyzers.sh).
+#
+# <TOOL>_VERSION                release tag without the leading "v"
+# <TOOL>_COMMIT                 full commit SHA the tag points at (provenance; also what the CI workflow pins)
+# <TOOL>_SHA256_MACOS_ARM64     SHA-256 of <tool>-<version>-macos-arm64.tar.gz, verified before anything is
+#                               executed. Not read from the release's own .sha256 file, so a tampered release
+#                               cannot vouch for itself.
+#
+# To bump: pick the new tag, resolve its commit (gh api repos/g-cqd/<tool>/git/ref/tags/v<version>, following
+# the annotated tag to the commit), download the macos-arm64 tarball, run shasum -a 256 on it, update all three
+# values here AND the matching "uses:" SHA and "version:" input in .github/workflows/ci.yml. Fingerprints in
+# the baselines can move between versions: regenerate them with Scripts/analyzers.sh baseline.
+#
+# Releases: https://github.com/g-cqd/<tool>/releases
+
+ARCLEAK_VERSION=0.10.2
+ARCLEAK_COMMIT=8a357cd18c43a4bcc84d968f31f954c45242cd69
+ARCLEAK_SHA256_MACOS_ARM64=42f23953dd1d270d06ac4c36ec204d6aebc598906ca9ba082f83f84bd90e21f8
+
+DOLLY_VERSION=0.10.2
+DOLLY_COMMIT=2e56ae7ec8b0d491fd15bb20fe2b4f9c9751c702
+DOLLY_SHA256_MACOS_ARM64=56b3885f71a68b79e0ff231ae861104d111b7b72aee5206ffff76631a7f471a4
+
+DEADWOOD_VERSION=0.10.1
+DEADWOOD_COMMIT=2c048101fda2bb02aa41214b2e761c51059b55cd
+DEADWOOD_SHA256_MACOS_ARM64=7f50297615ab85f9d73bef131ebca81f0fe4e70e46235dd315615e86bd5b34fc

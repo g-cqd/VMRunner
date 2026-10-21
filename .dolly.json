@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "exact-clone": { "severity": "error" },
+    "near-clone": { "severity": "warning" },
+    "structural-clone": { "severity": "warning" }
+  },
+  "exclude": []
+}

@@ -1,0 +1,7 @@
+{
+  "rules": {
+    "dead-weak-capture": { "enabled": true },
+    "delegate-strong-property": { "enabled": true }
+  },
+  "exclude": []
+}
