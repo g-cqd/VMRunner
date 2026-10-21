@@ -100,7 +100,7 @@ public enum HelperFailure: Error, Equatable, Sendable {
         case 0: "success: the machine stopped, or a dry run or a probe finished"
         case 64: "usage: bad command line"
         case 65: "the descriptor is unreadable or unacceptable"
-        case 66: "a file the descriptor names does not exist"
+        case 66: "a file the descriptor names does not exist, or the sandbox hides it"
         case 69: "the framework rejected the configuration, or virtualization is unavailable"
         case 70: "the machine failed to start or stopped with an error"
         case 134: "aborted by the system (a sandbox that denies what the loader needs does this)"

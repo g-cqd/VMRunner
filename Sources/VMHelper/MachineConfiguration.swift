@@ -42,7 +42,9 @@ enum MachineConfiguration {
     }
 
     private static func requireFile(_ path: String) throws {
-        guard FileManager.default.fileExists(atPath: path) else { throw HelperFailure.missingFile("\(path) does not exist") }
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw HelperFailure.missingFile("\(path) does not exist, or the sandbox hides it")
+        }
     }
 
     private static func bootLoader(_ descriptor: HelperDescriptor, creatingVariableStore: Bool) throws -> VZBootLoader {

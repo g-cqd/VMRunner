@@ -83,6 +83,19 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         self.network = network
     }
 
+    /// `version`, `name` and `boot` are required; everything else has the default the memberwise initializer has.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        name = try container.decode(String.self, forKey: .name)
+        cpuCount = try container.decodeIfPresent(Int.self, forKey: .cpuCount) ?? 2
+        memoryMiB = try container.decodeIfPresent(Int.self, forKey: .memoryMiB) ?? 1024
+        boot = try container.decode(Boot.self, forKey: .boot)
+        disks = try container.decodeIfPresent([Disk].self, forKey: .disks) ?? []
+        installerISO = try container.decodeIfPresent(String.self, forKey: .installerISO)
+        network = try container.decodeIfPresent(Network.self, forKey: .network) ?? .none
+    }
+
     // MARK: Reading
 
     /// The descriptor in `data`, checked. A malformed or unacceptable one is `HelperFailure.invalidDescriptor`.

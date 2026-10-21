@@ -22,13 +22,20 @@ struct Probe {
 
     private func reportOutside() {
         report("read /etc/hosts", Self.open("/etc/hosts", O_RDONLY))
-        if let home = unsafe getpwuid(getuid()).flatMap({ unsafe String(cString: $0.pointee.pw_dir) }) {
+        let check = "list the real home directory"
+        // The user database first (a sandboxed process's HOME is its container), the environment when the sandbox hides it.
+        let account = unsafe getpwuid(getuid()).flatMap { unsafe String(cString: $0.pointee.pw_dir) }
+        if let home = account ?? ProcessInfo.processInfo.environment["HOME"] {
             if let directory = unsafe opendir(home) {
                 unsafe closedir(directory)
-                emitter.emit(.probe, message: "listed", check: "list the real home directory", verdict: .allowed)
+                emitter.emit(.probe, message: "listed", check: check, verdict: .allowed)
             } else {
-                emitter.emit(.probe, message: Self.describe(errno), check: "list the real home directory", verdict: .refused)
+                emitter.emit(.probe, message: Self.describe(errno), check: check, verdict: .refused)
             }
+        } else {
+            emitter.emit(
+                .probe, message: "neither the user database nor HOME names a home directory", check: check,
+                verdict: .inconclusive)
         }
         let scratch = "/private/tmp/vmhelper-probe-\(ProcessInfo.processInfo.processIdentifier)"
         let descriptor = Self.open(scratch, O_WRONLY | O_CREAT | O_EXCL)
@@ -68,17 +75,17 @@ struct Probe {
     private func reportSockets() {
         reportSocketPair()
         reportSocket("create a TCP socket", type: SOCK_STREAM) { _ in 0 }
-        reportSocket("connect a TCP socket to 127.0.0.1:9", type: SOCK_STREAM) { Self.connectLoopback($0) }
-        reportSocket("send a UDP datagram to 127.0.0.1:9", type: SOCK_DGRAM) { Self.sendDatagram($0) }
-        reportSocket("connect an ICMP echo socket to 127.0.0.1", type: SOCK_DGRAM, protocolNumber: IPPROTO_ICMP) {
+        reportSocket(ProbeCheck.tcpConnect, type: SOCK_STREAM) { Self.connectLoopback($0) }
+        reportSocket(ProbeCheck.udpSend, type: SOCK_DGRAM) { Self.sendDatagram($0) }
+        reportSocket(ProbeCheck.icmpConnect, type: SOCK_DGRAM, protocolNumber: IPPROTO_ICMP) {
             Self.connectLoopback($0)
         }
-        reportSocket("bind a UDP socket to 127.0.0.1", type: SOCK_DGRAM) { Self.bindLoopback($0) }
+        reportSocket(ProbeCheck.udpBind, type: SOCK_DGRAM) { Self.bindLoopback($0) }
     }
 
     private func reportSocketPair() {
         guard let pair = DatagramPair.make() else {
-            emitter.emit(.probe, message: Self.describe(errno), check: "create a datagram socket pair", verdict: .refused)
+            emitter.emit(.probe, message: Self.describe(errno), check: ProbeCheck.socketPair, verdict: .refused)
             return
         }
         defer {
@@ -91,7 +98,7 @@ struct Probe {
         let read = unsafe recv(pair.guest, &received, 1, 0)
         let works = sent == 1 && read == 1 && received == byte
         emitter.emit(
-            .probe, message: works ? "a datagram crossed the pair" : Self.describe(errno), check: "create a datagram socket pair",
+            .probe, message: works ? "a datagram crossed the pair" : Self.describe(errno), check: ProbeCheck.socketPair,
             verdict: .init(allowed: works))
     }
 
@@ -159,7 +166,7 @@ struct Probe {
     // MARK: Names
 
     private func reportNames() {
-        for name in ["localhost", "example.com"] {
+        for name in [ProbeCheck.localHost, ProbeCheck.remoteHost] {
             var hints = unsafe addrinfo()
             unsafe hints.ai_family = AF_INET
             unsafe hints.ai_socktype = SOCK_STREAM
@@ -168,9 +175,10 @@ struct Probe {
             let status = unsafe getaddrinfo(name, nil, &hints, &found)
             if status == 0 {
                 unsafe freeaddrinfo(found)
-                emitter.emit(.probe, message: "resolved", check: "resolve \(name)", verdict: .allowed)
+                emitter.emit(.probe, message: "resolved", check: ProbeCheck.resolve(name), verdict: .allowed)
             } else {
-                emitter.emit(.probe, message: unsafe String(cString: gai_strerror(status)), check: "resolve \(name)", verdict: .refused)
+                emitter.emit(
+                    .probe, message: unsafe String(cString: gai_strerror(status)), check: ProbeCheck.resolve(name), verdict: .refused)
             }
         }
     }

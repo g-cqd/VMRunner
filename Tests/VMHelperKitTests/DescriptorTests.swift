@@ -29,6 +29,14 @@ struct DescriptorTests {
     }
 
     @Test
+    func aMinimalDescriptorTakesTheDefaultsForCpusMemoryDisksAndNetwork() throws {
+        let text = #"{"version":1,"name":"m","boot":{"kind":"efi","variableStore":"/vm/efi"},"installerISO":"/vm/a.iso"}"#
+        let descriptor = try HelperDescriptor.parse(Data(text.utf8))
+        #expect(descriptor.cpuCount == 2 && descriptor.memoryMiB == 1024)
+        #expect(descriptor.disks.isEmpty && descriptor.network == .none)
+    }
+
+    @Test
     func aKernelBootGrantsTheKernelAndTheInitialRamdiskForReadingOnly() throws {
         let boot = HelperDescriptor.Boot(kind: .kernel, kernel: "/vm/vmlinuz", initrd: "/vm/initrd", commandLine: "console=hvc0")
         let machine = descriptor(boot: boot, disks: [.init(path: "/vm/root.img")])

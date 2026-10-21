@@ -1,5 +1,8 @@
 /// How a workload is isolated: the ADR's `none`, `appSandbox` and `seatbelt`. Exclusive: one process gets one sandbox.
 public enum SandboxEngine: String, CaseIterable, Codable, Sendable {
+    /// The helper signed with the virtualization entitlement only and not sandboxed: Apple's own container setup, and the
+    /// control the other two engines are compared with.
+    case none
     /// A helper bundle signed with `app-sandbox`, `virtualization` and the file access the descriptor needs.
     case appSandbox = "app-sandbox"
     /// The plain helper under `sandbox-exec -f profile.sb`, with a profile generated from the descriptor.
