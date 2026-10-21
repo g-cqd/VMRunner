@@ -19,8 +19,13 @@ struct CoverageTests {
         try await withTemporaryDirectory { directory in
             try write(GateFixture.passing, to: directory)
 
-            let measuring = try await VMR.vmr(["check", "coverage"], in: directory, environment: ["COVERAGE_MIN": "0"])
+            let summaryFile = directory.appending(path: "summary.md")
+            let measuring = try await VMR.vmr(
+                ["check", "coverage"], in: directory, environment: ["COVERAGE_MIN": "0", "GITHUB_STEP_SUMMARY": summaryFile.path])
             #expect(measuring.status == 0, "\(measuring.combined)")
+            let markdown = try String(contentsOf: summaryFile, encoding: .utf8)
+            #expect(markdown.contains("- logic-layer line coverage: ") && markdown.contains("% (minimum 0%)\n"), "\(markdown)")
+            #expect(markdown.contains("- Tests: 1 (coverage)\n"), "\(markdown)")
             let summary = try Data(contentsOf: directory.appending(path: ".build-cov/coverage-summary.json"))
             let percent = try #require(JSONDecoder().decode(Summary.self, from: summary).data.first).totals.lines.percent
             #expect(percent > 0 && percent < 100, "the fixture covers some lines, not all: \(percent)")

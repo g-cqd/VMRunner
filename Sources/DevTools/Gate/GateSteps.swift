@@ -31,8 +31,22 @@ enum GateSteps {
 
     @Sendable
     static func analyzers(_ context: StepContext) async throws {
-        let service = AnalyzerService(root: context.root, environment: context.environment)
+        var service = AnalyzerService(root: context.root, environment: context.environment)
+        service.facts = context.facts
         guard try await service.run(tools: AnalyzerTool.allCases) else { throw ToolError("the analyzers reported failures") }
+    }
+
+    /// The documentation law of `docs/WHITE-PAPER.md` over `docs/` and `README.md`.
+    @Sendable
+    static func docs(_ context: StepContext) async throws {
+        let report = DocsChecker.check(root: context.root)
+        for violation in report.violations {
+            Output.err(violation.description)
+        }
+        guard report.violations.isEmpty else {
+            throw ToolError("docs: \(report.violations.count) violation(s) in \(report.filesChecked) file(s) checked")
+        }
+        Output.out("docs: \(report.filesChecked) file(s) checked, no violations")
     }
 
     /// SwiftPM compiles C targets (swift-subprocess has one) with `-fsanitize=undefined`, but the Swift link step does not

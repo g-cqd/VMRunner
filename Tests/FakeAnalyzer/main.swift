@@ -7,7 +7,8 @@ import Foundation
 //                                 or that it never did
 //   --version                     prints $FAKE_ANALYZER_VERSION
 //   analyze ... [--write-baseline FILE]
-//                                 writes FILE when asked and exits with $FAKE_EXIT_<TOOL> (default 0)
+//                                 writes FILE when asked, prints $FAKE_FINDINGS_<TOOL> warnings and one note in the
+//                                 analyzers' diagnostic format, and exits with $FAKE_EXIT_<TOOL> (default 0)
 let arguments = Array(CommandLine.arguments.dropFirst())
 let name = URL(fileURLWithPath: CommandLine.arguments[0]).lastPathComponent
 let environment = ProcessInfo.processInfo.environment
@@ -30,5 +31,11 @@ if arguments == ["--version"] {
 
 if let flag = arguments.firstIndex(of: "--write-baseline"), flag + 1 < arguments.count {
     try? Data("{\"fingerprints\":[],\"tool\":\"\(name)\",\"version\":1}\n".utf8).write(to: URL(fileURLWithPath: arguments[flag + 1]))
+}
+for index in 0..<(Int(environment["FAKE_FINDINGS_\(name.uppercased())"] ?? "") ?? 0) {
+    try? FileHandle.standardOutput.write(contentsOf: Data("Sources/A.swift:\(index + 1):1: warning: [fake] a finding\n".utf8))
+}
+if environment["FAKE_FINDINGS_\(name.uppercased())"] != nil {
+    try? FileHandle.standardOutput.write(contentsOf: Data("Sources/A.swift:1:1: note: [fake] advice, not a finding\n".utf8))
 }
 exit(Int32(environment["FAKE_EXIT_\(name.uppercased())"] ?? "") ?? 0)

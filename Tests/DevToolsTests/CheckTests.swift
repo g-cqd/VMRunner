@@ -13,8 +13,15 @@ struct CheckTests {
 
     @Test(.timeLimit(.minutes(8)))
     func aPassingPackagePassesEveryStep() async throws {
-        let run = try await check(["format", "swiftlint", "build", "test"], files: GateFixture.passing)
+        let summary = FileManager.default.temporaryDirectory.appending(path: "vmr-summary-\(UUID().uuidString).md")
+        defer { try? FileManager.default.removeItem(at: summary) }
+        let run = try await check(
+            ["format", "swiftlint", "build", "test"], files: GateFixture.passing, environment: ["GITHUB_STEP_SUMMARY": summary.path])
         #expect(run.status == 0, "\(run.combined)")
+        #expect(run.combined.contains("Test run with 1 test"), "streaming the test step keeps its output visible")
+        let text = try String(contentsOf: summary, encoding: .utf8)
+        #expect(text.contains("| build | PASS | "), "\(text)")
+        #expect(text.contains("- Tests: 1 (test)\n"), "the test count is read from the test step's output: \(text)")
         for step in ["format", "swiftlint", "build", "test"] {
             #expect(run.output.contains("==> \(step)\n"))
             #expect(run.outputLines.contains { $0.hasPrefix("PASS  \(step) (") && $0.hasSuffix("s)") })
@@ -83,7 +90,7 @@ struct CheckTests {
         #expect(run.status == 0)
         #expect(
             run.outputLines.dropLast() == [
-                "format", "swiftlint", "build", "test", "analyzers", "asan", "tsan", "ubsan", "release", "coverage",
+                "format", "swiftlint", "docs", "build", "test", "analyzers", "asan", "tsan", "ubsan", "release", "coverage",
             ])
         #expect(!run.output.contains("==>"))
     }

@@ -32,6 +32,7 @@ extension GateSteps {
 
         let percent = try Coverage.linePercent(fromExport: Data(summary.utf8))
         Output.out(Coverage.line(percent: percent, minimum: minimum))
+        context.facts?.recordCoverage(percent: percent, minimum: minimum)
         guard percent >= minimum else {
             throw ToolError("coverage fell below COVERAGE_MIN=\(Coverage.describe(minimum: minimum))")
         }

@@ -2,7 +2,7 @@ import Foundation
 
 @testable import DevTools
 
-/// A package root with a pins file, matching workflows and a LOCAL release: the arcleak, dolly and deadwood archives
+/// A package root with a lock file and a LOCAL release: the arcleak, dolly and deadwood archives
 /// are tarballs of the `FakeAnalyzer` binary, served from a directory through `VMR_ANALYZERS_BASE_URL=file://...`.
 struct AnalyzerFixture {
     static let version = "1.2.3"
@@ -26,18 +26,6 @@ struct AnalyzerFixture {
             let prefix = tool.rawValue.uppercased()
             return "\(prefix)_VERSION=\(version)\n\(prefix)_COMMIT=\(commit(of: tool))\n\(prefix)_SHA256_MACOS_ARM64=\(sha(tool))\n"
         }.joined(separator: "\n")
-    }
-
-    static func workflowText(commit: (AnalyzerTool) -> String = commit(of:), version: (AnalyzerTool) -> String = { _ in version }) -> String
-    {
-        let steps = AnalyzerTool.allCases.map { tool in
-            """
-                  - uses: g-cqd/\(tool.rawValue)@\(commit(tool)) # v\(version(tool))
-                    with:
-                      version: '\(version(tool))' # \(tool.rawValue)
-            """
-        }.joined(separator: "\n")
-        return "name: CI\njobs:\n  analyzers:\n    steps:\n\(steps)\n"
     }
 
     /// Builds the fixture below `base`. Archives named in `tampered` get an extra file after their digest was pinned.
@@ -66,13 +54,7 @@ struct AnalyzerFixture {
             }
         }
 
-        try write(
-            [
-                "Scripts/analyzers.lock": lockText { digests[$0] ?? "" },
-                ".github/workflows/ci.yml": workflowText(),
-            ],
-            to: root
-        )
+        try write(["Scripts/analyzers.lock": lockText { digests[$0] ?? "" }], to: root)
         return Self(root: root, release: release, logFile: base.appending(path: "analyzer.log"))
     }
 

@@ -16,6 +16,8 @@ struct AnalyzerService: Sendable {
     let root: URL
     let environment: [String: String]
     var downloader: any ArchiveDownloader = URLArchiveDownloader()
+    /// When set, each analyzer's output is streamed through it to count findings for the job summary.
+    var facts: GateFacts?
 
     private var toolsDirectory: URL {
         environment["ANALYZERS_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
@@ -26,10 +28,10 @@ struct AnalyzerService: Sendable {
 
     // MARK: Commands
 
-    /// Checks the workflow pins, then analyzes with each tool. Returns whether everything passed.
+    /// Analyzes with each tool. Returns whether everything passed.
     func run(tools: [AnalyzerTool]) async throws -> Bool {
         let lock = try AnalyzerLock.load(root: root)
-        var passed = try checkPins(lock: lock)
+        var passed = true
         let resolutions = await resolve(tools, lock: lock)
         for tool in tools {
             switch resolutions[tool] {
@@ -78,23 +80,9 @@ struct AnalyzerService: Sendable {
         }
     }
 
-    /// Prints PASS or FAIL for the workflow pins and returns whether they agree with the lock.
-    func checkPins() throws -> Bool {
-        try checkPins(lock: AnalyzerLock.load(root: root))
-    }
-
     // MARK: Pieces
 
     private static func baselineName(for tool: AnalyzerTool) -> String { ".\(tool.rawValue)-baseline.json" }
-
-    private func checkPins(lock: AnalyzerLock) throws -> Bool {
-        let problems = try PinChecker.problems(lock: lock, workflows: PinChecker.loadWorkflows(root: root))
-        for problem in problems {
-            Output.err(problem)
-        }
-        Output.out(problems.isEmpty ? "PASS  pins (workflow and analyzers.lock agree)" : "FAIL  pins")
-        return problems.isEmpty
-    }
 
     /// Resolves every tool concurrently, so the first run downloads the releases in parallel.
     private func resolve(_ tools: [AnalyzerTool], lock: AnalyzerLock) async -> [AnalyzerTool: Resolution] {
@@ -158,7 +146,7 @@ struct AnalyzerService: Sendable {
             Output.out("--- \(tool.rawValue) \(version): \(arguments.joined(separator: " "))")
             let result = try await ProcessRunner.run(
                 CommandSpec(executable: resolved.binary.path, arguments: arguments, workingDirectory: root),
-                output: .inherit
+                output: outputMode(for: tool)
             )
             return report(tool, status: result.status)
         } catch {
@@ -166,6 +154,12 @@ struct AnalyzerService: Sendable {
             Output.out("FAIL  \(tool.rawValue): \(error)")
             return false
         }
+    }
+
+    private func outputMode(for tool: AnalyzerTool) -> OutputMode {
+        guard let facts else { return .inherit }
+        facts.analyzerStarted(tool)
+        return .stream { facts.observeAnalyzer(tool, line: $0) }
     }
 
     private func report(_ tool: AnalyzerTool, status: Int32) -> Bool {

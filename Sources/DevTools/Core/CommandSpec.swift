@@ -25,6 +25,9 @@ enum OutputMode: Sendable {
     case inherit
     /// Both streams are collected in memory. Only for short outputs; stdin is closed.
     case capture
+    /// Like `.inherit`, but line by line: each line of either stream is written to the matching descriptor of this
+    /// process and also handed to the observer, which two tasks may call at the same time.
+    case stream(@Sendable (String) -> Void)
 }
 
 struct CommandResult: Sendable {

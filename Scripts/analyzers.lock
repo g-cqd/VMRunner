@@ -1,16 +1,15 @@
 # Pinned releases of the static analyzers VMRunner gates on (read by `swift run vmr analyzers`).
 #
 # <TOOL>_VERSION                release tag without the leading "v"
-# <TOOL>_COMMIT                 full commit SHA the tag points at (provenance; also what the CI workflow pins)
+# <TOOL>_COMMIT                 full commit SHA the tag points at (provenance)
 # <TOOL>_SHA256_MACOS_ARM64     SHA-256 of <tool>-<version>-macos-arm64.tar.gz, verified before anything is
 #                               executed. Not read from the release's own .sha256 file, so a tampered release
 #                               cannot vouch for itself.
 #
 # To bump: pick the new tag on the tool's release page, resolve its commit (the tag's ref through the GitHub API,
-# following the annotated tag to the commit), download the macos-arm64 tarball, run shasum -a 256 on it, update all three
-# values here AND the matching "uses:" SHA and "version:" input in .github/workflows/ci.yml (`vmr analyzers pins` checks that
-# they agree). Fingerprints in
-# the baselines can move between versions: regenerate them with `swift run vmr analyzers baseline`.
+# following the annotated tag to the commit), download the macos-arm64 tarball, run shasum -a 256 on it and update all
+# three values here. CI runs `swift run vmr check analyzers` against this file, so nothing else carries the versions.
+# Fingerprints in the baselines can move between versions: regenerate them with `swift run vmr analyzers baseline`.
 #
 # Release archives are fetched from the address built in Sources/DevTools/Analyzers/ReleaseDownloader.swift.
 

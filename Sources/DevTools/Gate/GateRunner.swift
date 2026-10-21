@@ -33,7 +33,10 @@ enum GateRunner {
         for result in results {
             Output.out(result.line)
         }
-        appendToStepSummary(results.map(\.line), environment: context.environment)
+        if let path = GateSummary.path(in: context.environment) {
+            let text = GateSummary.markdown(results: results, totalSeconds: total, facts: context.facts?.snapshot)
+            GateSummary.append(text, to: path)
+        }
         if failures > 0 {
             Output.out("FAILED: \(failures) of \(steps.count) step(s)")
         } else {
@@ -48,7 +51,7 @@ enum GateRunner {
         let started = clock.now
         var passed = true
         do {
-            try await step.run(context)
+            try await step.run(context.scoped(to: step.name))
         } catch {
             passed = false
             Output.err("error: \(error)")
@@ -60,18 +63,5 @@ enum GateRunner {
 
     private static func seconds(since start: ContinuousClock.Instant, clock: ContinuousClock) -> Int {
         Int(start.duration(to: clock.now).components.seconds)
-    }
-
-    /// Mirrors the summary into the GitHub Actions job summary when running there.
-    private static func appendToStepSummary(_ lines: [String], environment: [String: String]) {
-        guard let path = environment["GITHUB_STEP_SUMMARY"], !path.isEmpty else { return }
-        let text = (["### Quality gate", "```"] + lines + ["```"]).joined(separator: "\n") + "\n"
-        guard let handle = FileHandle(forWritingAtPath: path) else {
-            try? Data(text.utf8).write(to: URL(fileURLWithPath: path))
-            return
-        }
-        defer { try? handle.close() }
-        _ = try? handle.seekToEnd()
-        try? handle.write(contentsOf: Data(text.utf8))
     }
 }

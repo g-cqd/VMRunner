@@ -79,6 +79,11 @@ enum ProcessRunner {
                     error: .currentStandardError
                 )
                 return CommandResult(status: status(of: result.terminationStatus), standardOutput: "", standardError: "", timedOut: false)
+            case .stream(let observe):
+                let configuration = Configuration(
+                    executable: program, arguments: arguments, environment: child, workingDirectory: directory, platformOptions: options)
+                let status = try await stream(configuration, observe: observe)
+                return CommandResult(status: status, standardOutput: "", standardError: "", timedOut: false)
             case .capture:
                 let result = try await Subprocess.run(
                     program,
@@ -99,6 +104,30 @@ enum ProcessRunner {
         } catch let error as SubprocessError {
             throw ToolError("cannot run \(spec.executable): \(error)")
         }
+    }
+
+    /// Runs the process and forwards each line of its two streams to this process's matching descriptor and to `observe`.
+    private static func stream(_ configuration: Configuration, observe: @escaping @Sendable (String) -> Void) async throws -> Int32 {
+        let result = try await Subprocess.run(configuration, input: .none, output: .sequence, error: .sequence) { execution in
+            let standardOutput = execution.standardOutput
+            let standardError = execution.standardError
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    for try await line in standardOutput.strings() {
+                        Output.out(line)
+                        observe(line)
+                    }
+                }
+                group.addTask {
+                    for try await line in standardError.strings() {
+                        Output.err(line)
+                        observe(line)
+                    }
+                }
+                try await group.waitForAll()
+            }
+        }
+        return status(of: result.terminationStatus)
     }
 
     /// The exit status, or 128 plus the signal number when a signal killed the process, as a shell reports it.

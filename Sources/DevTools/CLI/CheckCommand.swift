@@ -12,6 +12,12 @@ struct CheckCommand: AsyncParsableCommand {
             Every selected step runs, even after a failure; each prints PASS or FAIL, and the exit status is \
             non-zero if any failed.
 
+            Only one gate runs per checkout: a second `vmr check` exits at once with status 75 and names the pid of \
+            the first (an exclusive lock on .build, released when the process ends).
+
+            When GITHUB_STEP_SUMMARY names a file, a Markdown table of the steps (result, duration) is appended to \
+            it, with the test counts, the coverage and the analyzer findings that the steps reported.
+
             Environment: COVERAGE_MIN (the coverage floor, default from .vmr.json or 55) and SWIFT_TEST_FLAGS \
             (extra flags for the plain `swift test` step).
             """
@@ -48,9 +54,11 @@ struct CheckCommand: AsyncParsableCommand {
             let root = try project.packageRoot()
             let selected =
                 steps.isEmpty ? (full ? GateCatalog.allSteps : GateCatalog.fastSteps) : steps.compactMap(GateCatalog.step(named:))
+            let environment = ProcessInfo.processInfo.environment
             let context = StepContext(
-                root: root, config: try ProjectConfig.load(root: root), environment: ProcessInfo.processInfo.environment)
-            return await GateRunner.run(steps: selected, context: context) ? 0 : 1
+                root: root, config: try ProjectConfig.load(root: root), environment: environment,
+                facts: GateFacts.collecting(environment: environment))
+            return try await GateLock.hold(root: root) { await GateRunner.run(steps: selected, context: context) ? 0 : 1 }
         }
     }
 }

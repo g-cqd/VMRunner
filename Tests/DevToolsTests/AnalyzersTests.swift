@@ -15,7 +15,6 @@ struct AnalyzersTests {
 
             let first = try await fixture.vmr(["analyzers"])
             #expect(first.status == 0, "\(first.combined)")
-            #expect(first.output.contains("PASS  pins (workflow and analyzers.lock agree)"))
             for tool in AnalyzerTool.allCases {
                 #expect(first.output.contains("installing \(tool.rawValue) 1.2.3 from file://"))
                 #expect(first.output.contains("PASS  \(tool.rawValue)\n"))

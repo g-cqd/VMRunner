@@ -42,13 +42,13 @@ struct AnalyzersCommand: AsyncParsableCommand {
             Analyzer exit codes: 1 findings, 64 usage, 70 nothing analyzed, 74 write error, 78 bad configuration or \
             baseline. Only 1 means the code has findings; the others mean the gate itself is broken.
             """,
-        subcommands: [Run.self, Install.self, Baseline.self, Versions.self, Pins.self],
+        subcommands: [Run.self, Install.self, Baseline.self, Versions.self],
         defaultSubcommand: Run.self
     )
 
     struct Run: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Check the workflow pins, then analyze (the default). Exits 1 if any tool failed."
+            abstract: "Analyze with each tool (the default). Exits 1 if any tool failed."
         )
 
         @OptionGroup var selection: AnalyzerSelection
@@ -96,20 +96,6 @@ struct AnalyzersCommand: AsyncParsableCommand {
             try await perform {
                 try AnalyzerService(root: try project.packageRoot(), environment: ProcessInfo.processInfo.environment).versions()
                 return 0
-            }
-        }
-    }
-
-    struct Pins: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
-            abstract: "Check that .github/workflows pin the same releases as Scripts/analyzers.lock."
-        )
-
-        @OptionGroup var project: ProjectOptions
-
-        func run() async throws {
-            try await perform {
-                try AnalyzerService(root: try project.packageRoot(), environment: ProcessInfo.processInfo.environment).checkPins() ? 0 : 1
             }
         }
     }

@@ -22,7 +22,7 @@ struct AnalyzerPin: Equatable, Sendable {
     let tool: AnalyzerTool
     /// The release tag without the leading `v`.
     let version: String
-    /// The full commit SHA the tag points at; the CI workflow pins the same one.
+    /// The full commit SHA the tag points at (provenance).
     let commit: String
     /// SHA-256 of `<tool>-<version>-macos-arm64.tar.gz`, verified before anything from the archive runs.
     let sha256: String

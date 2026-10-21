@@ -5,6 +5,7 @@ enum GateCatalog {
     static let fastSteps: [GateStep] = [
         GateStep(name: "format", run: GateSteps.format),
         GateStep(name: "swiftlint", run: GateSteps.swiftlint),
+        GateStep(name: "docs", run: GateSteps.docs),
         GateStep(name: "build", run: GateSteps.build),
         GateStep(name: "test", run: GateSteps.test),
         GateStep(name: "analyzers", run: GateSteps.analyzers),
