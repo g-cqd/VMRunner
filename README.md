@@ -5,6 +5,17 @@ silicon with Apple's [Virtualization framework](https://developer.apple.com/docu
 The app has no dependencies beyond the system frameworks; the developer tooling (`vmr`, below) uses two pinned
 Apple/Swift packages and is never linked into the app.
 
+## Start here
+
+- [White paper](docs/WHITE-PAPER.md): the rules this repository is built under.
+- [Architecture decisions](docs/adr/): one decision per file, with context, evidence and consequences.
+- [Roadmap](docs/roadmap/): one unit of work per file, with status, blockers and the decision that governs it.
+- [Diary](docs/diary/): the working log, one file per session, with claims, probes and verdicts.
+- Studies: [automation](docs/automation.md), [GPU](docs/gpu-acceleration.md), [MDM](docs/mdm.md),
+  [analysis sandboxes](docs/analysis-sandbox.md), [Windows on ARM](docs/windows-on-arm.md),
+  [provisioning](docs/provisioning.md), [containers](docs/containers.md),
+  [sandboxing](docs/sandboxing.md).
+
 ## Build and run
 
 ```sh
@@ -35,7 +46,7 @@ open build/VMRunner.app --args --start "My VM"     # by name or UUID
 | Extras | Recovery boot, trackpad or mouse | Nested virtualization (M3+), Rosetta for x86_64 binaries, SPICE clipboard, Secure Boot (host macOS 27+) |
 
 Common to both: CPU/memory, sparse disk (grow-only), extra disk images, disk cache/flush mode, 1–2 displays,
-audio in/out, NAT or no network, custom MAC, shared folders (virtiofs), suspend/resume, snapshots,
+audio in/out, NAT, filtered (user-mode) or no network, custom MAC, shared folders (virtiofs), suspend/resume, snapshots,
 duplicate, memory balloon / entropy / vsock devices.
 
 Downloads are resumable and verified: IPSW against ipsw.me's SHA-256, ISOs against the mirror's `.SHA256SUM`.
@@ -68,8 +79,30 @@ Settings ▸ **Security** picks a profile, then every switch stays individually 
 | Auto-login / SSH (macOS first boot) | as set | as set | as set | **off** |
 | Runtime limit | none | none | none | **120 min** |
 
+Contained stays on NAT on purpose: the filtered network below is newer and less proven than Apple's NAT, so no profile
+selects it. Choose it yourself (the profile then reads *Custom*).
+
 The entropy device is never removed: the guest needs it for randomness.
 These settings narrow the host–guest channels. They don't make an untrusted guest safe on their own.
+
+## Filtered network (user-mode)
+
+Settings ▸ Network ▸ **Filtered (user-mode)** connects the guest to VMRunner's own network stack
+(`Sources/VMRunner/Network`) instead of Apple's NAT. Every connection is checked against a per-machine policy before
+it is made:
+
+- **Block list** (everything except what you block) or **Allow list** (nothing except what you allow); a block always
+  beats an allow. Lists: domains (`example.com`, `*.example.com`), IP addresses and CIDR blocks, ports and ranges,
+  connections (`github.com:443`), and plain-`http` URL prefixes. Private, local and host ranges are blocked by default.
+- Blocked TCP connections are refused or silently dropped (your choice); open connections are reset when the Mac
+  changes network (optional). Rules are read when the machine starts.
+- While the machine runs, the toolbar's network button shows the recent connections (allowed or blocked, with the
+  reason) and two VPN signals: one for the Mac, one for the guest's own traffic. In-app Help explains all of it.
+
+Limits, also in Help: domain rules are advisory (names that share an address; DoH, DoT and DNS over QUIC are not
+intercepted, ordinary port-53 DNS always is), IPv6 is not provided, IPsec and PPTP tunnels cannot pass (but are
+detected), VPN detection is a heuristic, and the stack has not been validated against every guest or run in a real
+virtual machine yet. Suspend may be unavailable in this mode.
 
 ## Disk space (APFS copy-on-write)
 
@@ -108,10 +141,11 @@ library and its copies on the same APFS volume (it is, by default: `~/Library/Ap
 
 ```
 Sources/VMRunner
-  Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
+  Model/    VMConfig (Codable settings), NetworkPolicy and its rules, Security (profiles, exposure summary), APFS (clone, snapshots),
             Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)
   Engine/   ConfigurationBuilder (VMConfig -> VZVirtualMachineConfiguration), Provisioner (media + install),
-            VMController (run/pause/suspend/restore, runtime limit), Downloads, Catalogs (ipsw.me, CentOS)
+            VMController (run/pause/suspend/restore, runtime limit), NetworkActivity (filtered-network log and VPN signals), Downloads, Catalogs (ipsw.me, CentOS)
+  Network/  the user-mode network stack behind Filtered networking
   Views/    ContentView, MachineView (toolbar, display), ConfigEditor, NewMachineSheet (+ Settings)
 Machines live in ~/Library/Application Support/VMRunner/Machines/<uuid>.vm
 ```
