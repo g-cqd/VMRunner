@@ -19,6 +19,7 @@ concurrency:
 jobs:
   dependency-review:
     name: Dependency review
+    if: ${{ github.repository_visibility == 'public' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   analysis:
+    if: ${{ github.repository_visibility == 'public' }}
     name: Scorecard analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 15
