@@ -32,8 +32,10 @@ struct AppBundler {
         try verifyHardenedSuperset()
         let binary = try await compile()
         try assemble(binary: binary)
-        try await codesign(["--force", "--sign", "-", "--options", "runtime", "--entitlements", entitlementsURL.path, appURL.path])
-        try await verifySignature()
+        try await BuildTools.codesign([
+            "--force", "--sign", "-", "--options", "runtime", "--entitlements", entitlementsURL.path, appURL.path,
+        ])
+        try await BuildTools.verifySignature(of: appURL)
         try await verifyEntitlements()
         let signature = try await verifyHardenedRuntime()
         try await report(signature: signature)
@@ -46,52 +48,21 @@ struct AppBundler {
         if options.arm64e {
             arguments += ["--arch", "arm64e", "--scratch-path", root.appending(path: ".build-arm64e").path]
         }
-        let build = try await ProcessRunner.run(CommandSpec(executable: "swift", arguments: ["build"] + arguments), output: .inherit)
-        guard build.succeeded else { throw ToolError("swift build failed", status: build.status) }
-
-        let path = try await ProcessRunner.run(CommandSpec(executable: "swift", arguments: ["build"] + arguments + ["--show-bin-path"]))
-        guard path.succeeded, let line = path.standardOutput.split(whereSeparator: \.isNewline).last else {
-            throw ToolError("swift build --show-bin-path failed: \(path.standardError)")
-        }
-        return URL(fileURLWithPath: String(line)).appending(path: Self.productName)
+        return try await BuildTools.build(arguments).appending(path: Self.productName)
     }
 
     private func assemble(binary: URL) throws {
-        let fileManager = FileManager.default
-        try? fileManager.removeItem(at: appURL)
-        try fileManager.createDirectory(at: executableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try fileManager.copyItem(at: binary, to: executableURL)
-        let infoPlist = root.appending(path: "Resources/Info.plist")
-        guard fileManager.fileExists(atPath: infoPlist.path) else { throw ToolError("cannot read \(infoPlist.path)") }
-        try fileManager.copyItem(at: infoPlist, to: appURL.appending(path: "Contents/Info.plist"))
+        try BuildTools.assemble(
+            bundle: appURL, executable: Self.productName, binary: binary, infoPlist: root.appending(path: "Resources/Info.plist"))
     }
 
     // MARK: Verification
 
-    private func codesign(_ arguments: [String]) async throws {
-        let result = try await ProcessRunner.run(CommandSpec(executable: "codesign", arguments: arguments), output: .inherit)
-        guard result.succeeded else { throw ToolError("codesign \(arguments[0]) failed", status: result.status) }
-    }
-
-    private func verifySignature() async throws {
-        try await codesign(["--verify", "--strict", "--deep", "--verbose=1", appURL.path])
-    }
-
     /// The effective entitlements, read back from the signed bundle, must equal the file used to sign it.
     private func verifyEntitlements() async throws {
-        let result = try await ProcessRunner.run(
-            CommandSpec(executable: "codesign", arguments: ["-d", "--entitlements", ":-", appURL.path]))
-        guard result.succeeded else { throw ToolError("codesign could not read the entitlements: \(result.standardError)") }
-        let effective = try Entitlements.parse(Data(result.standardOutput.utf8))
-        let expected = try Entitlements.load(fileAt: entitlementsURL)
-        let problems = Entitlements.problems(effective: effective, expected: expected, isRelease: options.configuration == .release)
-        guard problems.isEmpty else {
-            Output.err("entitlement check FAILED:")
-            for problem in problems {
-                Output.err("  - \(problem)")
-            }
-            throw ToolError("the signed entitlements differ from \(entitlementsURL.lastPathComponent)")
-        }
+        let effective = try await BuildTools.verifyEntitlements(
+            of: appURL, expected: try Entitlements.load(fileAt: entitlementsURL), isRelease: options.configuration == .release,
+            expectation: entitlementsURL.lastPathComponent)
         Output.out("entitlements OK (\(effective.keys.sorted().joined(separator: ", ")))")
     }
 
