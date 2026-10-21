@@ -9,7 +9,7 @@
     <true/>
 
     <!--
-        Enhanced Security (hardened process), opt-in through `vmr build-app --hardened`.
+        Enhanced Security (hardened process), opt-in through the hardened option of `vmr build-app`.
         Everything above this comment must stay identical to VMRunner.entitlements
         (`vmr build-app` checks that the hardened file is a superset).
         Keep double hyphens out of this comment: the kernel's entitlement parser rejects them.

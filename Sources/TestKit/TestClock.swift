@@ -1,7 +1,7 @@
 import Synchronization
 
 /// A deterministic `Clock` whose time advances only when a test calls `advance(by:)`
-/// — generalizing a `ManualClock` from an earlier project. Sleepers suspend until time is manually
+/// — generalizing a hand-rolled manual clock. Sleepers suspend until time is manually
 /// advanced past their deadline, so time-dependent code (relative-time SQL,
 /// durability timeouts, server timing) is pinned with *zero* real-time waiting.
 ///
