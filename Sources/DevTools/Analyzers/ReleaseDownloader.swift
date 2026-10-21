@@ -1,11 +1,8 @@
 import Foundation
 
-/// Where analyzer release archives come from.
+/// Where release archives (the analyzers and SwiftLint) come from.
 enum ReleaseLocation: Sendable {
-    /// The GitHub account that publishes the analyzer releases: the one place its name is written.
-    static let owner = "g-cqd"
-
-    /// `https://github.com/<owner>/<tool>/releases/download/v<version>/<archive>`
+    /// `https://github.com/<owner>/<repository>/releases/download/<tag>/<archive>`
     case github
     /// A directory (a `file:` or `https:` URL) that holds the archives, for a mirror or a local test release.
     case directory(URL)
@@ -26,7 +23,9 @@ enum ReleaseLocation: Sendable {
     func archiveURL(for pin: AnalyzerPin) throws -> URL {
         switch self {
         case .github:
-            let address = "https://github.com/\(Self.owner)/\(pin.tool.rawValue)/releases/download/v\(pin.version)/\(pin.archiveName)"
+            let release = pin.release
+            let address =
+                "https://github.com/\(release.owner)/\(release.repository)/releases/download/\(release.tagPrefix)\(pin.version)/\(pin.archiveName)"
             guard let url = URL(string: address) else { throw ToolError("invalid release URL \(address)") }
             return url
         case .directory(let base):

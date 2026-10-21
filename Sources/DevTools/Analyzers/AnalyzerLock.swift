@@ -1,13 +1,66 @@
 import Foundation
 
+/// A release installed from GitHub into `.tools/`: where it is published and what its archive holds.
+struct ReleaseSpec: Equatable, Sendable {
+    /// The GitHub account that publishes the analyzer releases: the one place its name is written.
+    static let analyzersOwner = "g-cqd"
+
+    /// How a release archive is named and laid out. macOS's `tar` lists and unpacks both kinds.
+    enum Archive: Equatable, Sendable {
+        /// `<name>-<version>-macos-arm64.tar.gz`, holding the binary in a directory named like the archive without its suffix.
+        case versionedTarball
+        /// A zip with a fixed file name that holds the binary at its root.
+        case flatZip(name: String)
+
+        /// The compression letter of `tar`'s mode: gzip is asked for by name, a zip is recognised by `tar` itself.
+        var tarCompression: String {
+            switch self {
+            case .versionedTarball: "z"
+            case .flatZip: ""
+            }
+        }
+    }
+
+    /// The program: the binary's file name, the prefix of its lock keys (uppercased) and of its install directory.
+    let name: String
+    let owner: String
+    let repository: String
+    /// What the release tag has in front of the version: `v` or nothing.
+    let tagPrefix: String
+    let archive: Archive
+
+    /// `ARCLEAK_BIN`, `SWIFTLINT_BIN`, ...: use a binary of your own instead of the pinned release.
+    var binaryOverrideVariable: String { "\(name.uppercased())_BIN" }
+
+    func archiveName(version: String) -> String {
+        switch archive {
+        case .versionedTarball: "\(name)-\(version)-macos-arm64.tar.gz"
+        case .flatZip(let fileName): fileName
+        }
+    }
+
+    /// The directory inside the archive that holds the binary, or nil when it sits at the archive's root.
+    func directoryInArchive(version: String) -> String? {
+        switch archive {
+        case .versionedTarball: "\(name)-\(version)-macos-arm64"
+        case .flatZip: nil
+        }
+    }
+
+    /// The portable SwiftLint release: a universal binary and its license in a flat zip.
+    static let swiftlint = Self(
+        name: "swiftlint", owner: "realm", repository: "SwiftLint", tagPrefix: "", archive: .flatZip(name: "portable_swiftlint.zip"))
+}
+
 /// The three static analyzers the gate runs.
 enum AnalyzerTool: String, CaseIterable, Sendable {
     case arcleak
     case dolly
     case deadwood
 
-    /// `ARCLEAK_BIN`, `DOLLY_BIN`, `DEADWOOD_BIN`: use a binary of your own instead of the pinned release.
-    var binaryOverrideVariable: String { "\(rawValue.uppercased())_BIN" }
+    var release: ReleaseSpec {
+        ReleaseSpec(name: rawValue, owner: ReleaseSpec.analyzersOwner, repository: rawValue, tagPrefix: "v", archive: .versionedTarball)
+    }
 
     /// arcleak and deadwood gate with `--strict`. dolly is gated through `.dolly.json` instead (exact clones are
     /// errors, near and structural clones stay advisory), so it takes no `--strict`.
@@ -17,22 +70,22 @@ enum AnalyzerTool: String, CaseIterable, Sendable {
     static let baselineDefaults: [Self] = [.dolly, .deadwood]
 }
 
-/// One analyzer release pinned in `Scripts/analyzers.lock`.
+/// One release pinned in `Scripts/analyzers.lock`.
 struct AnalyzerPin: Equatable, Sendable {
-    let tool: AnalyzerTool
-    /// The release tag without the leading `v`.
+    let release: ReleaseSpec
+    /// The release tag without its prefix.
     let version: String
     /// The full commit SHA the tag points at (provenance).
     let commit: String
-    /// SHA-256 of `<tool>-<version>-macos-arm64.tar.gz`, verified before anything from the archive runs.
+    /// SHA-256 of the archive, verified before anything from it is listed, unpacked or run.
     let sha256: String
 
-    var archiveName: String { "\(tool.rawValue)-\(version)-macos-arm64.tar.gz" }
-    var directoryInArchive: String { "\(tool.rawValue)-\(version)-macos-arm64" }
+    var archiveName: String { release.archiveName(version: version) }
+    var directoryInArchive: String? { release.directoryInArchive(version: version) }
 }
 
 /// The pins file: `KEY=VALUE` lines, `#` comments, keys `<TOOL>_VERSION`, `<TOOL>_COMMIT` and
-/// `<TOOL>_SHA256_MACOS_ARM64`.
+/// `<TOOL>_SHA256_MACOS_ARM64`, for each analyzer and for SwiftLint.
 struct AnalyzerLock: Equatable {
     static let relativePath = "Scripts/analyzers.lock"
 
@@ -60,7 +113,11 @@ struct AnalyzerLock: Equatable {
     }
 
     func pin(for tool: AnalyzerTool) throws -> AnalyzerPin {
-        let prefix = tool.rawValue.uppercased()
+        try pin(for: tool.release)
+    }
+
+    func pin(for release: ReleaseSpec) throws -> AnalyzerPin {
+        let prefix = release.name.uppercased()
         func value(_ field: String) throws -> String {
             guard let found = values["\(prefix)_\(field)"], !found.isEmpty else {
                 throw ToolError("\(Self.relativePath) has no \(prefix)_\(field)")
@@ -68,7 +125,7 @@ struct AnalyzerLock: Equatable {
             return found
         }
         return AnalyzerPin(
-            tool: tool,
+            release: release,
             version: try value("VERSION"),
             commit: try value("COMMIT"),
             sha256: try value("SHA256_MACOS_ARM64").lowercased()

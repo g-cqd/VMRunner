@@ -28,9 +28,25 @@ struct PureLogicTests {
                 """
         )
         let pin = try lock.pin(for: .arcleak)
-        #expect(pin == AnalyzerPin(tool: .arcleak, version: "0.10.2", commit: "abc", sha256: "deadbeef"))
+        #expect(pin == AnalyzerPin(release: AnalyzerTool.arcleak.release, version: "0.10.2", commit: "abc", sha256: "deadbeef"))
         #expect(pin.archiveName == "arcleak-0.10.2-macos-arm64.tar.gz")
         #expect(throws: ToolError.self) { try lock.pin(for: .dolly) }
+    }
+
+    @Test
+    func aReleaseSpecNamesItsArchiveItsLayoutAndItsAddress() throws {
+        let arcleak = AnalyzerPin(release: AnalyzerTool.arcleak.release, version: "0.10.2", commit: "abc", sha256: "")
+        #expect(arcleak.directoryInArchive == "arcleak-0.10.2-macos-arm64")
+        #expect(arcleak.release.binaryOverrideVariable == "ARCLEAK_BIN")
+        let arcleakAddress = "https://github.com/g-cqd/arcleak/releases/download/v0.10.2/arcleak-0.10.2-macos-arm64.tar.gz"
+        #expect(try ReleaseLocation.github.archiveURL(for: arcleak).absoluteString == arcleakAddress)
+
+        let swiftlint = AnalyzerPin(release: .swiftlint, version: "0.65.1", commit: "abc", sha256: "")
+        #expect(swiftlint.archiveName == "portable_swiftlint.zip")
+        #expect(swiftlint.directoryInArchive == nil, "the binary sits at the root of the zip")
+        #expect(swiftlint.release.binaryOverrideVariable == "SWIFTLINT_BIN")
+        let swiftlintAddress = "https://github.com/realm/SwiftLint/releases/download/0.65.1/portable_swiftlint.zip"
+        #expect(try ReleaseLocation.github.archiveURL(for: swiftlint).absoluteString == swiftlintAddress)
     }
 
     @Test

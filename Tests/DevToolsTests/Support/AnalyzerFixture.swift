@@ -40,17 +40,18 @@ struct AnalyzerFixture {
 
         var digests: [AnalyzerTool: String] = [:]
         for tool in AnalyzerTool.allCases {
-            let pin = AnalyzerPin(tool: tool, version: version, commit: commit(of: tool), sha256: "")
-            let directory = stage.appending(path: "\(tool.rawValue)/\(pin.directoryInArchive)", directoryHint: .isDirectory)
+            let pin = AnalyzerPin(release: tool.release, version: version, commit: commit(of: tool), sha256: "")
+            guard let directoryName = pin.directoryInArchive else { throw TestSetupError("\(tool.rawValue) has no archive directory") }
+            let directory = stage.appending(path: "\(tool.rawValue)/\(directoryName)", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: fake, to: directory.appending(path: tool.rawValue))
             let archive = release.appending(path: pin.archiveName)
-            try await pack(directory: pin.directoryInArchive, in: stage.appending(path: tool.rawValue), to: archive)
+            try await pack(directory: directoryName, in: stage.appending(path: tool.rawValue), to: archive)
             digests[tool] = try AnalyzerInstaller.sha256(ofFileAt: archive)
             if tampered.contains(tool) {
                 try Data("not what was pinned".utf8).write(to: directory.appending(path: "extra"))
                 try FileManager.default.removeItem(at: archive)
-                try await pack(directory: pin.directoryInArchive, in: stage.appending(path: tool.rawValue), to: archive)
+                try await pack(directory: directoryName, in: stage.appending(path: tool.rawValue), to: archive)
             }
         }
 

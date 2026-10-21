@@ -19,11 +19,6 @@ struct AnalyzerService: Sendable {
     /// When set, each analyzer's output is streamed through it to count findings for the job summary.
     var facts: GateFacts?
 
-    private var toolsDirectory: URL {
-        environment["ANALYZERS_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? root.appending(path: ".tools", directoryHint: .isDirectory)
-    }
-
     private static let cachePath = ".build-analyzers"
 
     // MARK: Commands
@@ -106,16 +101,12 @@ struct AnalyzerService: Sendable {
 
     /// The `<TOOL>_BIN` override when set, otherwise the pinned release (downloaded and verified on first use).
     private func resolve(_ tool: AnalyzerTool, lock: AnalyzerLock) async throws -> Resolved {
-        if let override = environment[tool.binaryOverrideVariable], !override.isEmpty {
+        if let override = environment[tool.release.binaryOverrideVariable], !override.isEmpty {
             guard FileManager.default.isExecutableFile(atPath: override) else { throw ToolError("\(override) is not an executable") }
             return Resolved(binary: URL(fileURLWithPath: override), version: nil)
         }
         let pin = try lock.pin(for: tool)
-        let installer = AnalyzerInstaller(
-            toolsDirectory: toolsDirectory,
-            location: try ReleaseLocation(environment: environment),
-            downloader: downloader
-        )
+        let installer = try AnalyzerInstaller(root: root, environment: environment, downloader: downloader)
         return Resolved(binary: try await installer.install(pin), version: pin.version)
     }
 

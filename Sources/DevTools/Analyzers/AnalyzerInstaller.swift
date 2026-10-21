@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Installs the pinned analyzer releases into a tools directory (git-ignored `.tools/` by default).
+/// Installs the pinned releases (the analyzers and SwiftLint) into a tools directory (git-ignored `.tools/` by default).
 ///
 /// The archive's SHA-256 is checked against the value pinned in the lock file, not against a checksum shipped with
 /// the release, and nothing from the archive is listed, unpacked or executed before that check passes.
@@ -12,21 +12,21 @@ struct AnalyzerInstaller: Sendable {
 
     /// The directory a pinned release is installed in.
     func installDirectory(for pin: AnalyzerPin) -> URL {
-        toolsDirectory.appending(path: "\(pin.tool.rawValue)-\(pin.version)", directoryHint: .isDirectory)
+        toolsDirectory.appending(path: "\(pin.release.name)-\(pin.version)", directoryHint: .isDirectory)
     }
 
     func binary(for pin: AnalyzerPin) -> URL {
-        installDirectory(for: pin).appending(path: pin.tool.rawValue)
+        installDirectory(for: pin).appending(path: pin.release.name)
     }
 
     /// Returns the installed binary, downloading and verifying the release first when it is missing.
     func install(_ pin: AnalyzerPin) async throws -> URL {
+        let name = pin.release.name
         let destination = binary(for: pin)
         if FileManager.default.isExecutableFile(atPath: destination.path) { return destination }
         guard Platform.isMacOSArm64 else {
             throw ToolError(
-                "the pinned \(pin.tool.rawValue) release is macOS arm64 only; set \(pin.tool.binaryOverrideVariable) to a binary you trust"
-            )
+                "the pinned \(name) release is macOS arm64 only; set \(pin.release.binaryOverrideVariable) to a binary you trust")
         }
 
         let fileManager = FileManager.default
@@ -36,28 +36,28 @@ struct AnalyzerInstaller: Sendable {
         defer { try? fileManager.removeItem(at: scratch) }
 
         let source = try location.archiveURL(for: pin)
-        Output.out("installing \(pin.tool.rawValue) \(pin.version) from \(source.absoluteString)")
-        let archive = scratch.appending(path: "\(pin.tool.rawValue).tar.gz")
+        Output.out("installing \(name) \(pin.version) from \(source.absoluteString)")
+        let archive = scratch.appending(path: pin.archiveName)
         try await downloader.download(from: source, to: archive)
 
         let actual = try Self.sha256(ofFileAt: archive)
         guard actual == pin.sha256 else {
-            throw ToolError(
-                "\(pin.tool.rawValue) \(pin.version): SHA-256 mismatch (expected \(pin.sha256), got \(actual)); refusing to run it")
+            throw ToolError("\(name) \(pin.version): SHA-256 mismatch (expected \(pin.sha256), got \(actual)); refusing to run it")
         }
         try await Self.checkArchiveLayout(archive, pin: pin)
 
         let extracted = scratch.appending(path: "extract", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: extracted, withIntermediateDirectories: false)
-        try await Self.tar(["-xzf", archive.path, "-C", extracted.path])
-        let release = extracted.appending(path: pin.directoryInArchive, directoryHint: .isDirectory)
-        let unpacked = release.appending(path: pin.tool.rawValue)
+        let compression = pin.release.archive.tarCompression
+        try await Self.tar(["-x\(compression)f", archive.path, "-C", extracted.path])
+        let release = pin.directoryInArchive.map { extracted.appending(path: $0, directoryHint: .isDirectory) } ?? extracted
+        let unpacked = release.appending(path: name)
         guard fileManager.isExecutableFile(atPath: unpacked.path) else {
-            throw ToolError("\(pin.tool.rawValue) \(pin.version): archive layout changed")
+            throw ToolError("\(name) \(pin.version): archive layout changed")
         }
         let reported = try await Self.reportedVersion(of: unpacked)
         guard reported == pin.version else {
-            throw ToolError("\(pin.tool.rawValue) binary reports '\(reported)', expected '\(pin.version)'")
+            throw ToolError("\(name) binary reports '\(reported)', expected '\(pin.version)'")
         }
 
         try? fileManager.removeItem(at: installDirectory(for: pin))
@@ -84,10 +84,10 @@ struct AnalyzerInstaller: Sendable {
     }
 
     private static func checkArchiveLayout(_ archive: URL, pin: AnalyzerPin) async throws {
-        let listing = try await tar(["-tzf", archive.path])
+        let listing = try await tar(["-t\(pin.release.archive.tarCompression)f", archive.path])
         let escapes = listing.split(whereSeparator: \.isNewline).contains { $0.hasPrefix("/") || $0.split(separator: "/").contains("..") }
         if escapes {
-            throw ToolError("\(pin.tool.rawValue) \(pin.version): archive contains absolute or parent-relative paths")
+            throw ToolError("\(pin.release.name) \(pin.version): archive contains absolute or parent-relative paths")
         }
     }
 
@@ -96,6 +96,18 @@ struct AnalyzerInstaller: Sendable {
         let result = try await ProcessRunner.run(CommandSpec(executable: "/usr/bin/tar", arguments: arguments))
         guard result.succeeded else { throw ToolError("tar \(arguments[0]) failed: \(result.standardError)") }
         return result.standardOutput
+    }
+}
+
+extension AnalyzerInstaller {
+    /// The installer for a checkout: `ANALYZERS_DIR` or `<root>/.tools`, and the release location `VMR_ANALYZERS_BASE_URL` selects.
+    init(root: URL, environment: [String: String], downloader: any ArchiveDownloader = URLArchiveDownloader()) throws {
+        self.init(
+            toolsDirectory: environment["ANALYZERS_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? root.appending(path: ".tools", directoryHint: .isDirectory),
+            location: try ReleaseLocation(environment: environment),
+            downloader: downloader
+        )
     }
 }
 
