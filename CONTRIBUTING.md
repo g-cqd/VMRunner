@@ -105,8 +105,9 @@ The scripts are Swift: `Sources/DevTools` (logic), `Sources/vmr` (the command li
 end, they run the real `vmr` binary against fixture packages, a local fixture analyzer release and temporary git
 repositories. They lint with the pinned SwiftLint (installed on first use, or the binary `SWIFTLINT_BIN` names), build real
 packages and run in about twenty seconds in parallel. Keep new
-tooling in Swift: no shell or Python files. The two dependencies (swift-subprocess, swift-argument-parser) are pinned with
-`exact:`; the app target and its tests must never link them. The same goes for `VMHelperKit` and `VMHelper`, the
+tooling in Swift: no shell or Python files. The tooling's two dependencies (swift-subprocess, swift-argument-parser) are pinned with
+`exact:`; the app target and its tests must never link them. The app's own packages are listed in ADR-0001, and a test
+compares them with `Package.swift`. The same goes for `VMHelperKit` and `VMHelper`, the
 headless helper of the sandbox spike (roadmap 0025): `swift run vmr sandbox-spike run` launches it under App Sandbox or a
 Seatbelt profile. Without `--boot` it only probes and validates; `--boot` starts a virtual machine and is for the owner.
 

@@ -2,8 +2,9 @@
 
 A small SwiftUI app that creates and runs **macOS** and **Linux (CentOS Stream)** virtual machines on Apple
 silicon with Apple's [Virtualization framework](https://developer.apple.com/documentation/virtualization).
-The app has no dependencies beyond the system frameworks; the developer tooling (`vmr`, below) uses two pinned
-Apple/Swift packages and is never linked into the app.
+The app links the system frameworks and one pinned package, `swift-async-algorithms` (which brings in
+`swift-collections`); the developer tooling (`vmr`, below) uses two other pinned Apple/Swift packages and is never
+linked into the app.
 
 ## Start here
 

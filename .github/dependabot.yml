@@ -13,8 +13,9 @@ updates:
     commit-message:
       prefix: ci
 
-  # The VMRunner app has no dependencies. The developer tooling (DevTools, vmr) depends on swift-subprocess and
-  # swift-argument-parser, pinned with `exact:` in Package.swift; this proposes their updates, and any added later.
+  # The VMRunner app depends on swift-async-algorithms (and through it swift-collections); the developer tooling
+  # (DevTools, vmr) on swift-subprocess and swift-argument-parser. All are pinned with `exact:` in Package.swift; this
+  # proposes their updates, and any added later.
   - package-ecosystem: swift
     directory: /
     schedule:

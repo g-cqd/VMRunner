@@ -1,5 +1,10 @@
 Third-party material used by this repository.
 
-The Swift package dependencies (swift-subprocess, swift-argument-parser, swift-collections and their dependency
-swift-system) are not vendored; they are fetched by SwiftPM at the exact versions pinned in Package.swift and
-Package.resolved, and ship under their own licenses (Apache License 2.0 with Runtime Library Exception).
+The Swift package dependencies are not vendored; they are fetched by SwiftPM at the exact versions pinned in
+Package.swift and Package.resolved, and ship under their own licenses (Apache License 2.0 with Runtime Library
+Exception):
+
+- swift-async-algorithms: linked into the app (the debounce of settings writes), with its dependency swift-collections
+- swift-collections: linked into the app through swift-async-algorithms, and into the test support (HeapModule)
+- swift-subprocess and swift-argument-parser: developer tooling only (vmr), never linked into the app
+- swift-system: a dependency of swift-subprocess, so developer tooling only
