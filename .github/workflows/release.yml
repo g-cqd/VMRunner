@@ -102,7 +102,7 @@ jobs:
         working-directory: dist
         run: sha256sum --check --strict "VMRunner-${TAG}.zip.sha256"
       - name: Attest the zip
-        if: ${{ github.repository_visibility == 'public' }}
+        if: ${{ github.event.repository.private == false }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/VMRunner-${{ env.TAG }}.zip
