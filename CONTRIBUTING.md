@@ -73,6 +73,25 @@ CI runs the same `swift run vmr check` steps, so the lock is the only place the 
   checks out the full history for it. It does not see `// swiftlint:disable` comments, `// @al:accept`-style
   acceptances or a changed severity in `.swiftlint.yml`, which stay review-only.
 
+## Worktrees and cleanup
+
+Parallel work (people or agents) happens in git worktrees on their own branches, never on `main`. Every worktree is
+cleaned up, always:
+
+- **After each merge**, in the same step as the merge: check that the branch is merged (`git merge-base --is-ancestor
+  BRANCH main`, or `git cherry main BRANCH` when commits were cherry-picked or amended on the way in), look at
+  `git -C WORKTREE status --short` so nothing uncommitted is lost, then `git worktree remove --force WORKTREE`,
+  `git branch -D BRANCH` and `git worktree prune`. If the directory survives (build products are large), delete what is
+  left of it. A worktree whose agent is still running is locked: leave it alone; unlock it only once that agent has
+  reported.
+- **After everything is done** (the end of a session, a phase or a release): `git worktree list` shows only the main
+  checkout and `git branch` lists no work branches; no background process of the work is left running (loops, load
+  generators, build servers); scratch directories created outside the repository (`/tmp` experiments, downloaded
+  archives, PoC builds) are deleted; the build directories of removed worktrees (`.build*`, `.tools`) are gone; the
+  working tree is clean (`git status`). The diary entry of the session says what was cleaned and what was left on
+  purpose.
+- Never delete a branch or worktree that holds work that is not on `main` or that nobody has looked at.
+
 ## Code rules
 
 The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml`, `.swift-format`):
