@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.virtualization</key>
+    <true/>
+    <!-- Required under the hardened runtime for guests to record from the microphone. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!--
+        Enhanced Security (hardened process), opt-in through the hardened option of Scripts/build-app.sh.
+        Everything above this comment must stay identical to VMRunner.entitlements
+        (Scripts/build-app.sh checks that the hardened file is a superset).
+        Keep double hyphens out of this comment: the kernel's entitlement parser rejects them.
+        The default-OFF memory-tagging family (checked-allocations, ...) is deliberately not enabled.
+    -->
+    <key>com.apple.security.hardened-process</key>
+    <true/>
+    <key>com.apple.security.hardened-process.enhanced-security-version-string</key>
+    <string>2</string>
+    <key>com.apple.security.hardened-process.hardened-heap</key>
+    <true/>
+    <key>com.apple.security.hardened-process.dyld-ro</key>
+    <true/>
+    <key>com.apple.security.hardened-process.platform-restrictions-string</key>
+    <string>2</string>
+</dict>
+</plist>
