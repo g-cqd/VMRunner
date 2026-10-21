@@ -25,7 +25,7 @@ struct CheckCommand: AsyncParsableCommand {
 
     @OptionGroup var project: ProjectOptions
 
-    @Flag(help: "Run the fast gate plus the sanitizers, the release build and the coverage gate.")
+    @Flag(help: "Run the fast gate plus the sanitizers, the release build, the coverage gate and the benchmark gate.")
     var full = false
 
     @Flag(help: "Print the steps and exit.")

@@ -157,9 +157,10 @@ tests link neither.
 
 ```sh
 swift run vmr check                          # fast gate: format, swiftlint, docs, build, test, analyzers
-swift run vmr check --full                   # + ASan, TSan and UBSan test runs, release build, coverage gate
+swift run vmr check --full                   # + ASan, TSan and UBSan test runs, release build, coverage and benchmark gates
 swift run vmr check test coverage            # only the named steps; --list shows all of them
 swift run vmr analyzers [run|install|baseline|versions] [arcleak|dolly|deadwood...]
+swift run vmr bench record                   # re-record the benchmark baseline (.vmr-bench.json)
 swift run vmr build-app [debug|release] [--hardened] [--arm64e]
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files
@@ -176,6 +177,11 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
 - **Coverage** is measured on the logic layer only (Views, `VMRunnerApp`, `VMController`, `Provisioner` and
   `ConfigurationBuilder` need a display and the virtualization entitlement, so unit tests can't reach them).
   `COVERAGE_MIN` (default 55, set in `.vmr.json`) is a ratchet: it only goes up as coverage does (about 60% when introduced).
+- **Benchmarks** (`vmr check bench`, full gate only) run the suites named `*Benchmarks` in an optimized build and hold their
+  figures to the committed baseline `.vmr-bench.json`: allocation counts of the policy decision and the network stack paths
+  (exact), retired instructions per unit of work for the checksum digests and the policy decision (3%), and their wall-clock
+  rates (reported, never failing). A regression fails; an improvement tells you to re-record with `vmr bench record`. A plain
+  `swift test` skips them. See ADR-0022.
 - **Analyzers** are the pinned, checksum-verified releases listed in `Scripts/analyzers.lock`, run by
   `vmr analyzers` (binaries land in the git-ignored `.tools/`; the SHA-256 of each archive is checked against the
   lock, not against the release's own checksum file, before anything is unpacked or run):
@@ -194,7 +200,7 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
   this README: the white paper stays within 200 lines; ADRs, roadmap entries, diary files and research studies have the
   right names, unique numbers, front matter and headings; supersession, `blocked-by`, `decision` and `feeds` references
   resolve (no `blocked-by` cycles); and every relative link resolves. It prints `path:line: message` per violation.
-- **CI** on GitHub Actions: lint, build and unit tests, app bundle checks, sanitizers, coverage, analyzers,
+- **CI** on GitHub Actions: lint, build and unit tests, app bundle checks, sanitizers, coverage, benchmarks (advisory), analyzers,
   CodeQL, and workflow linting (actionlint, zizmor). Actions are pinned to full commit SHAs and Dependabot keeps
   them current. Hosted runners can't run nested VMs, so CI never starts a virtual machine.
 - **Hardened build.** `vmr build-app` verifies the signature, reads the effective entitlements back and

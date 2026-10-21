@@ -13,6 +13,7 @@ struct VMRCommand: AsyncParsableCommand {
         subcommands: [
             CheckCommand.self,
             AnalyzersCommand.self,
+            BenchCommand.self,
             BuildAppCommand.self,
             SarifCommand.self,
             HooksCommand.self,

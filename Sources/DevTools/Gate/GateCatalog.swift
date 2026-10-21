@@ -18,6 +18,7 @@ enum GateCatalog {
             name: "ubsan", run: GateSteps.sanitizer("undefined", scratch: ".build-ubsan", linkerArguments: GateSteps.ubsanLinkerArguments)),
         GateStep(name: "release", run: GateSteps.release),
         GateStep(name: "coverage", run: GateSteps.coverage),
+        GateStep(name: "bench", run: GateSteps.bench),
     ]
 
     static var allSteps: [GateStep] { fastSteps + fullOnlySteps }

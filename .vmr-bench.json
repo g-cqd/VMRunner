@@ -1,0 +1,137 @@
+{
+  "benchmarks" : {
+    "allocations.policy.127.0.0.1" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 19
+    },
+    "allocations.policy.2130706433" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 4
+    },
+    "allocations.policy.93.184.216.34" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 20
+    },
+    "allocations.policy.example.com" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 5
+    },
+    "allocations.policy.tracker.example" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 4
+    },
+    "allocations.policy.url" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 24
+    },
+    "allocations.policy.x.ads.example" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 6
+    },
+    "allocations.usernet.arpDHCPAndGatewayPing" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 0
+    },
+    "allocations.usernet.guestToHostTCPData" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 0
+    },
+    "allocations.usernet.hostToGuestTCPData" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 0
+    },
+    "allocations.usernet.housekeepingWithIdleFlows" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 0
+    },
+    "allocations.usernet.realLoopUDPRoundTrips" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 0
+    },
+    "allocations.usernet.udpRoundTrips" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0,
+      "unit" : "allocations",
+      "value" : 0
+    },
+    "checksum.sha1.instructionsPerMiB" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0.03,
+      "unit" : "instructions/MiB",
+      "value" : 2209825.39
+    },
+    "checksum.sha1.throughput" : {
+      "direction" : "higher",
+      "enforced" : false,
+      "tolerance" : 0.3,
+      "unit" : "MiB/s",
+      "value" : 2047.41
+    },
+    "checksum.sha256.instructionsPerMiB" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0.03,
+      "unit" : "instructions/MiB",
+      "value" : 2144618.94
+    },
+    "checksum.sha256.throughput" : {
+      "direction" : "higher",
+      "enforced" : false,
+      "tolerance" : 0.3,
+      "unit" : "MiB/s",
+      "value" : 2060.2
+    },
+    "network.policy.decisionsPerSecond" : {
+      "direction" : "higher",
+      "enforced" : false,
+      "tolerance" : 0.3,
+      "unit" : "decisions/s",
+      "value" : 358177.95
+    },
+    "network.policy.instructionsPerDecision" : {
+      "direction" : "lower",
+      "enforced" : true,
+      "tolerance" : 0.03,
+      "unit" : "instructions",
+      "value" : 56327.67
+    }
+  }
+}

@@ -16,6 +16,7 @@ excluded:
   - .build-ubsan
   - .build-cov
   - .build-release
+  - .build-bench
 
 opt_in_rules:
   - array_init

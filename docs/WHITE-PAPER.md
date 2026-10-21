@@ -26,7 +26,7 @@ that was written against a race is fixed by removing the race, not by raising a 
 
 ## 2. Performance doctrine
 
-Measure before changing; keep the number. Hot paths do not allocate: the packet paths of the network stack, the policy
+Measure before changing; keep the number, in the committed benchmark baseline that the gate ratchets. Hot paths do not allocate: the packet paths of the network stack, the policy
 decision and parsers carry allocation ceilings in tests, taken as the minimum of several attempts on the measuring
 thread. Work that can wait is coalesced (settings writes), work that is large is streamed (checksums, downloads), and
 memory is not held longer than needed (a restore image is deleted after installing). `unsafe` is for a measured gain

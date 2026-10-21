@@ -90,7 +90,7 @@ struct CheckTests {
         #expect(run.status == 0)
         #expect(
             run.outputLines.dropLast() == [
-                "format", "swiftlint", "docs", "build", "test", "analyzers", "asan", "tsan", "ubsan", "release", "coverage",
+                "format", "swiftlint", "docs", "build", "test", "analyzers", "asan", "tsan", "ubsan", "release", "coverage", "bench",
             ])
         #expect(!run.output.contains("==>"))
     }
