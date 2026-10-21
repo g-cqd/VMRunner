@@ -112,7 +112,7 @@ let package = Package(
             name: "ContainerSpikeTests", dependencies: ["ContainerSpikeCore"], path: "Tests/ContainerSpikeTests", swiftSettings: hardening),
 
         // The spike itself: the only target that links the container package. Run by the owner, never by the gate (it boots
-        // a virtual machine).
+        // a virtual machine). `vmr spike-sign` builds and signs it with the virtualization entitlement.
         .executableTarget(
             name: "ContainerSpike",
             dependencies: [

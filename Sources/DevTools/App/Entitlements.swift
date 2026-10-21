@@ -52,6 +52,7 @@ enum Entitlements {
     typealias Dictionary = [String: PlistValue]
 
     static let getTaskAllow = "com.apple.security.get-task-allow"
+    static let virtualization = "com.apple.security.virtualization"
 
     /// The top-level dictionary of a property list; an empty input (a binary without entitlements) is an empty dictionary.
     static func parse(_ data: Data) throws -> Dictionary {
