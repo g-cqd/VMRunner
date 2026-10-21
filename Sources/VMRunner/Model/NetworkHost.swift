@@ -13,6 +13,10 @@ enum NetworkPolicyError: Error, Hashable, Sendable {
     case unsupportedScheme(String)
     /// Credentials, query, or fragment in a URL prefix rule.
     case unsupportedURLComponent(String)
+    /// Not a port (1...65535) or a `low-high` range.
+    case invalidPort(String)
+    /// A connection rule with broken brackets or an empty port list.
+    case invalidConnection(String)
 }
 
 extension NetworkPolicyError: LocalizedError {
@@ -27,6 +31,8 @@ extension NetworkPolicyError: LocalizedError {
         case .unsupportedScheme(let scheme):
             "URL rules need the http scheme (\"\(scheme)\" paths cannot be seen through a CONNECT proxy); block the domain instead."
         case .unsupportedURLComponent(let component): "A URL rule cannot contain \(component)."
+        case .invalidPort(let text): "\"\(text)\" is not a port (1-65535) or a range like 8000-8100."
+        case .invalidConnection(let text): "\"\(text)\" is not a valid connection rule like example.com:443 or [2001:db8::/32]:443."
         }
     }
 }

@@ -54,6 +54,11 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         case malformedURL
         case unsupportedScheme(String)
         case blockedPort(UInt16)
+        case blockedConnection(ConnectionRule)
+        /// Allow-list mode: the destination is allowed but not on this port.
+        case portNotAllowListed(UInt16)
+        /// Allow-list mode: no allowed URL prefix matches this http URL.
+        case urlNotAllowListed
         /// `address` (as resolved or written) lies in a built-in non-public range.
         case reservedRange(ReservedRangeKind, address: IPAddress)
         case blockedAddress(AddressRule, address: IPAddress)
@@ -87,17 +92,25 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
     var blockedDomains: [DomainRule] = []
     /// Enforced for http only; see the type documentation.
     var blockedURLPrefixes: [URLRule] = []
-    var blockedPorts: Set<UInt16> = []
+    var blockedPorts: [PortRule] = []
+    /// A destination plus ports, denied: `ssh to this block` without blocking the block entirely.
+    var blockedConnections: [ConnectionRule] = []
     var mode = Mode.denyListed
     var allowedDomains: [DomainRule] = []
     var allowedAddresses: [AddressRule] = []
+    /// In allow-list mode, when not empty, an allowed destination must also use one of these ports.
+    var allowedPorts: [PortRule] = []
+    /// In allow-list mode, a destination plus ports that is allowed on its own: "only HTTPS to GitHub".
+    var allowedConnections: [ConnectionRule] = []
+    /// In allow-list mode, when not empty, an http URL must also start with one of these (https paths are invisible).
+    var allowedURLPrefixes: [URLRule] = []
     var vpn = VPNRequirement.ignore
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case blockPrivateRanges, blockedAddresses, blockedDomains, blockedURLPrefixes, blockedPorts
-        case mode, allowedDomains, allowedAddresses, vpn
+        case blockPrivateRanges, blockedAddresses, blockedDomains, blockedURLPrefixes, blockedPorts, blockedConnections
+        case mode, allowedDomains, allowedAddresses, allowedPorts, allowedConnections, allowedURLPrefixes, vpn
     }
 
     /// Missing keys take their defaults, so policies saved by older versions keep decoding.
@@ -107,10 +120,14 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         blockedAddresses = try container.decodeIfPresent([AddressRule].self, forKey: .blockedAddresses) ?? []
         blockedDomains = try container.decodeIfPresent([DomainRule].self, forKey: .blockedDomains) ?? []
         blockedURLPrefixes = try container.decodeIfPresent([URLRule].self, forKey: .blockedURLPrefixes) ?? []
-        blockedPorts = try container.decodeIfPresent(Set<UInt16>.self, forKey: .blockedPorts) ?? []
+        blockedPorts = try container.decodeIfPresent([PortRule].self, forKey: .blockedPorts) ?? []
+        blockedConnections = try container.decodeIfPresent([ConnectionRule].self, forKey: .blockedConnections) ?? []
         mode = try container.decodeIfPresent(Mode.self, forKey: .mode) ?? .denyListed
         allowedDomains = try container.decodeIfPresent([DomainRule].self, forKey: .allowedDomains) ?? []
         allowedAddresses = try container.decodeIfPresent([AddressRule].self, forKey: .allowedAddresses) ?? []
+        allowedPorts = try container.decodeIfPresent([PortRule].self, forKey: .allowedPorts) ?? []
+        allowedConnections = try container.decodeIfPresent([ConnectionRule].self, forKey: .allowedConnections) ?? []
+        allowedURLPrefixes = try container.decodeIfPresent([URLRule].self, forKey: .allowedURLPrefixes) ?? []
         vpn = try container.decodeIfPresent(VPNRequirement.self, forKey: .vpn) ?? .ignore
     }
 
@@ -156,14 +173,18 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         let decision = evaluate(form: target.host, port: target.port, resolvedAddresses: resolvedAddresses)
         let pathRulesApply = target.scheme == .http
         guard decision.isAllowed, pathRulesApply else { return URLEvaluation(decision: decision, pathRulesApplied: pathRulesApply) }
-        let blocking = blockedURLPrefixes.first {
-            $0.matches(host: target.host, port: target.port, pathSegments: target.segments)
+        func matches(_ rule: URLRule) -> Bool {
+            rule.matches(host: target.host, port: target.port, pathSegments: target.segments)
         }
-        return URLEvaluation(decision: blocking.map { .deny(.blockedURL($0)) } ?? .allow, pathRulesApplied: true)
+        if let blocking = blockedURLPrefixes.first(where: matches) {
+            return URLEvaluation(decision: .deny(.blockedURL(blocking)), pathRulesApplied: true)
+        }
+        let outsideAllowedURLs = mode == .allowListed && !allowedURLPrefixes.isEmpty && !allowedURLPrefixes.contains(where: matches)
+        return URLEvaluation(decision: outsideAllowedURLs ? .deny(.urlNotAllowListed) : .allow, pathRulesApplied: true)
     }
 
     private func evaluate(form: HostForm, port: UInt16, resolvedAddresses: [IPAddress]) -> Decision {
-        if blockedPorts.contains(port) { return .deny(.blockedPort(port)) }
+        if blockedPorts.contains(where: { $0.contains(port) }) { return .deny(.blockedPort(port)) }
         var addresses = resolvedAddresses
         switch form {
         case .address(let literal):
@@ -172,9 +193,21 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
             if let rule = blockedDomains.first(where: { $0.matches(name) }) { return .deny(.blockedDomain(rule)) }
             if resolvedAddresses.isEmpty { return .deny(.unresolved) }
         }
+        if let rule = blockedConnections.first(where: { $0.blocks(host: form, port: port, addresses: addresses) }) {
+            return .deny(.blockedConnection(rule))
+        }
         if let reason = firstAddressDenial(in: addresses) { return .deny(reason) }
         guard mode == .allowListed else { return .allow }
-        return isAllowListed(form, addresses: addresses) ? .allow : .deny(.notAllowListed)
+        return allowListDecision(form, port: port, addresses: addresses)
+    }
+
+    /// Allow-list mode, after every block has passed: an allowed connection rule is enough on its own; otherwise the
+    /// destination must be allow-listed and, if ports are listed, so must the port.
+    private func allowListDecision(_ form: HostForm, port: UInt16, addresses: [IPAddress]) -> Decision {
+        if allowedConnections.contains(where: { $0.allows(host: form, port: port, addresses: addresses) }) { return .allow }
+        guard isAllowListed(form, addresses: addresses) else { return .deny(.notAllowListed) }
+        if !allowedPorts.isEmpty, !allowedPorts.contains(where: { $0.contains(port) }) { return .deny(.portNotAllowListed(port)) }
+        return .allow
     }
 
     private func firstAddressDenial(in addresses: [IPAddress]) -> Reason? {
