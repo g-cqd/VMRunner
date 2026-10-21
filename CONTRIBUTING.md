@@ -89,8 +89,14 @@ swift run vmr build-app                     # release, ad-hoc signed, hardened r
 swift run vmr build-app release --hardened  # + Enhanced Security entitlements (hardened process and heap, ...)
 ```
 
-`vmr build-app` reads the effective entitlements back from the signed bundle and fails if `get-task-allow` or any
-unexpected entitlement is present. Do not start virtual machines from automated checks.
+The entitlement policy is written in code (`Sources/DevTools/App/EntitlementPolicy.swift`), not derived from the
+entitlement files: an allowlist of keys with their one permitted value (virtualization, audio input, the hardened-process
+family) and a refusal of everything else, named for `com.apple.security.cs.*` (hardened runtime relaxations),
+`com.apple.security.temporary-exception.*` and, in a release build, `get-task-allow`. `vmr build-app` applies it to both
+entitlement files before it builds anything, and again to the effective entitlements it reads back from the signed
+bundle, which must also equal the file used to sign. It also rejects a double hyphen inside an XML comment of an
+entitlement file (the kernel's parser does). A new entitlement therefore needs a change to the policy, which review sees.
+Do not start virtual machines from automated checks.
 
 ## Developer tooling
 

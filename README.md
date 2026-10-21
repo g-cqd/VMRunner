@@ -205,8 +205,9 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
 - **CI** on GitHub Actions: lint, build and unit tests, app bundle checks, sanitizers, coverage, benchmarks (advisory), analyzers,
   CodeQL, and workflow linting (actionlint, zizmor). Actions are pinned to full commit SHAs and Dependabot keeps
   them current. Hosted runners can't run nested VMs, so CI never starts a virtual machine.
-- **Hardened build.** `vmr build-app` verifies the signature, reads the effective entitlements back and
-  fails on `get-task-allow` or any unexpected entitlement. `vmr build-app release --hardened` signs with
+- **Hardened build.** `vmr build-app` checks both entitlement files against an allowlist kept in code
+  (`EntitlementPolicy`) before it builds, verifies the signature, reads the effective entitlements back and
+  fails on `get-task-allow` (release), a `com.apple.security.cs.*` relaxation or any entitlement outside the allowlist. `vmr build-app release --hardened` signs with
   `Resources/VMRunner.hardened.entitlements`, which adds Apple's Enhanced Security (hardened process and heap,
   read-only dyld state, platform restrictions v2). `--arm64e` additionally builds with pointer authentication.
 - **Git hook.** `swift run vmr hooks install` links `.git/hooks/pre-commit` to the built `vmr` binary, which git then

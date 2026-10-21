@@ -47,9 +47,66 @@ struct BuildAppTests {
             files: AppFixture.files(defaultEntitlements: withTaskAllow, hardenedEntitlements: withTaskAllow)
         )
         #expect(run.status == 1, "\(run.combined)")
-        #expect(run.error.contains("entitlement check FAILED:"))
-        #expect(run.error.contains("  - get-task-allow is present in a release build"), "\(run.error)")
+        #expect(run.error.contains("entitlement policy FAILED:"), "refused from the files, before a build: \(run.error)")
+        #expect(
+            run.error.contains("  - VMRunner.entitlements: get-task-allow is present in a release build"), "\(run.error)")
         #expect(app == nil)
+    }
+
+    /// Runs `build-app` over a fixture whose two entitlement files are given, and returns the run and whether anything was built.
+    private func refusedBeforeBuilding(
+        _ arguments: [String] = [],
+        default defaultFile: String,
+        hardened hardenedFile: String
+    ) async throws -> (run: Invocation, built: Bool) {
+        try await withTemporaryDirectory { directory in
+            try write(AppFixture.files(defaultEntitlements: defaultFile, hardenedEntitlements: hardenedFile), to: directory)
+            let run = try await VMR.vmr(["build-app"] + arguments, in: directory)
+            let fileManager = FileManager.default
+            let built =
+                fileManager.fileExists(atPath: directory.appending(path: ".build").path)
+                || fileManager.fileExists(atPath: directory.appending(path: "build").path)
+            return (run, built)
+        }
+    }
+
+    @Test(arguments: ["release", "debug"])
+    func aRelaxationInBothFilesIsRefusedEvenThoughSignatureAndFileWouldAgree(configuration: String) async throws {
+        let relaxed = AppFixture.entitlements([
+            "com.apple.security.virtualization": "<true/>",
+            "com.apple.security.cs.disable-library-validation": "<true/>",
+        ])
+        let (run, built) = try await refusedBeforeBuilding([configuration], default: relaxed, hardened: relaxed)
+        #expect(run.status == 1, "\(run.combined)")
+        for file in ["VMRunner.entitlements", "VMRunner.hardened.entitlements"] {
+            let line = "  - \(file): com.apple.security.cs.disable-library-validation relaxes the hardened runtime and is not permitted"
+            #expect(run.error.contains(line), "\(run.error)")
+        }
+        #expect(!built, "the policy is checked on the files before anything is built")
+    }
+
+    @Test(arguments: [
+        ("com.apple.security.network.client", "<true/>", "com.apple.security.network.client is not in the entitlement allowlist"),
+        ("com.apple.security.temporary-exception.mach-lookup.global-name", "<true/>", "is a sandbox exception and is not permitted"),
+        ("com.apple.security.virtualization", "<false/>", "com.apple.security.virtualization is false; the policy allows only true"),
+    ])
+    func anEntitlementOutsideTheAllowlistOrWithAnotherValueIsRefused(key: String, value: String, message: String) async throws {
+        let file = AppFixture.entitlements(["com.apple.security.virtualization": "<true/>"].merging([key: value]) { _, new in new })
+        let (run, built) = try await refusedBeforeBuilding(default: file, hardened: file)
+        #expect(run.status == 1, "\(run.combined)")
+        #expect(run.error.contains(message), "\(run.error)")
+        #expect(!built)
+    }
+
+    @Test
+    func aDoubleHyphenInsideAnXMLCommentIsRefused() async throws {
+        let commented = AppFixture.defaultEntitlements.replacingOccurrences(
+            of: "<dict>", with: "<dict>\n    <!-- never write -- inside a comment -->")
+        let (run, built) = try await refusedBeforeBuilding(default: AppFixture.defaultEntitlements, hardened: commented)
+        #expect(run.status == 1, "\(run.combined)")
+        #expect(
+            run.error.contains("VMRunner.hardened.entitlements:5: a double hyphen inside an XML comment"), "\(run.error)")
+        #expect(!built)
     }
 
     @Test(.timeLimit(.minutes(8)))

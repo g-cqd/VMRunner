@@ -1,7 +1,7 @@
 import Foundation
 
 /// A property-list value, decoded without type erasure so entitlements compare by value.
-enum PlistValue: Decodable, Equatable, CustomStringConvertible {
+enum PlistValue: Decodable, Equatable, Sendable, CustomStringConvertible {
     case bool(Bool)
     case integer(Int)
     case real(Double)

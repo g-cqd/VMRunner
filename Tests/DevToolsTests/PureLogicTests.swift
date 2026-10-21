@@ -79,6 +79,48 @@ struct PureLogicTests {
     }
 
     @Test
+    func theSignedEntitlementsAreJudgedAgainstThePolicyNotOnlyAgainstTheirFile() throws {
+        let signed = try Entitlements.parse(
+            Data(
+                AppFixture.entitlements([
+                    "com.apple.security.virtualization": "<true/>",
+                    "com.apple.security.cs.allow-jit": "<true/>",
+                    "com.apple.security.get-task-allow": "<true/>",
+                ]).utf8))
+        #expect(
+            EntitlementPolicy.problems(in: signed, isRelease: true) == [
+                "com.apple.security.cs.allow-jit relaxes the hardened runtime and is not permitted",
+                "get-task-allow is present in a release build",
+            ])
+        #expect(
+            EntitlementPolicy.problems(in: signed, isRelease: false) == [
+                "com.apple.security.cs.allow-jit relaxes the hardened runtime and is not permitted"
+            ], "a debug build may carry get-task-allow")
+    }
+
+    @Test
+    func thisRepositorysEntitlementFilesSatisfyThePolicy() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        for name in ["VMRunner.entitlements", "VMRunner.hardened.entitlements"] {
+            let data = try Data(contentsOf: root.appending(path: "Resources/\(name)"))
+            #expect(EntitlementPolicy.problems(in: try Entitlements.parse(data), isRelease: true).isEmpty, "\(name)")
+            let text = try #require(String(data: data, encoding: .utf8))
+            #expect(EntitlementPolicy.commentProblems(in: text, name: name).isEmpty, "\(name)")
+        }
+    }
+
+    @Test
+    func commentsWithDoubleHyphensAreFoundWithTheirLine() {
+        let text = "<plist>\n<!-- fine -->\n<!--\n  two -- hyphens\n-->\n<!-- ends in a hyphen --->\n</plist>"
+        #expect(
+            EntitlementPolicy.commentProblems(in: text, name: "f.entitlements") == [
+                "f.entitlements:4: a double hyphen inside an XML comment (the kernel's entitlement parser rejects it)",
+                "f.entitlements: an XML comment ends in a hyphen (the kernel's entitlement parser rejects it)",
+            ])
+        #expect(EntitlementPolicy.commentProblems(in: "<!-- one --> <!-- two -->", name: "f").isEmpty)
+    }
+
+    @Test
     func projectConfigDefaultsAndOverrides() throws {
         let config = try JSONDecoder().decode(
             ProjectConfig.self,

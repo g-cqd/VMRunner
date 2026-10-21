@@ -28,7 +28,8 @@ struct AppBundler {
     private var entitlementsURL: URL { options.hardened ? hardenedEntitlementsURL : defaultEntitlementsURL }
 
     func run() async throws {
-        // Cheap file checks first, so a drifted entitlements file fails before a long build.
+        // Cheap file checks first, so a drifted or over-privileged entitlements file fails before a long build.
+        try verifyEntitlementFiles()
         try verifyHardenedSuperset()
         let binary = try await compile()
         try assemble(binary: binary)
@@ -58,11 +59,42 @@ struct AppBundler {
 
     // MARK: Verification
 
-    /// The effective entitlements, read back from the signed bundle, must equal the file used to sign it.
+    /// Both entitlement files must satisfy `EntitlementPolicy` and carry no double hyphen inside an XML comment, whichever
+    /// one this run signs with: a file that agrees with its own signature proves nothing about what it grants.
+    private func verifyEntitlementFiles() throws {
+        let isRelease = options.configuration == .release
+        var problems: [String] = []
+        for url in [defaultEntitlementsURL, hardenedEntitlementsURL] {
+            let name = url.lastPathComponent
+            guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else {
+                throw ToolError("cannot read \(url.path)")
+            }
+            problems += EntitlementPolicy.commentProblems(in: text, name: name)
+            problems += EntitlementPolicy.problems(in: try Entitlements.parse(data), isRelease: isRelease).map { "\(name): \($0)" }
+        }
+        guard problems.isEmpty else {
+            Output.err("entitlement policy FAILED:")
+            for problem in problems {
+                Output.err("  - \(problem)")
+            }
+            throw ToolError("the entitlement files break the policy in EntitlementPolicy.swift; nothing was built")
+        }
+    }
+
+    /// The effective entitlements, read back from the signed bundle, must equal the file used to sign it and satisfy the policy.
     private func verifyEntitlements() async throws {
+        let isRelease = options.configuration == .release
         let effective = try await BuildTools.verifyEntitlements(
-            of: appURL, expected: try Entitlements.load(fileAt: entitlementsURL), isRelease: options.configuration == .release,
+            of: appURL, expected: try Entitlements.load(fileAt: entitlementsURL), isRelease: isRelease,
             expectation: entitlementsURL.lastPathComponent)
+        let problems = EntitlementPolicy.problems(in: effective, isRelease: isRelease)
+        guard problems.isEmpty else {
+            Output.err("entitlement policy FAILED:")
+            for problem in problems {
+                Output.err("  - \(problem)")
+            }
+            throw ToolError("the signed entitlements break the policy in EntitlementPolicy.swift")
+        }
         Output.out("entitlements OK (\(effective.keys.sorted().joined(separator: ", ")))")
     }
 
