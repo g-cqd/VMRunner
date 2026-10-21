@@ -45,10 +45,11 @@ static void adtk_counting_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, 
 
 int adtk_malloc_counting_available(void) { return 1; }
 
-void adtk_malloc_count_begin(void) {
+/* Resets the counter, installs the hook and starts counting `thread`. Does nothing when the hook is already installed (an
+   overlapping `begin`): saving our own hook as the one to chain to would make it call itself on every allocation until
+   the stack overflows, so the chain is kept as it is. The thread is set last, once the hook is in place. */
+static void adtk_begin_counting(uintptr_t thread) {
     adtk_malloc_logger_t *current = __atomic_load_n(&malloc_logger, __ATOMIC_RELAXED);
-    /* Already counting (an overlapping `begin`): saving our own hook as the one to chain to would make
-       it call itself on every allocation until the stack overflows, so keep the chain as it is. */
     if (current == adtk_counting_logger) {
         return;
     }
@@ -56,8 +57,12 @@ void adtk_malloc_count_begin(void) {
     atomic_store_explicit(&adtk_prev_logger, current, memory_order_relaxed);
     atomic_store_explicit(&adtk_active, 1, memory_order_relaxed);
     __atomic_store_n(&malloc_logger, adtk_counting_logger, __ATOMIC_RELAXED);
-    atomic_store_explicit(&adtk_measuring_thread, (uintptr_t)pthread_self(), memory_order_relaxed);
+    atomic_store_explicit(&adtk_measuring_thread, thread, memory_order_relaxed);
 }
+
+void adtk_malloc_count_begin(void) { adtk_begin_counting((uintptr_t)pthread_self()); }
+
+void adtk_malloc_window_begin(uintptr_t thread) { adtk_begin_counting(thread); }
 
 uint64_t adtk_malloc_count_end(void) {
     if (!atomic_exchange_explicit(&adtk_active, 0, memory_order_relaxed)) {
@@ -73,6 +78,7 @@ uint64_t adtk_malloc_count_end(void) {
 
 int adtk_malloc_counting_available(void) { return 0; }
 void adtk_malloc_count_begin(void) {}
+void adtk_malloc_window_begin(uintptr_t thread) { (void)thread; }
 uint64_t adtk_malloc_count_end(void) { return 0; }
 
 #endif

@@ -1,68 +1,9 @@
 import Foundation
 import Synchronization
+import TestKit
 import Testing
 
 @testable import VMRunner
-
-// MARK: Allocation probe
-
-private let measuredThread = Atomic<UInt>(0)
-private let allocationCount = Atomic<Int>(0)
-/// Whether the watched thread's allocations are being counted right now (lets another thread open and close the window).
-private let counting = Atomic<Bool>(false)
-
-/// Called by libmalloc for every allocation event in the process; counts only those made by the measured thread.
-private let mallocLogger: @convention(c) (UInt32, UInt, UInt, UInt, UInt, UInt32) -> Void = { type, _, _, _, _, _ in
-    // MALLOC_LOG_TYPE_ALLOCATE is bit 1; compare thread identity so tests running in parallel do not disturb the count.
-    guard type & 2 != 0, counting.load(ordering: .relaxed),
-        UInt(bitPattern: unsafe pthread_self()) == measuredThread.load(ordering: .relaxed)
-    else { return }
-    allocationCount.add(1, ordering: .relaxed)
-}
-
-/// Counts heap allocations made by the calling thread through libmalloc's `malloc_logger` hook (the mechanism malloc
-/// stack logging uses). Honest limits: it sees malloc-family calls only, not stack or custom-arena memory, and it
-/// is only as good as the hook installation, which ``isAvailable`` verifies with a canary allocation.
-enum AllocationProbe {
-    private static let installed: Bool = {
-        guard let symbol = unsafe dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger") else { return false }
-        typealias Logger = (@convention(c) (UInt32, UInt, UInt, UInt, UInt, UInt32) -> Void)?
-        unsafe symbol.assumingMemoryBound(to: Logger.self).pointee = mallocLogger
-        return true
-    }()
-
-    /// Whether the hook is installed and observes allocations (a canary allocation is detected).
-    static let isAvailable: Bool = {
-        guard installed else { return false }
-        return count { _ = [Int](repeating: 1, count: 1_024).count } > 0
-    }()
-
-    /// The number of allocations `body` made on this thread.
-    static func count(_ body: () -> Void) -> Int {
-        guard installed else { return -1 }
-        watchCurrentThread()
-        beginWindow()
-        body()
-        return endWindow()
-    }
-
-    /// Makes the calling thread the one whose allocations are counted while a window is open.
-    static func watchCurrentThread() {
-        measuredThread.store(UInt(bitPattern: unsafe pthread_self()), ordering: .relaxed)
-    }
-
-    /// Starts counting; callable from any thread.
-    static func beginWindow() {
-        allocationCount.store(0, ordering: .relaxed)
-        counting.store(true, ordering: .relaxed)
-    }
-
-    /// Stops counting and returns the number of allocations seen in the window.
-    static func endWindow() -> Int {
-        counting.store(false, ordering: .relaxed)
-        return allocationCount.load(ordering: .relaxed)
-    }
-}
 
 // MARK: A host that records only counters, so it allocates nothing itself
 
@@ -133,8 +74,11 @@ private let remote = (ipv4("93.184.216.34"), UInt16(443))
 
 /// Per-packet paths, called in a tight loop. After a warm-up round that may allocate (pool misses, dictionary growth),
 /// the measured rounds must not allocate at all.
-@Suite(.serialized, .enabled(if: AllocationProbe.isAvailable, "needs the malloc_logger hook"))
+@Suite(.serialized, .enabled(if: allocationCountingAvailable, "needs the malloc_logger hook"))
 struct UserNetAllocationTests {
+    /// The allocations `body` made on this thread. The suite runs only where counting is available, so -1 never shows.
+    private func countAllocations(_ body: () -> Void) -> Int { mallocDelta(body) ?? -1 }
+
     private func makeCore(_ configure: (inout UserNetConfig) -> Void = { _ in }) -> (UserNetCore<CountingHost, ManualClock>, CountingHost) {
         var config = UserNetConfig()
         config.initialSequenceSeed = 1_000_000
@@ -177,7 +121,7 @@ struct UserNetAllocationTests {
             warm += 1
         }
         let before = host.frames
-        let allocations = AllocationProbe.count {
+        let allocations = countAllocations {
             // `while` loops, not `for ... in`: an unoptimized build boxes the iterator of a generic range.
             var round = 0
             while round < 200 {
@@ -209,7 +153,7 @@ struct UserNetAllocationTests {
             warm += 1
         }
         let before = host.uploaded
-        let allocations = AllocationProbe.count {
+        let allocations = countAllocations {
             var index = 20
             while index < 300 {
                 feed(core, segments[index])
@@ -243,7 +187,7 @@ struct UserNetAllocationTests {
             warm += 1
         }
         let before = host.frameBytes
-        let allocations = AllocationProbe.count {
+        let allocations = countAllocations {
             var index = 10
             while index < 120 {
                 step(index)
@@ -261,7 +205,7 @@ struct UserNetAllocationTests {
         feed(core, datagram)  // opens the flow (allocates: policy evaluation, socket, event)
         host.datagramToRead = 1
         core.datagramReadable(token: host.token)
-        let allocations = AllocationProbe.count {
+        let allocations = countAllocations {
             var round = 0
             while round < 500 {
                 feed(core, datagram)
@@ -279,7 +223,7 @@ struct UserNetAllocationTests {
         feed(core, Wire.arpRequest(senderMAC: Wire.guestMAC, senderIP: Wire.guest, targetIP: Wire.gateway))
         for port in 0..<50 { feed(core, Wire.guestUDP(to: remote, from: UInt16(40_000 + port), [1])) }
         core.tick()
-        let allocations = AllocationProbe.count {
+        let allocations = countAllocations {
             var round = 0
             while round < 200 {
                 core.tick()
@@ -316,16 +260,16 @@ struct UserNetAllocationTests {
             let payload = pattern(300)
             var done = 0
             while done < 1_500 {
-                if done == 200 { AllocationProbe.beginWindow() }
+                if done == 200 { AllocationWindow.begin() }
                 guest.sendUDP(to: (ipv4("127.0.0.1"), port), from: 40_000, payload)
                 if guest.receiveUDP(on: 40_000, timeout: 2) == nil { break }
                 done += 1
             }
             roundTrips.store(done, ordering: .relaxed)
-            windowAllocations.store(AllocationProbe.endWindow(), ordering: .relaxed)  // before teardown, which does allocate
+            windowAllocations.store(AllocationWindow.end() ?? -1, ordering: .relaxed)  // before teardown, which does allocate
             inbox.post(.stop)
         }
-        AllocationProbe.watchCurrentThread()
+        AllocationWindow.watchCurrentThread()
         feeder.start()
         loop.run()
         let allocations = windowAllocations.load(ordering: .relaxed)

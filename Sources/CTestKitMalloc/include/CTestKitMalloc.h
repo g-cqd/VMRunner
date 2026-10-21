@@ -18,8 +18,14 @@
 /// 1 when allocation counting is available on this platform (Darwin), 0 otherwise.
 int adtk_malloc_counting_available(void);
 
-/// Reset the counter and install the counting hook (chaining to any previously installed hook).
+/// Reset the counter, install the counting hook (chaining to any previously installed hook) and count the
+/// calling thread.
 void adtk_malloc_count_begin(void);
+
+/// Window mode, for a measurement that is opened and closed by a thread other than the one it counts: like `begin`, but
+/// the thread to count is named (its `pthread_self()` as an integer), and `count_end` may be called from any thread.
+/// Allocations on that thread before this call are not counted.
+void adtk_malloc_window_begin(uintptr_t thread);
 
 /// Restore the previous hook and return the number of allocations observed since `begin`.
 uint64_t adtk_malloc_count_end(void);
