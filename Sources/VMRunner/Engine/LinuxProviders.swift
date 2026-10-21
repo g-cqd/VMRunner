@@ -164,11 +164,18 @@ struct LinuxProvider: Sendable {
             }
             release = newest
         }
-        let checksumURL = try checksumURL(for: release)
-        guard let digest = format.sha256(for: release.path, in: try await Self.text(at: checksumURL)) else {
-            throw SetupError.missingFile("the SHA-256 of \(release.path) in \(checksumURL.lastPathComponent)")
+        // A signature fetch and its verification go here, beside the checksum file's own fetch and before it is read.
+        let checksumText = try await Self.text(at: try checksumURL(for: release))
+        return try source(for: release, checksumText: checksumText)
+    }
+
+    /// `release` as a remote image with the SHA-256 that `checksumText` lists for exactly that file.
+    /// - Throws: `SetupError` if the text has no line for it; a malformed file has none.
+    func source(for release: LinuxRelease, checksumText: String) throws(SetupError) -> ImageSource {
+        guard let digest = format.sha256(for: release.path, in: checksumText) else {
+            throw .missingFile("the SHA-256 of \(release.path) in \(try checksumURL(for: release).lastPathComponent)")
         }
-        return .remote(directory.appending(path: release.path), checksum: Checksum(algorithm: .sha256, value: digest))
+        return .remote(try directoryURL().appending(path: release.path), checksum: Checksum(algorithm: .sha256, value: digest))
     }
 
     private static func text(at url: URL) async throws -> String {
