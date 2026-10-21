@@ -142,6 +142,18 @@ Build caches are restored by every run and saved only on main, on an exact-key m
 The app is ad-hoc signed, not Developer ID signed or notarized: whether the virtualization entitlement works under a
 Developer ID signature is unverified, so signing is not wired yet.
 
+## Publication checklist
+
+The repository is private and two values are placeholders on purpose; ordinary CI and `vmr check --full` pass with them.
+`release.yml` runs `swift run vmr check publication` before it builds, and that step fails while either is left, so a
+release cannot ship with them. Before the first release:
+
+1. Replace `@OWNER` in `.github/CODEOWNERS` with the maintainer handle or team (GitHub ignores an owner it cannot
+   resolve, so until then nothing requires an owner's review).
+2. Replace the `com.example.` bundle identifier (`CFBundleIdentifier` in `Resources/Info.plist`) with the real one.
+3. Replace `OWNER/REPO` in the commands this file and the README show.
+4. Apply the repository settings below.
+
 ## Repository settings (once the repository is on GitHub)
 
 These cannot be set from the repository's files; the owner applies them once.

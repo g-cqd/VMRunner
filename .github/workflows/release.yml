@@ -51,6 +51,8 @@ jobs:
             echo "::error::tag '$TAG' is not on main: release from a commit that went through CI on main"
             exit 1
           fi
+      - name: No placeholder left (CODEOWNERS owner, bundle identifier)
+        run: swift run vmr check publication
       - name: Toolchain
         run: |
           swift --version

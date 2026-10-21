@@ -23,7 +23,13 @@ enum GateCatalog {
 
     static var allSteps: [GateStep] { fastSteps + fullOnlySteps }
 
+    /// Steps only an explicit `vmr check <name>` runs, because they fail by design until the repository is published
+    /// (the release workflow runs `publication`).
+    static let releaseOnlySteps: [GateStep] = [
+        GateStep(name: "publication", run: Publication.run)
+    ]
+
     static func step(named name: String) -> GateStep? {
-        allSteps.first { $0.name == name }
+        (allSteps + releaseOnlySteps).first { $0.name == name }
     }
 }

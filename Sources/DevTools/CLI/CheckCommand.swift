@@ -9,6 +9,9 @@ struct CheckCommand: AsyncParsableCommand {
             Fast gate (no arguments): \(GateCatalog.fastSteps.map(\.name).joined(separator: " ")). With --full it also \
             runs \(GateCatalog.fullOnlySteps.map(\.name).joined(separator: " ")).
 
+            `publication` is in neither set: only the release workflow names it, and it fails while a placeholder \
+            (the CODEOWNERS owner, a com.example bundle identifier) is left.
+
             Every selected step runs, even after a failure; each prints PASS or FAIL, and the exit status is \
             non-zero if any failed.
 
@@ -45,7 +48,7 @@ struct CheckCommand: AsyncParsableCommand {
 
     func run() async throws {
         if list {
-            for step in GateCatalog.allSteps {
+            for step in GateCatalog.allSteps + GateCatalog.releaseOnlySteps {
                 Output.out(step.name)
             }
             return
