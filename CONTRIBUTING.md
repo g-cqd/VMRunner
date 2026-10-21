@@ -140,6 +140,10 @@ dependency change run `swift package resolve` and commit the file. The same goes
 headless helper of the sandbox spike (roadmap 0025): `swift run vmr sandbox-spike run` launches it under App Sandbox or a
 Seatbelt profile. Without `--boot` it only probes and validates; `--boot` starts a virtual machine and is for the owner.
 
+The container spike (roadmap 0024) is the one place a further package is linked: `Sources/ContainerSpike` links Apple's
+containerization package, pinned with `exact:` like the others, and nothing else does. `swift run vmr spike-sign` builds and
+signs it; running it boots a virtual machine, so only its owner does, from `docs/research/containers-2026-10.md`.
+
 ## Continuous integration
 
 Workflows live in `.github/workflows`; every third-party action is pinned to a full commit SHA with a trailing

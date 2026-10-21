@@ -43,7 +43,7 @@ Study, not a decision record. Facts come from the projects' sources and document
 - **Kernel:** the caller supplies one. Tests start at Linux 6.14.9 with virtio built in; the Kata Containers kernel works,
   and the CLI's default is a pinned Kata release. The init image is pulled from Apple's registry.
 - **Security note:** a recent release advisory concerns pulling by digest without verifying the digest the registry
-  returned. Pin a release that includes the fix (*which release fixed it: unverified*).
+  returned. Pin a release that includes the fix: 0.52.1 is the first one (verified on 2026-10-22, see the spike section).
 
 **container** (the command line and daemon built on it; macOS 26 only).
 - An API server launch agent starts XPC helpers: an image service, a vmnet network service and one runtime helper per
@@ -139,6 +139,181 @@ builds.
 ## Not verified
 
 The installed `container` version on this machine (the tool could not be run in the study), vmnet behaviour in a sandboxed or
-App Store build, the cloud registries' token flows, the release that fixed the digest advisory, the macOS 27 licence text,
-Linux-guest GPU limits, suspend and resume under the library's device set, and arbitrary artifact media types in its registry
-client.
+App Store build, the cloud registries' token flows, the macOS 27 licence text, Linux-guest GPU limits, suspend and resume
+under the library's device set, and arbitrary artifact media types in its registry client. The spike section below adds what
+was and was not verified for the spike itself.
+
+## Spike (2026-10-22)
+
+The spike of the plan's first step is written, builds and is tested without a guest. Nothing in it has booted a virtual
+machine: the owner runs it once, from the instructions below, and the result decides whether ADR-0017 stands.
+
+### What was checked on the network
+
+- **Releases.** The project publishes git tags, not GitHub releases (its release list holds three old pre-releases). The
+  newest tag is 0.53.0, which is 0.52.1 plus one commit (platform introspection in the image store).
+- **The digest advisory** is GHSA-vgrw-36j7-r93w, published 2026-10-20, medium: a pull by digest trusted the digest the
+  registry returned instead of the pinned one. Its text names change 973, "released in 0.52.1". The tag 0.52.1 is that
+  change's merge commit and 0.52.0 does not contain it, so **0.52.1 is the first fixed release and is the pin**. The
+  advisory's machine-readable range says "<= 0.52.1" with patched version 0.52.1, which contradicts itself; the text and the
+  tags decide. Ten other advisories in the project's list have fixes in 0.42.0 or earlier (content store path traversal,
+  registry realm validation, container id deletion, layer unpacking crashes, symlinks in image layouts, and more), so 0.52.1
+  carries them too. The study was right that a recent advisory exists; only the fixing release was unknown.
+- **Requirements of 0.52.1.** Tools version 6.2 (the repository uses 6.4), declared macOS 15 (the repository 26; the README
+  asks for macOS 26 on an Apple silicon Mac), Apache-2.0.
+- **Dependency graph.** The package adds 25 pins to `Package.resolved` (itself and the 24 packages it brings; 30 pins instead
+  of 5): an asynchronous networking stack, an RPC stack with its serialization library, an HTTP client, TLS and certificate
+  libraries, a crypto library, a compression library and logging, tracing and configuration libraries. It also links the
+  system archive library. ADR-0001 says the app links system frameworks only, so the dependency is confined: only the
+  `ContainerSpike` target declares it. The app product, `vmr` and every test target do not, and a build of the app product
+  compiled none of it and its binary holds no reference to it (checked with `strings`). `vmr build-app` used to build the whole
+  package; it now builds the `VMRunner` product only, with a test that adds a target that does not compile.
+- **Kernel.** The package's own `fetch-default-kernel` target takes Kata Containers 3.17.0 for arm64
+  (`kata-static-3.17.0-arm64.tar.xz`, 290,581,648 bytes, the size GitHub reports). The release publishes no checksum, so the
+  SHA-256 `647c7612e6edf789d5e14698c48c99d8bac15ad139ffaa1c8bb7d229f748d181` was computed from a download made for the spike
+  (trust on first use, like a lock file). The archive's `vmlinux.container` is a link; the spike unpacks the file it points
+  to, `vmlinux-6.12.28-153` (SHA-256 `67bac9f416af4cdc9b151e4ba4962d6515e0ad7acc53816761cf964aa6af6ea0`), and checks both.
+  **Linux 6.12.28 is older than the 6.14.9 the package says it tests from.** The package's newer example tool takes a later
+  Kata release (3.26.0, a `.tar.zst`); if 6.12.28 fails to boot with this init image, that is the first thing to try.
+- **Init image.** `ghcr.io/apple/containerization/vminit:0.52.1` exists (index digest
+  `sha256:4679ea8d80dde436c847de4c7c08425de40bb50b0e744e917160e29a039a6195` on 2026-10-21). The spike pulls it by tag, matched
+  to the pinned package because the host and the guest speak a versioned protocol.
+- **Image.** `alpine:3.24.2` from Docker Hub, pulled for `linux/arm64` only.
+
+### What compiled
+
+- `Sources/ContainerSpikeCore`: arguments, the layout under the scratch directory, the pinned kernel archive and its
+  checksum, the verdict and report, an Ethernet frame summary, and a datagram socketpair that stands in for a network. It
+  imports no container library; `Tests/ContainerSpikeTests` has 24 tests of it.
+- `Sources/ContainerSpike`: downloads and checks the kernel, builds a container manager, pulls the image, creates the
+  container, boots it, runs `uname -a`, waits, stops and deletes it, and prints the report. Everything is under the scratch
+  directory given as the argument. The kernel download is one fixed HTTPS address checked against a pinned checksum; it does
+  not go through the app's download policy, which the spike cannot import.
+- `vmr spike-sign`: builds the product (release by default) and signs it ad hoc with the hardened runtime and
+  `Resources/ContainerSpike.entitlements` (`com.apple.security.virtualization` only, judged against the entitlement policy),
+  then verifies the signature and reads the effective entitlements back. It shares those steps with `vmr build-app` and the
+  sandbox spike.
+
+### What was verified without a guest
+
+- The whole gate (`swift run vmr check --full`, 12 steps, 41 minutes) passes with the dependency present: format, SwiftLint,
+  documentation, build, tests, the three analyzers, the address, thread and undefined-behaviour sanitizer runs, the release
+  build, the coverage gate and the benchmark gate, with no baseline change. The analyzers also print their existing warnings
+  and notes; none is new.
+- Signing: four tests sign a copy of a system executable and read the result back with `codesign`, and a fifth checks the
+  entitlements file. A real run of `swift run vmr spike-sign` built the release spike (410 s on one machine, from a build
+  directory that held only the debug build) and signed it, and the signed binary starts and prints its usage under the
+  hardened runtime.
+- A **clean build of the app product alone** compiles no more than before: the same command into an empty scratch directory
+  took 29.96 s with the packages already fetched (32.69 s before, which included fetching the 5 packages of that time). **A
+  first build in a fresh checkout is slower anyway**, 81.92 s against 32.69 s, because SwiftPM fetches all 30 packages
+  whichever product is built (user CPU 87 s against 98 s: the extra time is fetching, not compiling). If that matters, the
+  spike can move to a package of its own, at the cost of the gate no longer building it.
+- With a temporary hook that was not committed, the spike ran everything up to, and excluding, the boot: the kernel download,
+  both checksums and the unpacking; the init image pull and init block (14.3 s cold); the arm64 alpine pull (3.6 s cold);
+  unpacking the image to a root filesystem and creating the container object (8.3 s); the cleanup. A second run reused the
+  caches (0 s, 0.9 s, 2.2 s), and a kernel with one byte appended was refused and removed. These are debug-build timings on one
+  machine and are not the figures the owner run reports.
+- With the same kind of hook, the loopback network handed out its interface (198.18.0.2/24, gateway 198.18.0.1), the interface
+  produced a virtualization network device configuration with a file-handle attachment, a second interface was refused, and a
+  frame written to the guest end of the pair was read on the host end. The unit tests cover a frame above the 2 KiB default of
+  a local datagram socket (the link raises the buffers) and the end of the reader.
+
+### Second experiment: the user-mode stack
+
+The container library lets a network hand out interfaces that also say how to build their virtual device, so a container can
+get a device backed by a file-handle attachment, which is how the app attaches a guest in its filtered mode. `--network
+loopback` does exactly that on a socketpair read by the spike, with the stack's address plan (guest 198.18.0.2/24, gateway
+198.18.0.1). The container pings the gateway and the spike reports the frames its device delivered; an ARP request for the
+gateway is the pass.
+
+The real stack is not plugged in because it lives in the app target, which cannot be imported without linking the app (its
+views, its settings, its other package). Extracting it was out of scope. **What would be needed**, checked by compiling the
+files in a scratch package with the repository's compiler flags and no source change:
+
+1. A library target for the stack: the 46 files of `Sources/VMRunner/Network`, eight model files (`IPAddress`,
+   `NetworkHost`, `NetworkPolicy`, `NetworkRules`, `NetworkPortRules`, `FlowLog`, `Log`, `StringRuleCoding`) and
+   `Engine/VPNMonitor.swift`: 55 files, about 6,800 lines, no external package. ADR-0001 holds, because the app would link
+   one more module of its own.
+2. Access: everything is internal today. The spike needs `UserNetStack.attachment(config:policy:)`, `start()`, `stop()`,
+   `UserNetConfig` and `NetworkPolicy`; SwiftPM's `package` access level would expose them to the app and the spike without
+   making them public.
+3. The stack's tests (`UserNet*`, `Network*`, the VPN tests in `Tests/VMRunnerTests`) use `@testable import VMRunner` and
+   would move to a test target of the new module. The coverage ignore pattern in `.vmr.json` and the sanitizer trigger in
+   `ci.yml` both name `Sources/VMRunner/Network` and `Engine` by path and would follow the files.
+4. In the spike, `LoopbackLink` is replaced by the stack's attachment: start the stack before the container boots, stop it
+   after, and give the interface the stack's guest address and gateway (already the spike's). The container library
+   configures a static address and never asks for DHCP, so the stack's DHCP server would go unused.
+
+### Owner run
+
+Needs an Apple silicon Mac on macOS 26 or later, about 600 MB of free disk space and network access to GitHub and two
+registries. It needs no administrator rights and installs nothing outside the checkout's `.build` and the scratch
+directory. Run it in a normal Terminal window, not from an agent.
+
+```sh
+swift run vmr spike-sign
+```
+
+This builds the release spike (about seven minutes the first time on the machine used here; the container package's graph is
+compiled) and ends with `entitlements OK (com.apple.security.virtualization)` and `Signed <path>`. The binary is
+`.build/release/ContainerSpike`.
+
+```sh
+.build/release/ContainerSpike ~/ContainerSpikeScratch
+```
+
+The first run downloads the 290 MB kernel archive, so it takes a few minutes. Expected output, with your own numbers:
+
+```
+scratch: /Users/you/ContainerSpikeScratch
+kernel: .../kernel/vmlinux (unpacked, checksum ok)
+init-image-seconds: 14.30
+pull-seconds: 3.59
+create-seconds: 8.30
+boot-seconds: ...
+run-seconds: ...
+output: Linux <name> 6.12.28 ... aarch64 Linux
+exit-status: 0
+verdict: passed
+```
+
+The command exits 0 on a pass, 1 when the container ran and the result was wrong (a non-zero exit status or no `aarch64`),
+70 when something before or around it failed (download, checksum, pull, boot), and 64 for a bad command line. When the boot
+or the run fails, the container directory stays and its boot log is at `<scratch>/store/containers/<id>/bootlog.log`; the
+path is printed to standard error.
+
+Then the second experiment, with the same scratch directory (everything is cached):
+
+```sh
+.build/release/ContainerSpike --network loopback ~/ContainerSpikeScratch
+```
+
+It adds `frames-seen: N`, up to 20 lines `frame: <source> -> <destination>, <length> bytes, <what>` and
+`network-verdict: passed`. A pass shows `ARP who-has 198.18.0.1 tell 198.18.0.2`. The ping itself gets no reply, and the
+shell ends with status 0 on purpose.
+
+Remove the scratch directory afterwards.
+
+**Report back:** the complete output of both runs; `init-image-seconds`, `pull-seconds`, `create-seconds`, `boot-seconds` (the
+virtual machine start up to the guest agent being ready) and `run-seconds`; the `uname -a` line; the exit status; any error
+text and the boot log if there was one; `sw_vers -productVersion` and the Mac's model.
+
+**Questions the run answers**
+
+1. Does a virtual machine start with only the virtualization entitlement, under an ad-hoc signature with the hardened
+   runtime, and no vmnet entitlement? (A missing entitlement shows as an error naming `com.apple.security.virtualization`.)
+2. Do the pinned kernel (Linux 6.12.28, below the tested floor) and the init image 0.52.1 work together?
+3. What do the pulls and the boot cost cold, and what does `run-seconds` say about starting a process in a booted guest?
+4. Does `uname -a` print `aarch64`, and does the exit status come back to the host?
+5. Does a custom interface backed by a file-handle attachment deliver the guest's frames to the host, and does the guest
+   accept the static address without a DHCP server?
+6. Is anything in the run outside the scratch directory?
+
+### Not verified by the spike work
+
+That a virtual machine boots at all with these pins; the figures for the boot and the run; the behaviour of the hardened
+runtime with the library under a real run; the loopback network with a real guest; the CI workflows with the dependency
+present (the same commands pass locally, but the hosted runners were not tried, and the sanitizer jobs build the container
+package's graph whenever `Package.resolved` changes); the licences of the 24 added packages (nothing is shipped, but an
+inventory is due before the app links any of them).
