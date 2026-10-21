@@ -4,5 +4,5 @@
     "near-clone": { "severity": "warning" },
     "structural-clone": { "severity": "warning" }
   },
-  "exclude": []
+  "exclude": ["Sources/TestKit/", "Sources/CTestKitMalloc/", "Tests/TestKitTests/"]
 }

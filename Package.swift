@@ -3,8 +3,7 @@ import PackageDescription
 
 // Safety and quality settings shared by every target. Strict memory safety makes each use of an unsafe
 // construct visible (`unsafe`), and warnings are errors so the tree stays clean.
-let hardening: [SwiftSetting] = [
-    .strictMemorySafety(),
+let commonSettings: [SwiftSetting] = [
     .treatAllWarnings(as: .error),
     .enableUpcomingFeature("ExistentialAny"),
     .enableUpcomingFeature("InternalImportsByDefault"),
@@ -13,6 +12,11 @@ let hardening: [SwiftSetting] = [
     .enableUpcomingFeature("InferIsolatedConformances"),
     .enableUpcomingFeature("ImmutableWeakCaptures"),
 ]
+let hardening: [SwiftSetting] = [.strictMemorySafety()] + commonSettings
+
+// TestKit parks raw `UnsafeContinuation`s by design (a controllable clock, gates and probes), which strict memory
+// safety would make every line `unsafe`. It is test support, never linked into the app, so it keeps every other flag.
+let testSupportSettings: [SwiftSetting] = commonSettings
 
 let package = Package(
     name: "VMRunner",
@@ -21,10 +25,23 @@ let package = Package(
         // Developer tooling only (DevTools and the `vmr` command line). The VMRunner app and its tests link neither.
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", exact: "1.0.2", traits: []),
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
+        // Test support only: HeapModule backs TestKit's TestClock sleeper queue.
+        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.7.3"),
     ],
     targets: [
         .executableTarget(name: "VMRunner", path: "Sources/VMRunner", swiftSettings: hardening),
-        .testTarget(name: "VMRunnerTests", dependencies: ["VMRunner"], path: "Tests/VMRunnerTests", swiftSettings: hardening),
+        .testTarget(name: "VMRunnerTests", dependencies: ["VMRunner", "TestKit"], path: "Tests/VMRunnerTests", swiftSettings: hardening),
+
+        // Deterministic and allocation-aware test support, vendored:
+        // a controllable Clock, event probes, async gates and a malloc-count guard. Linked by test targets only.
+        .target(name: "CTestKitMalloc", path: "Sources/CTestKitMalloc"),
+        .target(
+            name: "TestKit",
+            dependencies: ["CTestKitMalloc", .product(name: "HeapModule", package: "swift-collections")],
+            path: "Sources/TestKit",
+            swiftSettings: testSupportSettings
+        ),
+        .testTarget(name: "TestKitTests", dependencies: ["TestKit"], path: "Tests/TestKitTests", swiftSettings: testSupportSettings),
 
         // Developer tooling, replacing the former shell and Python scripts: `swift run vmr --help`.
         // DevTools holds the logic, `vmr` is the single command-line entry point, the plugins below forward

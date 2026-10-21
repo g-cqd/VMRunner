@@ -7,6 +7,9 @@ included:
   - Tests
 
 excluded:
+  - Sources/TestKit
+  - Sources/CTestKitMalloc
+  - Tests/TestKitTests
   - .build
   - .build-asan
   - .build-tsan

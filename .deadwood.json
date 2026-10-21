@@ -1,5 +1,5 @@
 {
   "rules": {},
-  "exclude": [],
+  "exclude": ["Sources/TestKit/", "Sources/CTestKitMalloc/", "Tests/TestKitTests/"],
   "production": true
 }
