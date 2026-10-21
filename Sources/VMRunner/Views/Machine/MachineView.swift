@@ -1,0 +1,70 @@
+import SwiftUI
+
+/// The detail pane for one machine. It picks what to show from the model's phase and hosts the toolbar and dialogs.
+struct MachineView: View {
+    @Bindable var model: MachineModel
+
+    var body: some View {
+        if model.config != nil {
+            MachinePane(model: model)
+                .onGeometryChange(for: CGSize.self, of: \.size) { model.reportPaneSize($0) }
+                .navigationTitle(model.title)
+                .toolbar { MachineToolbar(model: model) }
+                .alert(
+                    "Virtual Machine Error",
+                    isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
+                ) {
+                    Button("OK") {}
+                } message: {
+                    Text(model.errorMessage ?? "")
+                }
+                .confirmationDialog("Delete “\(model.title)”?", isPresented: $model.confirmingDelete, titleVisibility: .visible) {
+                    Button("Delete", role: .destructive) { model.delete() }
+                } message: {
+                    Text("The virtual disk and all its contents are permanently removed.")
+                }
+        }
+    }
+}
+
+/// Switches between setup progress, an interrupted-setup prompt, the running display, and the settings form.
+private struct MachinePane: View {
+    let model: MachineModel
+
+    var body: some View {
+        switch model.phase {
+        case .settingUp(let job):
+            SetupJobView(job: job, symbol: model.guestSymbol, retry: model.retrySetup, dismiss: model.dismissSetup)
+        case .setupIncomplete:
+            ContentUnavailableView {
+                Label("Setup Incomplete", systemImage: "arrow.down.circle.dotted")
+            } description: {
+                Text("Installation was interrupted. Downloads resume where they stopped.")
+            } actions: {
+                Button("Resume Setup", action: model.resumeSetup)
+                    .buttonStyle(.borderedProminent)
+                HelpButton(.setup)
+            }
+        case .running(let machine, let settings):
+            VMDisplay(machine: machine, settings: settings)
+                .overlay {
+                    if model.isPaused { PausedBadge() }
+                }
+        case .editing:
+            if let config = model.configBinding {
+                ConfigEditor(model: model.editor, config: config)
+            }
+        case nil:
+            EmptyView()
+        }
+    }
+}
+
+private struct PausedBadge: View {
+    var body: some View {
+        Label("Paused", systemImage: "pause.circle.fill")
+            .font(.title)
+            .padding()
+            .background(.regularMaterial, in: .capsule)
+    }
+}
