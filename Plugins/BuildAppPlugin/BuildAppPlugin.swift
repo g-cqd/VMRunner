@@ -1,6 +1,5 @@
-// The way this plugin launches its tool (resolve it with `context.tool(named:)`, run it with `Process`, throw on a
-// non-zero status so `swift package` exits non-zero) follows the command plugins of the aemi package
-// (Plugins/Lint, MIT, Copyright (c) 2026 Aemi Studio); see THIRD_PARTY_LICENSES.
+// This plugin resolves its tool with `context.tool(named:)`, runs it with `Process`, and throws on a non-zero
+// status so `swift package` exits non-zero.
 import Foundation
 import PackagePlugin
 
