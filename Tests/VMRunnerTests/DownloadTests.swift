@@ -7,7 +7,6 @@ struct DownloadPolicyTests {
     @Test(arguments: [
         "https://updates.cdn-apple.com/2026FallFCS/a/UniversalMac_27.0.1_26A434_Restore.ipsw",
         "https://mirror.stream.centos.org/10-stream/BaseOS/aarch64/iso/CentOS-Stream-10-20261019.0-aarch64-boot.iso",
-        "https://api.ipsw.me/v4/device/Mac14,15?type=ipsw",
     ])
     func allowsTheHostsTheAppUses(url: String) throws {
         _ = try DownloadPolicy.validate(try #require(URL(string: url)))
@@ -22,10 +21,49 @@ struct DownloadPolicyTests {
         "https://updates.cdn-apple.com:8443/a.ipsw",  // unexpected port
         "file:///etc/passwd",
         "ftp://updates.cdn-apple.com/a.ipsw",
+        "https://api.ipsw.me/v4/device/Mac14,15?type=ipsw",  // the catalog serves metadata, not files
+        "https://ipsw.me/a.ipsw",
+        "https://salsa.debian.org/user/project/-/raw/main/a.iso",  // hosts user content
+        "https://people.debian.org/~someone/a.iso",
+        "https://debian.org/a.iso",  // the bare domain is not a pinned host
+        "https://evil.apple.com.example/a.ipsw",  // looks like Apple, is not
+        "https://www.apple.com/a.ipsw",  // subdomains of a vendor are not pinned
+        "https://apple.com/a.ipsw",
+        "https://cdn-apple.com/a.ipsw",
+        "https://centos.org/a.iso",
+        "https://updates.cdn-apple.com./a.ipsw",  // trailing dot
     ])
     func rejectsEverythingElse(url: String) throws {
         let parsed = try #require(URL(string: url))
         #expect(throws: SetupError.self) { try DownloadPolicy.validate(parsed) }
+    }
+
+    @Test func theCatalogHostIsAcceptedForMetadataOnly() throws {
+        let catalog = try #require(URL(string: "https://api.ipsw.me/v4/device/Mac14,15?type=ipsw"))
+        _ = try DownloadPolicy.validateMetadata(catalog)
+        _ = try DownloadPolicy.validateMetadata(try #require(URL(string: "https://deb.debian.org/debian/dists/stable/Release")))
+        for refused in ["https://salsa.debian.org/a", "https://evil.apple.com.example/a", "https://ipsw.me/a", "http://api.ipsw.me/a"] {
+            let url = try #require(URL(string: refused))
+            #expect(throws: SetupError.self, "\(refused)") { try DownloadPolicy.validateMetadata(url) }
+        }
+        #expect(throws: SetupError.self) { try DownloadPolicy.validate(catalog) }
+    }
+
+    @Test func aSmallDocumentFromAnUnpinnedHostIsRefusedBeforeAnyRequest() async throws {
+        let url = try #require(URL(string: "https://salsa.debian.org/user/project/-/raw/main/SHA256SUMS"))
+        await #expect(throws: SetupError.self) { try await Network.fetchSmall(url) }
+    }
+
+    @Test func onlyTheRestoreImageHostServesRestoreImages() throws {
+        let good = try #require(URL(string: "https://updates.cdn-apple.com/2026FallFCS/x/UniversalMac_27.0.1_26A434_Restore.ipsw"))
+        _ = try DownloadPolicy.validateRestoreImage(good)
+        for refused in [
+            "https://updates.cdn-apple.com/x/notes.txt", "https://mirror.stream.centos.org/a.ipsw",
+            "https://api.ipsw.me/a.ipsw", "https://updates.cdn-apple.com/x/",
+        ] {
+            let url = try #require(URL(string: refused))
+            #expect(throws: SetupError.self, "\(refused)") { try DownloadPolicy.validateRestoreImage(url) }
+        }
     }
 
     @Test(arguments: ["a.ipsw", "CentOS-Stream-10-20261019.0-aarch64-boot.iso", "UniversalMac_27.0.1_26A434_Restore.ipsw"])
@@ -55,6 +93,12 @@ struct DownloadPolicyTests {
         let blocked = URLRequest(url: try #require(URL(string: "http://updates.cdn-apple.com/b.ipsw")))
         #expect(RedirectPolicy.allowed(allowed) != nil)
         #expect(RedirectPolicy.allowed(blocked) == nil)
+    }
+
+    @Test func aDownloadCannotBeRedirectedToTheCatalogHost() throws {
+        let catalog = URLRequest(url: try #require(URL(string: "https://api.ipsw.me/v4/ipsw/x")))
+        #expect(RedirectPolicy.allowed(catalog) == nil)
+        #expect(RedirectPolicy.allowed(catalog, metadata: true) != nil)
     }
 }
 
@@ -132,17 +176,51 @@ struct ChecksumTests {
 }
 
 struct CatalogTests {
+    private static let digest = String(repeating: "ab", count: 32)
+
+    private static func entry(_ build: String, version: String = "27.0.1", url: String, sha256: String? = digest, signed: Bool = true)
+        -> String
+    {
+        let hash = sha256.map { "\"\($0)\"" } ?? "null"
+        return #"{"version":"\#(version)","buildid":"\#(build)","url":"\#(url)","filesize":10,"sha256sum":\#(hash),"signed":\#(signed)}"#
+    }
+
+    private static func decode(_ entries: String...) throws -> [IPSWFirmware] {
+        try IPSWCatalog.decode(Data(#"{"firmwares":[\#(entries.joined(separator: ","))]}"#.utf8))
+    }
+
+    private static let apple = "https://updates.cdn-apple.com/2026FallFCS/a/UniversalMac_27.0.1_26A434_Restore.ipsw"
+
     @Test func ipswDecodingKeepsOnlySignedGuestCapableBuilds() throws {
-        let json = """
-            {"firmwares":[
-             {"version":"27.0.1","buildid":"26A434","url":"https://x/a.ipsw","filesize":10,"sha256sum":"aa","signed":true},
-             {"version":"26.0","buildid":"25A354","url":"https://x/b.ipsw","filesize":10,"sha256sum":"bb","signed":false},
-             {"version":"11.7","buildid":"20G1","url":"https://x/c.ipsw","filesize":10,"sha256sum":"cc","signed":true}
-            ]}
-            """
-        let firmwares = try IPSWCatalog.decode(Data(json.utf8))
+        let firmwares = try Self.decode(
+            Self.entry("26A434", url: Self.apple),
+            Self.entry("25A354", version: "26.0", url: Self.apple, signed: false),
+            Self.entry("20G1", version: "11.7", url: Self.apple))
         #expect(firmwares.map(\.buildid) == ["26A434"])
-        #expect(firmwares[0].checksum == Checksum(algorithm: .sha256, value: "aa"))
+        #expect(firmwares[0].checksum == Checksum(algorithm: .sha256, value: Self.digest))
+    }
+
+    @Test(arguments: [
+        "https://api.ipsw.me/v4/ipsw/download/Mac14,15/26A434",  // the catalog is not a file host
+        "https://salsa.debian.org/user/project/-/raw/main/UniversalMac_27.0.1_26A434_Restore.ipsw",
+        "https://evil.apple.com.example/UniversalMac_27.0.1_26A434_Restore.ipsw",
+        "https://www.apple.com/UniversalMac_27.0.1_26A434_Restore.ipsw",
+        "https://mirror.stream.centos.org/UniversalMac_27.0.1_26A434_Restore.ipsw",
+        "http://updates.cdn-apple.com/UniversalMac_27.0.1_26A434_Restore.ipsw",
+        "https://updates.cdn-apple.com/x/notes.txt",
+    ])
+    func ipswDecodingDropsEntriesOnOtherHosts(url: String) throws {
+        let firmwares = try Self.decode(Self.entry("26A434", url: url), Self.entry("26A428", url: Self.apple))
+        #expect(firmwares.map(\.buildid) == ["26A428"])
+    }
+
+    @Test(arguments: [
+        nil, "", "aa", String(repeating: "AB", count: 32), String(repeating: "ab", count: 33), String(repeating: "g", count: 64),
+        String(repeating: "\u{FF11}", count: 64),  // full-width digits
+    ])
+    func ipswDecodingRequiresAnExact64DigitLowercaseSHA256(sha256: String?) throws {
+        let firmwares = try Self.decode(Self.entry("26A434", url: Self.apple, sha256: sha256), Self.entry("26A428", url: Self.apple))
+        #expect(firmwares.map(\.buildid) == ["26A428"])
     }
 }
 

@@ -10,8 +10,8 @@ An installer or restore image that is tampered with in transit becomes the guest
 
 ## Decision
 
-1. Downloads are https only, from a named set of host suffixes, with redirects refused, file names and identifiers
-   validated, and sizes capped.
+1. Downloads are https only, from a named set of hosts (exact names since [ADR-0030](0030-download-hosts-are-named-exactly-and-ipsw-me-is-trusted-for-metadata-only.md)),
+   with a redirect followed only if its target is also on that set, file names and identifiers validated, and sizes capped.
 2. IPSW files are verified against the SHA-256 ipsw.me publishes; ISOs against the mirror's checksum file. A cached
    installer is re-verified before it is reused.
 3. Providers are limited to a short list of trustworthy vendors; the rest stay unregistered candidates until chosen.

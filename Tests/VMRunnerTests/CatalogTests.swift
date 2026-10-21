@@ -331,7 +331,6 @@ struct DebianHostPolicyTests {
     @Test(arguments: [
         "https://deb.debian.org/debian/dists/stable/main/installer-arm64/current/images/netboot/mini.iso",
         "https://cdimage.debian.org/debian-cd/current/arm64/iso-cd/SHA256SUMS",
-        "https://debian.org/",
     ])
     func allowsDebianHosts(url: String) throws {
         _ = try DownloadPolicy.validate(try #require(URL(string: url)))
@@ -351,6 +350,10 @@ struct DebianHostPolicyTests {
         "https://download.rockylinux.org/a.iso",
         "https://dl.fedoraproject.org/a.iso",
         "https://chuangtzu.ftp.acc.umu.se/debian-cd/a.iso",  // the mirror cdimage.debian.org redirects to
+        "https://debian.org/",  // the bare domain is not pinned
+        "https://salsa.debian.org/user/project/-/raw/main/a.iso",  // hosts user content
+        "https://people.debian.org/~someone/a.iso",
+        "https://www.debian.org/a.iso",
     ])
     func rejectsEverythingElse(url: String) throws {
         let parsed = try #require(URL(string: url))

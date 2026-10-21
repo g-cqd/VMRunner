@@ -54,8 +54,9 @@ extension HelpCatalog {
             ],
             advanced: [
                 "Restore images are universal (`UniversalMac_*`), so the Mac model you type for ipsw.me does not change the list. "
-                    + "Downloads are limited to HTTPS from Apple and ipsw.me hosts. The checksum comes from ipsw.me, so it detects "
-                    + "corruption, and the installer itself verifies Apple's signature."
+                    + "A restore image downloads only over HTTPS from Apple's update server (updates.cdn-apple.com); ipsw.me is asked "
+                    + "only for the list, and a build whose file is anywhere else is left out. The checksum comes from ipsw.me, "
+                    + "so it detects corruption, and the installer itself verifies Apple's signature."
             ],
             related: [.setup, .settings]
         ),

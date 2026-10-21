@@ -12,7 +12,15 @@ struct IPSWFirmware: Codable, Identifiable, Hashable, Sendable {
 
     var id: String { buildid }
 
-    var checksum: Checksum? { sha256sum.map { Checksum(algorithm: .sha256, value: $0) } }
+    /// The SHA-256 ipsw.me lists, if it is exactly 64 lowercase hexadecimal digits.
+    var checksum: Checksum? {
+        guard let sha256sum, sha256sum.isLowercaseHexadecimal(digits: 64) else { return nil }
+        return Checksum(algorithm: .sha256, value: sha256sum)
+    }
+
+    /// Whether the entry can be trusted to name a file the app may download: Apple's update server, a `.ipsw` name and a
+    /// well-formed SHA-256. The catalog is a third party, so it is trusted for which builds exist, not for where they are.
+    var isDownloadable: Bool { checksum != nil && (try? DownloadPolicy.validateRestoreImage(url)) != nil }
 
     var source: ImageSource { .remote(url, checksum: checksum) }
 
@@ -52,8 +60,9 @@ enum IPSWCatalog {
         return try decode(await Network.fetchSmall(url))
     }
 
+    /// The signed, guest-capable builds whose file is on Apple's update server and has a SHA-256; any other entry is dropped.
     static func decode(_ data: Data) throws -> [IPSWFirmware] {
-        try JSONDecoder().decode(Response.self, from: data).firmwares.filter { $0.signed && $0.isGuestCapable }
+        try JSONDecoder().decode(Response.self, from: data).firmwares.filter { $0.signed && $0.isGuestCapable && $0.isDownloadable }
     }
 }
 
@@ -88,7 +97,7 @@ enum LinuxCatalog {
             provider: .centOSStream(release: release, flavor: flavor))
     }
 
-    /// Images the app offers. Each one's host must be in `DownloadPolicy.allowedHostSuffixes`.
+    /// Images the app offers. Each one's host must be in `DownloadPolicy.allowedHosts`.
     static let images = [
         centOS(10, flavor: "boot", medium: "boot ISO", install: "network install", size: "~1 GB"),
         centOS(9, flavor: "boot", medium: "boot ISO", install: "network install", size: "~1 GB"),
@@ -115,7 +124,7 @@ enum LinuxCatalog {
     ]
 
     /// Verified providers that are deliberately not offered yet: each is one move into `images`, plus its host
-    /// in `DownloadPolicy.allowedHostSuffixes`, away from being available.
+    /// in `DownloadPolicy.allowedHosts`, away from being available.
     static let candidates = [
         LinuxImage(
             id: "debian-stable-netinst", name: "Debian stable", medium: "netinst ISO", install: "network install",

@@ -48,17 +48,43 @@ enum SetupError: LocalizedError {
 /// listings) is remote input: a compromised or spoofed response must not be able to point the app at
 /// another host, a plain-HTTP URL, or a path outside the image cache.
 enum DownloadPolicy {
-    /// Hosts the app downloads from: Apple's CDN, the ipsw.me catalog, and the Linux vendors' own servers. Each Linux
-    /// provider's host must be added here before it moves from `LinuxCatalog.candidates` to `images`; Alpine and Ubuntu
-    /// are pinned to the one host that serves their ISOs and checksums, not to their whole domains.
-    static let allowedHostSuffixes = [
-        "apple.com", "cdn-apple.com", "ipsw.me", "centos.org", "debian.org", "dl-cdn.alpinelinux.org", "cdimage.ubuntu.com",
+    /// The hosts that serve installers, listings, checksums and signatures, each named exactly. A suffix such as
+    /// `debian.org` would also admit hosts that serve user content (`salsa.debian.org`, `people.debian.org`) and any
+    /// subdomain Apple or a vendor hands to a third party, so no entry here covers its subdomains. Each Linux provider's
+    /// host must be added here before it moves from `LinuxCatalog.candidates` to `images`.
+    static let allowedHosts: Set<String> = [
+        restoreImageHost, "mirror.stream.centos.org", "deb.debian.org", "cdimage.debian.org", "dl-cdn.alpinelinux.org",
+        "cdimage.ubuntu.com",
     ]
 
+    /// The one host that serves macOS restore images, for `.latestMac` and for every ipsw.me entry.
+    static let restoreImageHost = "updates.cdn-apple.com"
+
+    /// The ipsw.me catalog API: asked for metadata only, never for a file to download.
+    static let catalogHost = "api.ipsw.me"
+
+    /// Whether `url` may be an installer, a listing, a checksum file or a signature: HTTPS, an exactly named host, the
+    /// default port and no credentials.
     static func validate(_ url: URL) throws(SetupError) -> URL {
+        try check(url, hosts: allowedHosts)
+    }
+
+    /// Whether `url` may be fetched as a small document: everything `validate` accepts, and the ipsw.me catalog.
+    static func validateMetadata(_ url: URL) throws(SetupError) -> URL {
+        try check(url, hosts: allowedHosts.union([catalogHost]))
+    }
+
+    /// Whether `url`, taken from the ipsw.me catalog, may be downloaded as a restore image: Apple's update server only,
+    /// and a file named `*.ipsw`.
+    static func validateRestoreImage(_ url: URL) throws(SetupError) -> URL {
+        _ = try check(url, hosts: [restoreImageHost])
+        guard try cacheFileName(for: url).hasSuffix(".ipsw") else { throw .untrustedURL(url) }
+        return url
+    }
+
+    private static func check(_ url: URL, hosts: Set<String>) throws(SetupError) -> URL {
         guard url.scheme == "https", url.user() == nil, url.password() == nil, url.port == nil || url.port == 443,
-            let host = url.host()?.lowercased(),
-            allowedHostSuffixes.contains(where: { host == $0 || host.hasSuffix(".\($0)") })
+            let host = url.host()?.lowercased(), hosts.contains(host)
         else { throw .untrustedURL(url) }
         return url
     }
@@ -93,9 +119,15 @@ enum DownloadPolicy {
 
 /// Refuses redirects that leave the download policy.
 final class RedirectPolicy: NSObject, URLSessionTaskDelegate, Sendable {
+    /// Whether the ipsw.me catalog host is acceptable, as for a small document but not for a download.
+    private let metadata: Bool
+
+    init(metadata: Bool = false) { self.metadata = metadata }
+
     /// The request to follow, or nil to stop at the redirect response.
-    static func allowed(_ request: URLRequest) -> URLRequest? {
-        guard let url = request.url, (try? DownloadPolicy.validate(url)) != nil else {
+    static func allowed(_ request: URLRequest, metadata: Bool = false) -> URLRequest? {
+        let validate = metadata ? DownloadPolicy.validateMetadata : DownloadPolicy.validate
+        guard let url = request.url, (try? validate(url)) != nil else {
             Log.network.error("Blocked a redirect to a disallowed location")
             return nil
         }
@@ -108,7 +140,7 @@ final class RedirectPolicy: NSObject, URLSessionTaskDelegate, Sendable {
         _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
         newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
-        completionHandler(Self.allowed(request))
+        completionHandler(Self.allowed(request, metadata: metadata))
     }
 }
 
@@ -118,10 +150,10 @@ enum Network {
 
     /// Fetches a small document (catalog JSON, a directory listing) with a hard size cap.
     static func fetchSmall(_ url: URL, limit: Int = smallLimit) async throws -> Data {
-        _ = try DownloadPolicy.validate(url)
+        _ = try DownloadPolicy.validateMetadata(url)
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-        let (bytes, response) = try await URLSession.shared.bytes(for: request, delegate: RedirectPolicy())
-        if let final = response.url { _ = try DownloadPolicy.validate(final) }
+        let (bytes, response) = try await URLSession.shared.bytes(for: request, delegate: RedirectPolicy(metadata: true))
+        if let final = response.url { _ = try DownloadPolicy.validateMetadata(final) }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SetupError.badResponse(url, http.statusCode)
         }
