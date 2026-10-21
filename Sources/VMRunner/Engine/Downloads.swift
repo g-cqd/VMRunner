@@ -153,6 +153,7 @@ enum Network {
     static let smallLimit = 4 << 20
 
     /// Fetches a small document (catalog JSON, a directory listing) with a hard size cap.
+    @concurrent
     static func fetchSmall(_ url: URL, limit: Int = smallLimit) async throws -> Data {
         _ = try DownloadPolicy.validateMetadata(url)
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)

@@ -19,6 +19,13 @@ struct ReleaseVersion: Comparable, Sendable {
     }
 }
 
+/// A pattern compiled once and shared by every caller.
+struct SharedPattern<Output>: @unchecked Sendable {  // a compiled Regex is never mutated; matching only reads it
+    let regex: Regex<Output>
+
+    init(_ regex: Regex<Output>) { self.regex = regex }
+}
+
 /// An installer ISO chosen from a provider: its path relative to the provider's directory and its release number.
 struct LinuxRelease: Equatable, Sendable {
     /// For example `debian-13.7.0-arm64-netinst.iso` or `netboot/mini.iso`. Never contains a `..` component.
@@ -65,36 +72,48 @@ struct LinuxProvider: Sendable {
         /// `<hex>  name`, `<hex> *name` or `<hex>  ./name`
         case gnu
 
+        /// The most lines of a checksum file that are read. The files the vendors publish list tens of images; a file with
+        /// more is not one of them, and reading all of it would only spend time.
+        static let maximumLines = 10_000
+
+        /// The longest line that is read, in bytes. A checksum line is a digest and a file name.
+        static let maximumLineLength = 1024
+
+        // The patterns are built once: a pattern built per line costs far more than matching it.
+        private static let bsdLine = SharedPattern(
+            Regex {
+                "SHA256 ("
+                Capture { OneOrMore(.anyOf(")").inverted) }
+                ") = "
+                Capture { Repeat(count: 64) { .asciiHexDigit } }
+                ZeroOrMore(.horizontalWhitespace)
+            })
+
+        private static let gnuLine = SharedPattern(
+            Regex {
+                Capture { Repeat(count: 64) { .asciiHexDigit } }
+                " "
+                ChoiceOf {
+                    " "
+                    "*"
+                }
+                Optionally("./")
+                Capture { OneOrMore(.whitespace.inverted) }
+                ZeroOrMore(.horizontalWhitespace)
+            })
+
         /// The lowercase SHA-256 on the line that names exactly `entry`, or nil if no line does. Other
         /// lines, comments and signature armor are ignored, so a file that lists many images can't
-        /// supply another image's hash.
+        /// supply another image's hash. Only the first `maximumLines` lines are read, and a line longer than
+        /// `maximumLineLength` bytes is skipped.
         func sha256(for entry: String, in text: String) -> String? {
-            let digest = Regex { Capture { Repeat(count: 64) { .asciiHexDigit } } }
-            for line in text.split(whereSeparator: \.isNewline) {
+            let lines = text.utf8.split(maxSplits: Self.maximumLines, omittingEmptySubsequences: true) { $0 == 0x0A || $0 == 0x0D }
+            for bytes in lines.prefix(Self.maximumLines) where bytes.count <= Self.maximumLineLength {
+                let line = Substring(bytes)
                 let named: (name: Substring, digest: Substring)?
                 switch self {
-                case .bsd:
-                    let pattern = Regex {
-                        "SHA256 ("
-                        Capture { OneOrMore(.anyOf(")").inverted) }
-                        ") = "
-                        digest
-                        ZeroOrMore(.horizontalWhitespace)
-                    }
-                    named = line.wholeMatch(of: pattern).map { ($0.output.1, $0.output.2) }
-                case .gnu:
-                    let pattern = Regex {
-                        digest
-                        " "
-                        ChoiceOf {
-                            " "
-                            "*"
-                        }
-                        Optionally("./")
-                        Capture { OneOrMore(.whitespace.inverted) }
-                        ZeroOrMore(.horizontalWhitespace)
-                    }
-                    named = line.wholeMatch(of: pattern).map { ($0.output.2, $0.output.1) }
+                case .bsd: named = line.wholeMatch(of: Self.bsdLine.regex).map { ($0.output.1, $0.output.2) }
+                case .gnu: named = line.wholeMatch(of: Self.gnuLine.regex).map { ($0.output.2, $0.output.1) }
                 }
                 if let named, named.name == entry { return named.digest.lowercased() }
             }
@@ -131,6 +150,13 @@ struct LinuxProvider: Sendable {
         }
     }
 
+    private static let hrefAttribute = SharedPattern(
+        Regex {
+            "href=\""
+            Capture { OneOrMore(.anyOf("\"").inverted) }
+            "\""
+        })
+
     /// Finds the newest ISO of a matching directory listing (HTML or plain) by numeric release comparison.
     static func newest(inListing listing: String, prefix: String, suffix: String) -> LinuxRelease? {
         let matcher = Regex {
@@ -147,12 +173,7 @@ struct LinuxProvider: Sendable {
             }
             suffix
         }
-        let href = Regex {
-            "href=\""
-            Capture { OneOrMore(.anyOf("\"").inverted) }
-            "\""
-        }
-        let names = Set(listing.matches(of: href).map { String($0.output.1) })
+        let names = Set(listing.matches(of: Self.hrefAttribute.regex).map { String($0.output.1) })
         let candidates = names.compactMap { name -> (release: LinuxRelease, version: ReleaseVersion)? in
             guard let match = name.wholeMatch(of: matcher), let version = ReleaseVersion(match.output.1) else { return nil }
             return (LinuxRelease(path: name, version: String(match.output.1)), version)
@@ -161,12 +182,16 @@ struct LinuxProvider: Sendable {
     }
 
     /// Finds the newest ISO and its published SHA-256, and proves the checksum file with `trust` before reading it.
+    ///
+    /// This runs off the calling actor: it reads megabytes of listing and checksum text and verifies signatures, none of
+    /// which may stall the interface.
     /// - Parameters:
     ///   - now: The time signatures are judged by.
     ///   - fetch: How the listing, the checksum file and signatures are downloaded.
     /// - Returns: The installer's location and checksum, and its signature when the vendor signs the installer itself.
     /// - Throws: `SetupError` if the directory has no matching ISO, the checksum file has no line for it, or the trust the
     ///   provider relies on refuses it (`SetupError.signatureRejected`).
+    @concurrent
     func resolve(now: Date = Date(), fetch: SmallFetch = { try await Network.fetchSmall($0, limit: $1) }) async throws -> ResolvedImage {
         let directory = try directoryURL()
         let release: LinuxRelease

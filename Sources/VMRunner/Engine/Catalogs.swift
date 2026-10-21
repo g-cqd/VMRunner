@@ -171,6 +171,7 @@ enum LinuxCatalog {
     ]
 
     /// Finds the newest ISO of `image` and its published SHA-256, and proves the checksum with whatever vouches for it.
+    @concurrent
     static func resolve(_ image: LinuxImage) async throws -> ResolvedImage {
         try await image.provider.resolve()
     }
