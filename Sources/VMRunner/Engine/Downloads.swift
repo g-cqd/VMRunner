@@ -290,14 +290,35 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
 }
 
 enum ImageStore {
+    /// The cached file at `destination` if it is still good, or nil if there is none or it no longer matches `checksum`.
+    ///
+    /// A cached file is reused only after its checksum is checked again: some images (Debian's `mini.iso`) keep one file
+    /// name while their content changes, and a corrupted or replaced file must never reach an installer. A file that
+    /// fails is deleted so the caller downloads a fresh one. Without a checksum there is nothing to verify against.
+    @MainActor
+    static func validCachedFile(at destination: URL, checksum: Checksum?, job: SetupJob) async throws -> URL? {
+        guard FileManager.default.fileExists(atPath: destination.path) else { return nil }
+        guard let checksum else { return destination }
+        job.title = "Checking \(destination.lastPathComponent)"
+        job.fraction = nil
+        do {
+            try await Checksums.verify(destination, against: checksum)
+            return destination
+        } catch SetupError.checksumMismatch {
+            Log.storage.notice("Cached \(destination.lastPathComponent, privacy: .public) is stale or damaged; downloading again")
+            try FileManager.default.removeItem(at: destination)
+            return nil
+        }
+    }
+
     /// Downloads `remote` into the shared image cache (or reuses it), verifying the checksum when known.
     @MainActor
-    static func fetch(_ remote: URL, checksum: Checksum?, job: SetupJob) async throws -> URL {
+    static func fetch(_ remote: URL, checksum: Checksum?, job: SetupJob, imagesDirectory: URL = AppPaths.images) async throws -> URL {
         _ = try DownloadPolicy.validate(remote)
         let name = try DownloadPolicy.cacheFileName(for: remote)
-        let destination = AppPaths.images.appending(path: name)
-        try AppPaths.createPrivateDirectory(AppPaths.images)
-        if FileManager.default.fileExists(atPath: destination.path) { return destination }
+        let destination = imagesDirectory.appending(path: name)
+        try AppPaths.createPrivateDirectory(imagesDirectory)
+        if let cached = try await validCachedFile(at: destination, checksum: checksum, job: job) { return cached }
 
         job.title = "Downloading \(name)"
         job.fraction = 0

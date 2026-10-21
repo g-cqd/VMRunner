@@ -145,3 +145,52 @@ struct CatalogTests {
         #expect(firmwares[0].checksum == Checksum(algorithm: .sha256, value: "aa"))
     }
 }
+
+@MainActor
+struct ImageCacheTests {
+    private func cachedFile(_ text: String, in directory: URL) throws -> URL {
+        let file = directory.appending(path: "image.iso")
+        try Data(text.utf8).write(to: file)
+        return file
+    }
+
+    @Test func aCachedFileWithAMatchingChecksumIsReused() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try cachedFile("abc", in: directory)
+        let checksum = Checksum(algorithm: .sha256, value: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+
+        let reused = try await ImageStore.validCachedFile(at: file, checksum: checksum, job: SetupJob())
+
+        #expect(reused == file)
+    }
+
+    @Test func aStaleCachedFileIsDeletedSoItDownloadsAgain() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try cachedFile("an older build of the same file name", in: directory)
+        let checksum = Checksum(algorithm: .sha256, value: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+
+        let reused = try await ImageStore.validCachedFile(at: file, checksum: checksum, job: SetupJob())
+
+        #expect(reused == nil)
+        #expect(!FileManager.default.fileExists(atPath: file.path), "the stale file must not be left to be reused")
+    }
+
+    @Test func withoutAChecksumTheCachedFileIsTrusted() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try cachedFile("whatever", in: directory)
+
+        #expect(try await ImageStore.validCachedFile(at: file, checksum: nil, job: SetupJob()) == file)
+    }
+
+    @Test func aMissingFileIsNotCached() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let missing = directory.appending(path: "nothing.iso")
+        let result = try await ImageStore.validCachedFile(at: missing, checksum: nil, job: SetupJob())
+        #expect(result == nil)
+    }
+}
