@@ -6,8 +6,9 @@ feeds: [roadmap 0023, ADR-0015]
 # Verifying vendor OpenPGP signatures
 
 Study, not a decision record. Facts come from the vendors' published files and pages as of 2026-10-21. Packet headers were
-decoded by hand from the fetched armor; no signature was cryptographically verified and no `gpg --list-packets` was run.
-Items marked *unverified* were not confirmed.
+decoded by hand from the fetched armor; when this study was written no signature had been cryptographically verified. The
+implementation of roadmap 0023 later did so, and the "Not verified" section below says what it covered. Items marked
+*unverified* were not confirmed.
 
 ## Short answer
 
@@ -61,45 +62,33 @@ Keys and where they are published over https:
   the key ID in the unhashed area is a hint only. Honour a signature expiry if one appears.
 - **Bind the file name.** The verified list must contain the downloaded name exactly (the `*` binary marker, two-space and
   BSD forms each need a strict parser, as the checksum parsers already are).
-- **Pinned keys.** Store `n`, `e` and the fingerprint per key; a test recomputes the version 4 fingerprint
-  (`SHA1(0x99 || len || key body)`) from the stored material and compares it with the constant.
+- **Pinned keys.** For Debian, Ubuntu, Alpine and Fedora 44, the key's own file was fetched over HTTPS and its primary key
+  was read by a script written for the purpose and by an OpenPGP command-line tool installed on the machine; both gave the
+  same version 4 fingerprint, and it equals the fingerprint printed on the vendor's own HTTPS page (Debian's verification
+  page, Ubuntu's verification tutorial, Alpine's downloads page, Fedora's security page). Each key is RSA-4096 with exponent
+  65537. The constants in the source came from the script, and a test recomputes every fingerprint from them with the in-tree
+  function.
+- **Real signatures verify.** The in-tree verifier accepts Debian's `SHA256SUMS.sign`, Ubuntu's `SHA256SUMS.gpg` (26.04), the
+  Fedora Server 44 CHECKSUM file, and Alpine's virt 3.24.2 `.asc` over the real 93 MB ISO, streamed through the SHA-512 path
+  once by a throwaway test (the ISO is not a fixture, so the suite checks only the vetting of that signature). The first
+  three files are committed as fixtures. The same signatures verified with that command-line tool. Observed hash
+  algorithms: Debian SHA-256, Ubuntu SHA-512, Fedora SHA-256, Alpine SHA-512; all issuers are primary keys.
+- **The digest variant.** `SecKeyVerifySignature` with the digest variant takes a precomputed digest and gives the same
+  answer as the message variant over the message; a test signs with each and verifies with the other for SHA-256, SHA-384
+  and SHA-512, and shows a wrong digest, a message in the digest's place and a wrong-sized digest fail. The verifier uses
+  the digest variant for every file, in memory or streamed, so there is one path.
+- **Armor checksums.** The CRC-24 of each real armor block is checked.
 
-## Alternatives considered
+Still not verified:
 
-| Option | Verdict |
-|---|---|
-| A Swift OpenPGP package with a non-commercial licence, tied to OpenSSL, no cleartext support, last release in 2024 | Rejected |
-| An archived Swift implementation (2019) | Rejected |
-| A new, iOS-only package with internal symbols and no releases | Rejected |
-| Swift bindings to a C OpenPGP library built as a vendored framework | Rejected: heavy, not system-frameworks-only |
-| A Rust verifier without Swift bindings | Not a Swift package |
-| Shelling out to `gpg` | Rejected for shipping; usable as a cross-check in tests where installed |
-
-## Threat model
-
-Adds: a compromised mirror or CDN can no longer substitute an ISO and its checksum together. This matters because Fedora's
-download host redirects to third-party mirrors and Alpine is served from a CDN.
-
-Does not add:
-- **Trust in the pinned key.** It is trust on first use at pin time; check each fingerprint against at least two independent
-  official sources when pinning.
-- **Rotation.** Fedora rotates per release; a new key needs an app update (or a key fetched over https and accepted only if
-  its fingerprint is already pinned).
-- **Revocation and expiry.** A pinned verifier cannot see them; re-check the vendors' pages when updating pins.
-- **Downgrade.** A missing signature must be a hard failure, never a skip; a genuine but old signed list still verifies, so
-  replay is limited only by the cached-installer re-verification and the release choice.
-- **Safety.** A signature says the vendor signed the file, not that the file is safe.
-
-## Decision input
-
-Implement behind a `ChecksumTrust` protocol so that a missing, malformed or untrusted signature fails closed with a clear
-message and the https-only path stays available for providers that publish no signature. Fuzz the parser. A new ADR
-amends ADR-0015.
-
-## Not verified
-
-No signature was verified cryptographically, and the base64 CRC lines were not checked. The Ubuntu arm64 signature was seen
-only by size; Debian arm64 and Alpine aarch64 only by header prefix. Key expiry came from keyserver listings and a lossy
-summary of the Fedora key file; self-signature subpackets and signing-capable flags were not parsed. The current Fedora
-release set could not be confirmed. The digest-variant semantics and the EdDSA "digest as message" rule are from memory.
-The Alpine key file was not fetched. Several mirrors of the documentation were unreachable, so one Fedora mirror was used.
+- **Live use.** No run fetched a signature through the app: the resolve step and its failure cases ran against the real
+  files served in-process, and the app and a VM were not started.
+- **Key lifetime.** Key expiry, key flags and revocation were not parsed from the keys' self-signatures; a pinned verifier cannot
+  see them. The Fedora key file also holds the 43, 45 and 46 keys, which are not pinned because no signature from them was
+  available to check.
+- **Other releases and vendors.** Only Ubuntu 26.04, Fedora 44, Debian's current netinst and Alpine 3.24.2 were seen. AlmaLinux
+  and Rocky Linux signatures and keys were not examined.
+- **Security.framework's padding check.** The verifier relies on `SecKeyVerifySignature` to check PKCS#1 v1.5 padding
+  strictly; that was tested with wrong digests and altered signatures, not by reading its source.
+- **EdDSA.** The "digest as message" rule for EdDSA is from memory; the verifier does not support it.
+- Several mirrors of the documentation were unreachable, so one Fedora mirror was used.

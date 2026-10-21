@@ -1,7 +1,7 @@
 extension PGP {
     /// The vendor keys the app trusts to sign installers, one constant each. A key is pinned only after its fingerprint,
     /// recomputed from the constants here, matched the fingerprint the vendor publishes on its own https site, and after a real
-    /// signature from it verified. Adding or replacing one is a code change with a test (ADR-0022).
+    /// signature from it verified. Adding or replacing one is a code change with a test (ADR-0023).
     enum PinnedKeys {
         static let debianCD = PinnedKey(
             owner: "Debian CD signing key",

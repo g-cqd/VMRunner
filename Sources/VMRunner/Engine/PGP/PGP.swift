@@ -3,7 +3,7 @@ import Foundation
 import Security
 
 /// A strict, verify-only OpenPGP reader for the one shape vendors use to sign installers: a version 4 signature made with an
-/// RSA key that the app pins (ADR-0022). Nothing else is accepted: another signature version, another key algorithm, a weak
+/// RSA key that the app pins (ADR-0023). Nothing else is accepted: another signature version, another key algorithm, a weak
 /// hash, a signature the pinned key did not make, or any byte the reader does not understand fails closed with a
 /// `PGP.Failure`. It cannot create signatures, read key rings or follow trust chains.
 enum PGP {
