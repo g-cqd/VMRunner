@@ -102,7 +102,7 @@ struct LinuxProvider: Sendable {
                 ZeroOrMore(.horizontalWhitespace)
             })
 
-        /// The lowercase SHA-256 on the line that names exactly `entry`, or nil if no line does. Other
+        /// The lowercase SHA-256 on the line that names exactly `entry`, byte for byte, or nil if no line does. Other
         /// lines, comments and signature armor are ignored, so a file that lists many images can't
         /// supply another image's hash. Only the first `maximumLines` lines are read, and a line longer than
         /// `maximumLineLength` bytes is skipped.
@@ -115,7 +115,7 @@ struct LinuxProvider: Sendable {
                 case .bsd: named = line.wholeMatch(of: Self.bsdLine.regex).map { ($0.output.1, $0.output.2) }
                 case .gnu: named = line.wholeMatch(of: Self.gnuLine.regex).map { ($0.output.2, $0.output.1) }
                 }
-                if let named, named.name == entry { return named.digest.lowercased() }
+                if let named, named.name.utf8.elementsEqual(entry.utf8) { return named.digest.lowercased() }
             }
             return nil
         }
@@ -175,7 +175,10 @@ struct LinuxProvider: Sendable {
         }
         let names = Set(listing.matches(of: Self.hrefAttribute.regex).map { String($0.output.1) })
         let candidates = names.compactMap { name -> (release: LinuxRelease, version: ReleaseVersion)? in
-            guard let match = name.wholeMatch(of: matcher), let version = ReleaseVersion(match.output.1) else { return nil }
+            // The listing is unsigned input: a name that is not plain ASCII is never one of the vendor's files.
+            guard name.utf8.allSatisfy({ $0 < 0x80 }), let match = name.wholeMatch(of: matcher),
+                let version = ReleaseVersion(match.output.1)
+            else { return nil }
             return (LinuxRelease(path: name, version: String(match.output.1)), version)
         }
         return candidates.max { $0.version < $1.version }?.release

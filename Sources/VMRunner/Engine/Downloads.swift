@@ -96,16 +96,16 @@ enum DownloadPolicy {
     /// The last path component, if it is a plain file name: no separators, no leading dot, bounded length.
     static func cacheFileName(for url: URL) throws(SetupError) -> String {
         let name = url.lastPathComponent
-        let plainName = Regex {
-            CharacterClass.asciiAlphanumeric
-            Repeat(0...199) {
-                ChoiceOf {
-                    CharacterClass.asciiAlphanumeric
-                    CharacterClass.anyOf("._-")
-                }
-            }
+        // The bytes are judged, not the characters: Swift treats a string and its Unicode normalization (the Kelvin sign
+        // and `K`) as equal, and a file name must be exactly the ASCII it appears to be.
+        let bytes = Array(name.utf8)
+        func isAlphanumeric(_ byte: UInt8) -> Bool {
+            (byte >= UInt8(ascii: "0") && byte <= UInt8(ascii: "9")) || (byte >= UInt8(ascii: "a") && byte <= UInt8(ascii: "z"))
+                || (byte >= UInt8(ascii: "A") && byte <= UInt8(ascii: "Z"))
         }
-        guard name.wholeMatch(of: plainName) != nil else { throw .unsafeFileName(name) }
+        guard let first = bytes.first, bytes.count <= 200, isAlphanumeric(first),
+            bytes.allSatisfy({ isAlphanumeric($0) || $0 == UInt8(ascii: ".") || $0 == UInt8(ascii: "_") || $0 == UInt8(ascii: "-") })
+        else { throw .unsafeFileName(name) }
         return name
     }
 
