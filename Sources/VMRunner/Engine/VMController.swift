@@ -144,10 +144,10 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
 
     private func startRuntimeLimit(minutes: Int) {
         runtimeLimit.cancel()
-        guard minutes > 0 else { return }
-        deadline = .now.addingTimeInterval(Double(minutes) * 60)
+        guard let limit = RuntimeLimit.duration(forMinutes: minutes) else { return }
+        deadline = .now.addingTimeInterval(Double(limit.components.seconds))
         runtimeLimit.start(
-            after: .seconds(minutes * 60),
+            after: limit,
             requestStop: { [weak self] in self?.requestStop() },
             forceStop: { [weak self] in await self?.forceStop() }
         )

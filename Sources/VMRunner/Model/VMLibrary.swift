@@ -102,7 +102,7 @@ final class VMLibrary {
     /// otherwise alias the original and deleting it would delete the original's disk).
     private func loadConfig(in directory: URL) -> VMConfig? {
         do {
-            let config = try VMConfig.decode(from: Data(contentsOf: directory.appending(path: "config.json")))
+            let config = try VMConfig.load(from: directory.appending(path: "config.json"))
             guard directory.lastPathComponent == "\(config.id.uuidString).vm" else {
                 Log.storage.error("Ignoring \(directory.lastPathComponent, privacy: .private): name doesn't match its id")
                 return nil

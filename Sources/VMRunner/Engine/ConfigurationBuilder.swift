@@ -38,7 +38,11 @@ enum ConfigurationBuilder {
             height *= Double(legibleStartWidth) / width
             width = Double(legibleStartWidth)
         }
-        func even(_ value: Double, _ range: ClosedRange<Int>) -> Int { min(max(Int(value) & ~1, range.lowerBound), range.upperBound) }
+        // Clamp as a Double first: Int(value) traps for a value that is NaN or past Int.max.
+        func even(_ value: Double, _ range: ClosedRange<Int>) -> Int {
+            let bounded = min(max(value.isNaN ? 0 : value, Double(range.lowerBound)), Double(range.upperBound))
+            return min(max(Int(bounded) & ~1, range.lowerBound), range.upperBound)
+        }
         return (even(width, 640...7680), even(height, 480...4320))
     }
 
@@ -94,7 +98,8 @@ enum ConfigurationBuilder {
         // The framework supports exactly one display per graphics device.
         graphics.displays = [
             VZMacGraphicsDisplayConfiguration(
-                widthInPixels: display.width, heightInPixels: display.height, pixelsPerInch: config.pixelsPerInch
+                widthInPixels: display.width, heightInPixels: display.height,
+                pixelsPerInch: min(max(config.pixelsPerInch, EditorLimits.pixelsPerInch.lowerBound), EditorLimits.pixelsPerInch.upperBound)
             )
         ]
         vz.graphicsDevices = [graphics]

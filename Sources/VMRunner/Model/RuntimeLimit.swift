@@ -8,6 +8,13 @@ final class RuntimeLimit {
     /// How long the guest gets to shut down cleanly before the plug is pulled.
     static let gracePeriod = Duration.seconds(30)
 
+    /// The time limit for a setting in minutes, or `nil` for no limit. A setting past the editor's longest limit counts as
+    /// that longest limit, so the conversion to seconds can't overflow.
+    nonisolated static func duration(forMinutes minutes: Int) -> Duration? {
+        guard minutes > 0 else { return nil }
+        return .seconds(min(minutes, EditorLimits.runtimeMinutes.upperBound) * 60)
+    }
+
     private let sleep: (Duration) async throws -> Void
     private var task: Task<Void, Never>?
 

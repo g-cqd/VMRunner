@@ -48,6 +48,8 @@ extension VMBundle {
         return
             directories
             .compactMap { try? decoder.decode(Snapshot.self, from: Data(contentsOf: $0.appending(path: "snapshot.json"))) }
+            // Restoring a snapshot copies its size into the settings, so a size the editor couldn't have set is refused.
+            .filter { (1...EditorLimits.maxDiskGiB).contains($0.diskGiB) }
             .sorted { $0.date > $1.date }
     }
 

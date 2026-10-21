@@ -94,23 +94,41 @@ enum DiskUsage {
     }
 }
 
+enum DiskImageError: LocalizedError {
+    case sizeOutOfRange(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .sizeOutOfRange(let gibibytes):
+            "A disk of \(gibibytes) GiB isn't possible: it must be from 1 to \(EditorLimits.maxDiskGiB) GiB."
+        }
+    }
+}
+
 enum DiskImage {
+    /// A size in bytes, checked before it is shifted: a negative or huge count would trap in the conversion.
+    private static func bytes(gibibytes: Int) throws -> UInt64 {
+        guard (1...EditorLimits.maxDiskGiB).contains(gibibytes) else { throw DiskImageError.sizeOutOfRange(gibibytes) }
+        return UInt64(gibibytes) << 30
+    }
+
     /// Creates a sparse raw image. APFS only allocates blocks the guest writes.
     static func create(at url: URL, gibibytes: Int) throws {
+        let size = try bytes(gibibytes: gibibytes)
         guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
         }
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
-        try handle.truncate(atOffset: UInt64(gibibytes) << 30)
+        try handle.truncate(atOffset: size)
     }
 
     /// Grows a raw image. The guest still has to extend its partition and filesystem.
     static func grow(at url: URL, toGibibytes size: Int) throws {
+        let target = try bytes(gibibytes: size)
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
         let current = try handle.seekToEnd()
-        let target = UInt64(size) << 30
         guard target > current else { return }
         try handle.truncate(atOffset: target)
     }

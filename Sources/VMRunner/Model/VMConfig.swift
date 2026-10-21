@@ -204,14 +204,24 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
 
 extension VMConfig {
     /// Decodes a stored config, filling any key added since it was written with its default value.
+    ///
+    /// The data is untrusted: it is refused when too large or too deeply nested, and the decoded values are refused when
+    /// they fall outside the ranges the editor offers (`validate()`).
     static func decode(from data: Data) throws -> VMConfig {
+        try checkBounds(of: data)
         guard let stored = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Expected a JSON object"))
         }
         let guest = (stored["guest"] as? String).flatMap(GuestOS.init(rawValue:)) ?? .linux
         let defaults = try JSONSerialization.jsonObject(with: Self.new(name: "", guest: guest).encoded()) as? [String: Any] ?? [:]
         let merged = overlay(stored, on: defaults)
-        return try JSONDecoder().decode(Self.self, from: JSONSerialization.data(withJSONObject: merged))
+        // A number the parser read as infinite or NaN can't be written back, and writing it raises an exception.
+        guard JSONSerialization.isValidJSONObject(merged) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The configuration holds a number out of range"))
+        }
+        let config = try JSONDecoder().decode(Self.self, from: JSONSerialization.data(withJSONObject: merged))
+        try config.validate()
+        return config
     }
 
     private static func overlay(_ top: [String: Any], on base: [String: Any]) -> [String: Any] {
