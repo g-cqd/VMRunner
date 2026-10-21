@@ -62,7 +62,18 @@ struct GateLockTests {
             try await GateLock.hold(root: directory) {
                 _ = await #expect(throws: ToolError.self) { try await GateLock.hold(root: directory) {} }
             }
-            try await GateLock.hold(root: directory) {}
+            // Another test's `posix_spawn` can still carry a copy of the closed descriptor for a moment (it is
+            // close-on-exec), and `flock` is held until every copy is closed: retry briefly instead of failing.
+            try await retryingWhileBusy { try await GateLock.hold(root: directory) {} }
         }
+    }
+
+    private func retryingWhileBusy(attempts: Int = 100, _ body: () async throws -> Void) async throws {
+        for _ in 1..<attempts {
+            do { return try await body() } catch let error as ToolError where error.status == GateLock.busyStatus {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        try await body()
     }
 }
