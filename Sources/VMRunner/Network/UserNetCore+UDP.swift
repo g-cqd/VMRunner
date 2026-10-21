@@ -43,7 +43,11 @@ extension UserNetCore {
             flow.forward(payload, ctx: ctx)
             return
         }
-        if let until = recentUDPDenials[key], until > ctx.now { return }
+        let endpoint = DenialSuppression.Endpoint(transport: .udp, address: key.remoteAddress, port: key.remotePort, name: nil)
+        if denials.absorbs(endpoint, now: ctx.now) {
+            ctx.stats.deniedEventsSuppressed += 1
+            return
+        }
         let name: String?
         switch gate.judge(address: key.remoteAddress, port: key.remotePort, now: ctx.now) {
         case .deny(let reason, let deniedName):
@@ -71,8 +75,6 @@ extension UserNetCore {
 
     private func denyDatagram(_ key: FlowKey, name: String?, _ denial: FlowDenial) {
         ctx.stats.udpFlowsDenied += 1
-        if recentUDPDenials.count >= 256 { recentUDPDenials.removeAll(keepingCapacity: true) }
-        recentUDPDenials[key] = ctx.now + 5
         publishDenied(.udp, key: key, name: name, denial)
     }
 

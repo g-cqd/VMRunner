@@ -11,11 +11,11 @@ extension UserNetCore {
         sweepFinishedTCPFlows()
         sweepIdleDatagramFlows()
         for answer in dns.expire(now: ctx.now) { deliver(answer) }
+        publishExpiredDenials()
         if let state = ctx.vpn.tick(at: ctx.now) { ctx.host.publish(vpnState: state) }
         if ctx.now - lastHousekeeping >= 30 {
             lastHousekeeping = ctx.now
             gate.names.prune(now: ctx.now)
-            recentUDPDenials = recentUDPDenials.filter { $0.value > ctx.now }
         }
     }
 
@@ -52,6 +52,7 @@ extension UserNetCore {
     func updatePolicy(_ policy: NetworkPolicy, existingFlows: ExistingFlowAction) -> Int {
         ctx.now = currentTime()
         gate.policy = policy
+        publishAndForgetDenials()  // a refusal made under the old policy says nothing about the new one
         guard existingFlows == .terminate else { return 0 }
         var revoked = 0
         for flow in tcpFlows.values where flow.backend == .host && flow.isLive {
@@ -89,6 +90,7 @@ extension UserNetCore {
     /// Ends every flow (reporting each as closed by shutdown) and releases host sockets.
     func shutdown() {
         ctx.now = currentTime()
+        publishAndForgetDenials()
         for flow in tcpFlows.values where flow.isLive { flow.terminate(.stackStopped, resetGuest: false, ctx: ctx) }
         tcpFlows.removeAll()
         tcpByToken.removeAll()

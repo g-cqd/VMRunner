@@ -210,6 +210,16 @@ struct FlowLogTests {
             flowID: 1, transport: transport, phase: phase, remote: (IPv4.make(93, 184, 216, 34), port), name: name, time: 0)
     }
 
+    @Test func aDenialThatStandsForSeveralAttemptsSaysHowMany() throws {
+        let single = try #require(FlowLogEntry(event: event(.denied(.flowLimit)), id: 1))
+        #expect(single.count == 1 && !single.detail.contains("×"))
+        let folded = FlowEvent(
+            flowID: 1, transport: .tcp, phase: .denied(.flowLimit), remote: (IPv4.make(93, 184, 216, 34), 443), name: nil, time: 0,
+            count: 40)
+        let entry = try #require(FlowLogEntry(event: folded, id: 2))
+        #expect(entry.count == 40 && entry.detail.hasSuffix(" × 40"))
+    }
+
     @Test func anOpenedFlowIsAllowed() throws {
         let entry = try #require(FlowLogEntry(event: event(.opened, name: "example.com"), id: 7))
         #expect(entry.id == 7)

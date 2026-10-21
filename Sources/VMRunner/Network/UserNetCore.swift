@@ -24,8 +24,8 @@ final class UserNetCore<Host: UserNetHost, ClockType: Clock> where ClockType.Dur
     var udpFlows: [FlowKey: DatagramFlow] = [:]
     var icmpFlows: [FlowKey: DatagramFlow] = [:]
     var datagramByToken: [UInt64: DatagramFlow] = [:]
-    /// Datagram flows refused recently, so a guest hammering a denied destination yields one event, not thousands.
-    var recentUDPDenials: [FlowKey: TimeInterval] = [:]
+    /// Refusals published recently, so a guest hammering a denied destination yields one event, not thousands.
+    var denials = DenialSuppression()
     var pendingBatchEnd: [TCPFlow] = []
     var scratchKeys: [FlowKey] = []
     var nextSequence: UInt32

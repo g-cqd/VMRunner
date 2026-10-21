@@ -135,6 +135,7 @@ final class UserNetLoop {
     private func publishStats() {
         var snapshot = core.stats
         snapshot.framesLostToGuest += bridge.framesLostToGuest
+        snapshot.flowEventsDropped += bridge.flowEventsDropped
         shared.stats.withLock { $0 = snapshot }
     }
 }

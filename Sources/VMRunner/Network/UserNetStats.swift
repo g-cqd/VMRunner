@@ -12,6 +12,10 @@ struct UserNetStats: Sendable, Hashable {
     var droppedUnsupported: UInt64 = 0
     /// Frames the host could not hand to the guest (its socket buffer was full and the queue overflowed).
     var framesLostToGuest: UInt64 = 0
+    /// Flow events that could not be queued for the reader because it fell behind (the stream keeps the newest).
+    var flowEventsDropped: UInt64 = 0
+    /// Refusals counted but not published, because an equal one went out recently (see ``DenialSuppression``).
+    var deniedEventsSuppressed: UInt64 = 0
     var tcpFlowsOpened: UInt64 = 0
     var tcpFlowsDenied: UInt64 = 0
     var tcpFlowsFailed: UInt64 = 0

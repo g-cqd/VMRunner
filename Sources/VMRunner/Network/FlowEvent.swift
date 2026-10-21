@@ -67,17 +67,20 @@ struct FlowEvent: Sendable, Hashable {
     let bytesToGuest: UInt64
     /// Lifetime of the flow; set on `closed`, zero otherwise.
     let duration: TimeInterval
+    /// How many attempts the event stands for: 1, except for a denial event that sums up the identical refusals held
+    /// back since the last one for the same destination (see ``DenialSuppression``). A UI shows "x N" for more than one.
+    let count: Int
 }
 
 extension FlowEvent {
     /// An event about the flow to `remote`. Traffic counters and duration are zero except on `closed`.
     init(
         flowID: UInt64, transport: FlowTransport, phase: Phase, remote: (address: UInt32, port: UInt16), name: String?,
-        time: TimeInterval, bytesToHost: UInt64 = 0, bytesToGuest: UInt64 = 0, duration: TimeInterval = 0
+        time: TimeInterval, bytesToHost: UInt64 = 0, bytesToGuest: UInt64 = 0, duration: TimeInterval = 0, count: Int = 1
     ) {
         self.init(
             flowID: flowID, transport: transport, phase: phase, destinationAddress: .v4(remote.address), destinationPort: remote.port,
-            destinationName: name, time: time, bytesToHost: bytesToHost, bytesToGuest: bytesToGuest, duration: duration)
+            destinationName: name, time: time, bytesToHost: bytesToHost, bytesToGuest: bytesToGuest, duration: duration, count: count)
     }
 }
 

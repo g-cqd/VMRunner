@@ -62,11 +62,14 @@ struct UserNetUDPTests {
 
     @Test func aDeniedFlowProducesOneEventUntilItsDenialExpires() {
         let rig = open(NetworkPolicy())
+        let denied: (FlowEvent.Phase) -> Bool = { if case .denied = $0 { true } else { false } }
         for _ in 0..<50 { rig.send(Wire.guestUDP(to: (ipv4("127.0.0.1"), 9_999), [1])) }
-        #expect(rig.events { if case .denied = $0 { true } else { false } }.count == 1)
+        #expect(rig.events(denied).count == 1)
+        // When the interval ends, one more event says how many were folded into it (49), then a new refusal is news again.
         rig.advance(6)
+        #expect(rig.events(denied).map(\.count) == [1, 49])
         rig.send(Wire.guestUDP(to: (ipv4("127.0.0.1"), 9_999), [1]))
-        #expect(rig.events { if case .denied = $0 { true } else { false } }.count == 2)
+        #expect(rig.events(denied).map(\.count) == [1, 49, 1])
     }
 
     @Test func broadcastAndMulticastAreDropped() {

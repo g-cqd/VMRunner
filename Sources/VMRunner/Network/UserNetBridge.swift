@@ -26,6 +26,8 @@ final class UserNetBridge: UserNetHost {
     /// Connect failures discovered while the core was calling us; delivered once the call has returned.
     var deferredConnectFailures: [(token: UInt64, error: Int32)] = []
     private(set) var framesLostToGuest: UInt64 = 0
+    /// Flow events the stream's reader had no room for (it keeps the newest 4096 and drops the oldest).
+    private(set) var flowEventsDropped: UInt64 = 0
     private(set) var guestWriteEnabled = false
 
     private var streams: [UInt64: Stream] = [:]
@@ -36,6 +38,7 @@ final class UserNetBridge: UserNetHost {
     private let resolver: any HostNameResolver
     private let inbox: UserNetInbox
     private var resolutions: [UInt64: Task<Void, Never>] = [:]
+    private var logLines = FlowLogThrottle()
 
     init(
         guestDescriptor: Int32, mtu: Int, flowEvents: AsyncStream<FlowEvent>.Continuation,
@@ -213,22 +216,20 @@ final class UserNetBridge: UserNetHost {
     }
 
     func publish(_ event: FlowEvent) {
-        flowEvents.yield(event)
+        if case .dropped = flowEvents.yield(event) { flowEventsDropped += 1 }
         logFailure(of: event)
     }
 
-    /// Logs denials and abnormal endings. Destinations are private data: address, port and name are redacted in
-    /// collected logs; only the kind of event and the reason are public.
+    /// Logs denials and abnormal endings, one line per destination and reason per interval (``FlowLogThrottle``).
+    /// Destinations are private data: address, port and name are redacted in collected logs; only the kind of event,
+    /// the outcome, the reason and the count of held-back lines are public.
     private func logFailure(of event: FlowEvent) {
-        let kind = event.transport.rawValue
-        let destination = "\(event.destinationAddress.description):\(event.destinationPort) \(event.destinationName ?? "-")"
-        switch event.phase {
-        case .denied(let denial):
-            Log.network.info("\(kind, privacy: .public) denied (\(denial.logName, privacy: .public)): \(destination, privacy: .private)")
-        case .closed(let reason) where reason.isFailure:
-            Log.network.info("\(kind, privacy: .public) failed (\(reason.logName, privacy: .public)): \(destination, privacy: .private)")
-        case .closed, .opened, .answered:
-            break
+        guard let line = logLines.line(for: event) else { return }
+        let (summary, held, destination) = (line.summary, line.held, line.destination)
+        if held > 0 {
+            Log.network.info("\(summary, privacy: .public) +\(held, privacy: .public): \(destination, privacy: .private)")
+        } else {
+            Log.network.info("\(summary, privacy: .public): \(destination, privacy: .private)")
         }
     }
 

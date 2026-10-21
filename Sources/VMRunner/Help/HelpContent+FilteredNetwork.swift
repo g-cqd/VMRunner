@@ -23,7 +23,8 @@ extension HelpCatalog {
                 "• **Reset connections when my Mac changes network**: after Wi-Fi, Ethernet or a VPN changes, open connections "
                     + "are reset so the guest reconnects over the new path.",
                 "Rules are read when the machine starts. While it runs, the toolbar's network button shows recent connections, "
-                    + "allowed and blocked, with the reason, and the VPN indicators.",
+                    + "allowed and blocked, with the reason, and the VPN indicators. Blocked attempts to the same place, repeated "
+                    + "within a few seconds, are one line with a count (\"× 40\").",
                 "Filtered networking is new and has not been validated against every guest. If something does not work, "
                     + "switch the machine back to NAT.",
             ],

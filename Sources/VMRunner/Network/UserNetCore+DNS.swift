@@ -25,11 +25,15 @@ extension UserNetCore {
     }
 
     func deliver(_ answer: DNSAnswer) {
-        let phase: FlowEvent.Phase = answer.denial.map { .denied(.policy($0)) } ?? .answered(responseCode: answer.responseCode)
-        ctx.host.publish(
-            FlowEvent(
-                flowID: ctx.makeToken(), transport: .dns, phase: phase, remote: (answer.server, 53), name: answer.name, time: ctx.now,
-                bytesToGuest: UInt64(answer.message.count)))
+        if let reason = answer.denial {
+            let endpoint = DenialSuppression.Endpoint(transport: .dns, address: answer.server, port: 53, name: answer.name)
+            publishDenied(endpoint, name: answer.name, .policy(reason), bytesToGuest: UInt64(answer.message.count))
+        } else {
+            ctx.host.publish(
+                FlowEvent(
+                    flowID: ctx.makeToken(), transport: .dns, phase: .answered(responseCode: answer.responseCode),
+                    remote: (answer.server, 53), name: answer.name, time: ctx.now, bytesToGuest: UInt64(answer.message.count)))
+        }
         switch answer.route {
         case .udp(let guestPort, let server):
             ByteView.withBytes(of: answer.message) { payload in

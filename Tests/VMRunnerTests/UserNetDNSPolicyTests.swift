@@ -116,7 +116,8 @@ struct UserNetDNSQuestionPolicyTests {
             #expect(try #require(takeReply(rig)).code == 3)
         }
         #expect(rig.host.resolutions.isEmpty)
-        #expect(denials(rig, .reservedName) == 2)
+        #expect(denials(rig, .reservedName) == 1, "the second, identical refusal is counted, not published again")
+        #expect(rig.core.stats.deniedEventsSuppressed == 1)
     }
 
     @Test(arguments: [

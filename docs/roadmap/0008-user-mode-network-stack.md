@@ -19,6 +19,8 @@ A review of the stack with the guest as the attacker produced a series of fixes,
   proxy no longer forwards what a guest merely asks for.
 - The host's own addresses are a floor under every policy (ADR-0029): loopback, `0.0.0.0`, link-local and metadata, the
   NAT gateway and `198.18.0.0/15` are denied whatever `blockPrivateRanges` says.
+- Refusals are published once per destination per five seconds with the rest counted ("x N"), log lines are coalesced the
+  same way, and the stats count the events the reader had no room for.
 
 ## Still owed
 

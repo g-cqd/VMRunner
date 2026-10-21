@@ -111,13 +111,6 @@ extension UserNetCore {
 
     // MARK: Events
 
-    func publishDenied(_ transport: FlowTransport, key: FlowKey, name: String?, _ denial: FlowDenial) {
-        ctx.host.publish(
-            FlowEvent(
-                flowID: ctx.makeToken(), transport: transport, phase: .denied(denial), remote: (key.remoteAddress, key.remotePort),
-                name: name, time: ctx.now))
-    }
-
     func publishOpened(_ flow: DatagramFlow) {
         ctx.host.publish(
             FlowEvent(

@@ -101,7 +101,7 @@ final class NetworkActivity {
         nextID += 1
         switch entry.outcome {
         case .allowed: allowedCount += 1
-        case .denied: deniedCount += 1
+        case .denied: deniedCount += entry.count
         }
         flows.insert(entry, at: 0)
         if flows.count > EditorLimits.recentFlowLimit { flows.removeLast(flows.count - EditorLimits.recentFlowLimit) }

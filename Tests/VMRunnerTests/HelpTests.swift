@@ -96,6 +96,7 @@ struct HelpCatalogTests {
         #expect(HelpTopic.networkPolicy.entry.paragraphs.joined(separator: " ").contains("always wins"))
         let policy = HelpTopic.networkPolicy.entry.paragraphs.joined(separator: " ")
         #expect(policy.contains("Your Mac's own addresses are always blocked") && policy.contains("169.254.169.254"))
+        #expect(policy.contains("one line with a count"), "the log folds repeated refusals")
         #expect(HelpTopic.networkPolicy.entry.related.contains(.policyLimits))
     }
 

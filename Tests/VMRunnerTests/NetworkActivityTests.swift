@@ -73,6 +73,20 @@ struct NetworkActivityTests {
         rig.activity.stop()
     }
 
+    @Test func aFoldedDenialCountsForEveryAttemptItStandsFor() async {
+        let rig = ActivityRig()
+        rig.activity.start()
+        let folded = FlowEvent(
+            flowID: 1, transport: .udp, phase: .denied(.gatewayService(port: 123)), remote: (IPv4.make(198, 18, 0, 1), 123), name: nil,
+            time: 0, count: 40)
+        rig.events.yield(folded)
+        await rig.settle { rig.activity.flows.count == 1 }
+
+        #expect(rig.activity.deniedCount == 40, "40 refusals, one line")
+        #expect(rig.activity.flows.first?.count == 40)
+        rig.activity.stop()
+    }
+
     @Test func theLogIsBoundedAndKeepsTheNewest() async {
         let rig = ActivityRig()
         rig.activity.start()

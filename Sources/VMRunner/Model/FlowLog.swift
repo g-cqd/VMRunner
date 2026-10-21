@@ -14,19 +14,22 @@ struct FlowLogEntry: Identifiable, Hashable, Sendable {
     let destination: String
     /// Why: the matching rule for a denial, or the plain outcome for an allowed connection.
     let detail: String
+    /// How many attempts the line stands for: more than one when identical refusals were folded together ("x 40").
+    let count: Int
 
     /// The log line for `event`, or `nil` for events that are not worth a line (a connection ending normally).
     init?(event: FlowEvent, id: Int) {
         self.id = id
         transport = event.transport
         destination = Self.describe(event)
+        count = max(event.count, 1)
         switch event.phase {
         case .opened:
             outcome = .allowed
             detail = "Allowed"
         case .denied(let denial):
             outcome = .denied
-            detail = denial.explanation
+            detail = count > 1 ? "\(denial.explanation) × \(count)" : denial.explanation
         case .answered(let code):
             outcome = .allowed
             detail = Self.describeAnswer(code)
