@@ -13,3 +13,6 @@ grown, so a crafted file can't make the size conversion trap (ADR-0025).
 
 Clones refuse a symbolic-link source and snapshots are identified by their folder, private (0700 folders, 0600 files), as
 ADR-0026 records.
+
+An extra disk may not be a file in the Machines folder (another machine's disk), and its full path is shown in the exposure
+summary (ADR-0027).

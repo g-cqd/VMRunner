@@ -185,6 +185,9 @@ enum ConfigurationBuilder {
             VZVirtioBlockDeviceConfiguration(attachment: try attachment(bundle.activeDisk(ephemeral: config.ephemeral), readOnly: false))
         ]
         for disk in config.extraDisks {
+            guard !AppPaths.isInside(URL(filePath: disk.path), AppPaths.machines) else {
+                throw HostPathError.insideMachinesFolder(disk.path)
+            }
             guard FileManager.default.fileExists(atPath: disk.path) else { throw SetupError.missingFile(disk.path) }
             devices.append(
                 VZVirtioBlockDeviceConfiguration(

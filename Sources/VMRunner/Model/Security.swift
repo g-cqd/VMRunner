@@ -171,8 +171,8 @@ extension VMConfig {
         for disk in extraDisks {
             items.append(
                 disk.readOnly
-                    ? Exposure(level: .low, text: "Extra disk (read-only): \(URL(filePath: disk.path).lastPathComponent)")
-                    : Exposure(level: .medium, text: "Extra disk (writable): \(URL(filePath: disk.path).lastPathComponent)"))
+                    ? Exposure(level: .low, text: "Extra disk (read-only): \(disk.path)")
+                    : Exposure(level: .medium, text: "Extra disk (writable): \(disk.path)"))
         }
         if let installer = attachedInstallerPath {
             items.append(Exposure(level: .medium, text: "The guest can read the installer image \(installer) (attached read-only)."))

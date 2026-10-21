@@ -68,7 +68,8 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
                     return
                 } catch {
                     // Saved state is tied to the exact configuration; fall back to a cold boot.
-                    Log.machine.error("Restore failed: \(error.localizedDescription, privacy: .public)")
+                    Log.machine.error(
+                        "Restore failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
                     bundle.discardSavedState()
                     tearDown()
                     activeBundle = bundle
@@ -93,7 +94,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
             errorMessage = notice
             startRuntimeLimit(minutes: config.maxRuntimeMinutes)
         } catch {
-            Log.machine.error("Start failed: \(error.localizedDescription, privacy: .public)")
+            Log.machine.error("Start failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
             errorMessage = error.localizedDescription
             tearDown()
         }

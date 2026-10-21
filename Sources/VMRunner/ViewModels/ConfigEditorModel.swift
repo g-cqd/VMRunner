@@ -78,6 +78,10 @@ final class ConfigEditorModel {
         let grant: HostPathGrant
         switch target {
         case .extraDisk:
+            guard !AppPaths.isInside(url, library.bundle(id).url.deletingLastPathComponent()) else {
+                alertMessage = HostPathError.insideMachinesFolder(url.path).localizedDescription
+                return
+            }
             config.extraDisks.append(ExtraDisk(path: url.path))
             grant = HostPathGrant(.extraDisk, url.path, writable: true)
         case .installerISO:

@@ -113,7 +113,7 @@ enum Provisioner {
     /// Files the user picked themselves are never touched.
     private static func discardCachedRestoreImage(_ url: URL) {
         let keep = UserDefaults.standard.object(forKey: "keepsRestoreImages") as? Bool ?? false
-        guard !keep, url.standardizedFileURL.path.hasPrefix(AppPaths.images.standardizedFileURL.path) else { return }
+        guard !keep, AppPaths.isInside(url, AppPaths.images) else { return }
         try? FileManager.default.removeItem(at: url)
     }
 

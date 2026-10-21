@@ -39,7 +39,12 @@ extension VMConfig {
         if let lastDisplayWidth { try Self.require(lastDisplayWidth, in: EditorLimits.displayWidth, "lastDisplayWidth") }
         if let lastDisplayHeight { try Self.require(lastDisplayHeight, in: EditorLimits.displayHeight, "lastDisplayHeight") }
         for folder in sharedFolders { try Self.requireAbsolute(folder.path, "sharedFolders") }
-        for disk in extraDisks { try Self.requireAbsolute(disk.path, "extraDisks") }
+        for disk in extraDisks {
+            try Self.requireAbsolute(disk.path, "extraDisks")
+            if AppPaths.isInside(URL(filePath: disk.path), AppPaths.machines) {
+                throw Self.corrupted("extraDisks", "must not name a file inside the Machines folder")
+            }
+        }
         if let installerISO { try Self.requireAbsolute(installerISO, "installerISO") }
     }
 

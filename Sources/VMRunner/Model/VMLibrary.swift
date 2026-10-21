@@ -50,7 +50,8 @@ final class VMLibrary {
         }
         persistence.onFailure = { [weak self] config, error in
             guard let self else { return }
-            Log.storage.error("Couldn't save settings: \(error.localizedDescription, privacy: .public)")
+            Log.storage.error(
+                "Couldn't save settings (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
             alertMessage = "Couldn't save “\(config.name)”: \(error.localizedDescription)"
         }
     }
@@ -119,7 +120,10 @@ final class VMLibrary {
             return config
         } catch {
             Log.storage.error(
-                "Couldn't read \(directory.lastPathComponent, privacy: .private): \(error.localizedDescription, privacy: .public)")
+                """
+                Couldn't read \(directory.lastPathComponent, privacy: .private) (\(error.logKind, privacy: .public)): \
+                \(error.localizedDescription, privacy: .private)
+                """)
             return nil
         }
     }
@@ -260,7 +264,7 @@ final class VMLibrary {
                 job.task = nil
                 jobs[id] = nil
             } catch {
-                Log.machine.error("Setup failed: \(error.localizedDescription, privacy: .public)")
+                Log.machine.error("Setup failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
                 job.error = error.localizedDescription
             }
         }

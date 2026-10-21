@@ -9,6 +9,14 @@ enum AppPaths {
     static let images = root.appending(path: "Images", directoryHint: .isDirectory)
     static let partialDownloads = images.appending(path: ".partial", directoryHint: .isDirectory)
 
+    /// Whether `url` is `directory` or something inside it, comparing whole path components: `Images2/a` is not inside `Images`.
+    /// Links and `..` are resolved first, so a link into the directory counts as inside and a link out of it does not.
+    static func isInside(_ url: URL, _ directory: URL) -> Bool {
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.pathComponents
+        let root = directory.resolvingSymlinksInPath().standardizedFileURL.pathComponents
+        return path.count >= root.count && path.starts(with: root)
+    }
+
     /// Creates `url` and any missing parents, readable only by the current user.
     static func createPrivateDirectory(_ url: URL) throws {
         let fileManager = FileManager.default
@@ -20,6 +28,18 @@ enum AppPaths {
         }
         for directory in missing.reversed() {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        }
+    }
+}
+
+/// A host path the app refuses to hand to a guest.
+enum HostPathError: LocalizedError {
+    case insideMachinesFolder(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .insideMachinesFolder(let path):
+            "\(path) is inside VMRunner's own Machines folder, which holds the disks of other machines. Attach a copy kept elsewhere."
         }
     }
 }
@@ -81,7 +101,10 @@ struct VMBundle: Sendable {
             return
         } catch {
             Log.storage.error(
-                "Couldn't remove \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                """
+                Couldn't remove \(file.lastPathComponent, privacy: .private) (\(error.logKind, privacy: .public)): \
+                \(error.localizedDescription, privacy: .private)
+                """)
         }
     }
 }

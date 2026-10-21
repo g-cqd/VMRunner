@@ -20,7 +20,8 @@ final class SettingsModel {
         } catch let error as CocoaError where error.code == .fileNoSuchFile {
             // Nothing cached yet.
         } catch {
-            Log.storage.error("Couldn't clear images: \(error.localizedDescription, privacy: .public)")
+            Log.storage.error(
+                "Couldn't clear images (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
         }
         await refresh()
     }
@@ -33,7 +34,10 @@ final class SettingsModel {
             try AppPaths.createPrivateDirectory(directory)
         } catch {
             Log.storage.error(
-                "Couldn't create \(directory.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                """
+                Couldn't create \(directory.lastPathComponent, privacy: .public) (\(error.logKind, privacy: .public)): \
+                \(error.localizedDescription, privacy: .private)
+                """)
         }
         NSWorkspace.shared.activateFileViewerSelecting([directory])
     }

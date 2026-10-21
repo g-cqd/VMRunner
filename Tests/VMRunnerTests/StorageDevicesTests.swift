@@ -51,6 +51,16 @@ struct StorageDevicesTests {
         #expect(try ConfigurationBuilder.storage(for: config, bundle: bundle).count == 2)
     }
 
+    @Test func aDiskFromTheMachinesFolderIsNeverAttached() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var config = VMConfig.new(name: "x", guest: .linux)
+        let other = AppPaths.machines.appending(path: "\(UUID().uuidString).vm/Disk.img").path
+        config.extraDisks = [ExtraDisk(path: other)]
+
+        #expect(throws: HostPathError.self) { try ConfigurationBuilder.storage(for: config, bundle: makeBundle(in: directory)) }
+    }
+
     @Test func aMacGuestNeverGetsTheInstallerDrive() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
