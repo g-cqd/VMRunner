@@ -29,6 +29,9 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-async-algorithms.git", exact: "1.1.7"),
         // HeapModule backs TestKit's TestClock sleeper queue.
         .package(url: "https://github.com/apple/swift-collections.git", exact: "1.7.3"),
+        // Container spike only (ContainerSpike, roadmap 0024, ADR-0017). Release 0.52.1 is the first one that verifies the
+        // digest of a pull by digest. The app, `vmr` and every test target link none of it.
+        .package(url: "https://github.com/apple/containerization.git", exact: "0.52.1"),
     ],
     targets: [
         .executableTarget(
@@ -107,6 +110,17 @@ let package = Package(
         .target(name: "ContainerSpikeCore", path: "Sources/ContainerSpikeCore", swiftSettings: hardening),
         .testTarget(
             name: "ContainerSpikeTests", dependencies: ["ContainerSpikeCore"], path: "Tests/ContainerSpikeTests", swiftSettings: hardening),
+
+        // The spike itself: the only target that links the container package. Run by the owner, never by the gate (it boots
+        // a virtual machine).
+        .executableTarget(
+            name: "ContainerSpike",
+            dependencies: [
+                "ContainerSpikeCore",
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+            ],
+            path: "Sources/ContainerSpike", swiftSettings: hardening),
 
         // Test support: a stand-in for the arcleak, dolly and deadwood binaries that DevToolsTests packages
         // into a local fixture release. It is never shipped or run by the gate.

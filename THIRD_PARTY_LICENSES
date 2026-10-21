@@ -8,3 +8,5 @@ Exception):
 - swift-collections: linked into the app through swift-async-algorithms, and into the test support (HeapModule)
 - swift-subprocess and swift-argument-parser: developer tooling only (vmr), never linked into the app
 - swift-system: a dependency of swift-subprocess, so developer tooling only
+- containerization: the container spike only (`ContainerSpike`, roadmap 0024); the app, `vmr` and every test target link none
+  of it. The 24 packages it brings in are all listed in Package.resolved, and their licenses are not inventoried yet
