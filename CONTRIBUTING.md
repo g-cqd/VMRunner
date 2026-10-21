@@ -12,7 +12,7 @@ swift run vmr hooks install           # pre-commit: format lint and SwiftLint on
 ## Before you push: `swift run vmr check`
 
 ```sh
-swift run vmr check                 # fast gate: format, swiftlint, build, test, analyzers
+swift run vmr check                 # fast gate: format, swiftlint, docs, build, test, analyzers
 swift run vmr check --full          # + ASan, TSan, UBSan test runs, release build, coverage gate
 swift run vmr check test analyzers  # only the named steps (swift run vmr check --list shows them all)
 ```
@@ -21,8 +21,19 @@ Every step runs even if an earlier one fails; each prints PASS or FAIL and the c
 failed. CI runs the same commands, so a green local run is a green CI run (minus the hosted-runner limits noted
 in `.github/workflows/ci.yml`).
 
+- **One gate per checkout.** `vmr check` takes an exclusive lock on `.build`; a second one (another terminal or the
+  pre-push hook) does not wait but exits at once with status 75 and the pid of the first. The lock goes
+  when the process ends, however it ends. `--list` takes no lock.
+- **`docs`** checks `docs/` and `README.md` against the documentation law (`docs/WHITE-PAPER.md` section 5): file
+  names, numbering, front matter, headings, supersession, `blocked-by`, `decision` and `feeds` references, and relative
+  links. It prints `path:line: message` for each violation; fix the document, not the checker.
+- **Job summary.** With `GITHUB_STEP_SUMMARY` set (GitHub Actions does), `vmr check` appends a table of the steps
+  (result, duration) to that file, plus test counts, coverage and analyzer findings when the steps ran. Nothing changes
+  when it is unset.
+
 The three static analyzers (retain cycles, duplicate code, dead code) come from pinned, checksum-verified releases listed in
-`Scripts/analyzers.lock`; `swift run vmr analyzers` downloads them into the git-ignored `.tools/`. See the
+`Scripts/analyzers.lock`; `swift run vmr analyzers` downloads them into the git-ignored `.tools/`, and CI runs the same
+`swift run vmr check analyzers`, so the lock is the only place the versions are written. See the
 "Quality gates" section of the README for what each one gates on.
 
 - **A new analyzer finding is a failure.** Fix it, or accept it deliberately: `// @al:accept -- reason`
@@ -77,7 +88,7 @@ Workflows live in `.github/workflows`; every third-party action is pinned to a f
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| `ci.yml` | push to main, PR, merge queue | `lint`, `build-test` (fails if no test ran), `app-bundle`, `sanitizers` (asan, tsan, ubsan), `coverage`, `analyzers`; the aggregate job **CI passed** is the one required check |
+| `ci.yml` | push to main, PR, merge queue | `changes` (decides what runs from the diff), `lint` (format, SwiftLint, documentation), `gate` (build and tests, which fails if none ran; coverage; the hardened app bundle; the analyzers), `sanitizers` (asan, tsan, ubsan; on a PR only when the network stack, the engine, the test support or the dependencies changed). A documentation-only change runs `lint` and nothing else. The aggregate job **CI passed** is the one required check and tolerates skipped jobs |
 | `codeql.yml` | push to main, PR, merge queue, weekly | CodeQL for the workflows and (experimental, Swift 6.4 is not yet supported) Swift |
 | `zizmor.yml` | `.github/**` changes, merge queue, weekly | actionlint and zizmor on the workflows |
 | `dependency-review.yml` | PR | fails a PR that adds a dependency with a high severity advisory |

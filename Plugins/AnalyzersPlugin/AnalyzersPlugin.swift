@@ -3,7 +3,7 @@
 import Foundation
 import PackagePlugin
 
-/// `swift package analyzers [run|install|baseline|versions|pins] [tool...]`: forwards to `vmr analyzers` for this package.
+/// `swift package analyzers [run|install|baseline|versions] [tool...]`: forwards to `vmr analyzers` for this package.
 @main
 struct AnalyzersPlugin: CommandPlugin {
     func performCommand(context: PluginContext, arguments: [String]) async throws {

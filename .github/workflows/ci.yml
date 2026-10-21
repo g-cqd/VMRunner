@@ -1,27 +1,16 @@
 name: CI
 
-# Every job runs `swift run vmr ...` (the SwiftPM executable in Sources/vmr that replaced the former shell and Python
-# scripts), so CI and a local run execute the same steps.
+# Every job runs `swift run vmr ...`, so CI and a local run execute the same steps. This file only decides where and when.
 #
-# Runner notes:
-#  * `xcode-27` is GitHub's hosted macOS image with Xcode 27.0 (27A266a, Swift 6.4). Package.swift needs
-#    swift-tools-version 6.4, so `macos-26` (Xcode 26.x, Swift 6.3 at most) cannot build this package. The
-#    label is a preview as of the runner-images README: verify it still exists and still ships Xcode 27 /
-#    Swift 6.4 when this workflow starts failing at "Toolchain". Pinned Xcode path: see DEVELOPER_DIR below.
-#  * Hosted macOS runners are themselves virtual machines and cannot run nested virtual machines, and the
-#    Virtualization entitlement-gated code needs a display. So only the unit tests run in CI; they never
-#    start a VM. `Views`, `VMController`, `Provisioner` and `ConfigurationBuilder` are covered by hand on a real Mac.
-#  * Build caches are split into actions/cache/restore (every run) and actions/cache/save (only on main, only when the
-#    exact key missed), so pull requests and queue runs never write caches (a write from a PR ref is invisible to other
-#    refs anyway) and a hit is never re-uploaded. Keys are Swift/Xcode version + hash of Package.swift and
-#    Package.resolved; restore-keys falls back to the newest cache of the same toolchain. Stale caches are pruned by
-#    cache-cleanup.yml.
-#  * swiftlint comes from Homebrew at whatever version it serves (not pinned); swift-format is the one in the Xcode
-#    toolchain. The tooling depends on swift-subprocess and swift-argument-parser, both pinned with `exact:` in
-#    Package.swift and Package.resolved.
+#  * `xcode-27` is GitHub's hosted macOS image with Xcode 27 (Swift 6.4); Package.swift needs tools version 6.4, so
+#    `macos-26` cannot build it. The label was a preview when this was written: if every job fails at "swift run", check
+#    that the label and DEVELOPER_DIR below still exist.
+#  * Hosted macOS runners are virtual machines and cannot run nested ones, so CI runs the unit tests and never starts a
+#    guest. Views, VMController, Provisioner and ConfigurationBuilder are exercised by hand on a real Mac.
+#  * A documentation-only change runs the `lint` job (which includes the documentation check) and skips the rest.
+#  * Build caches are restored on every run and saved only from main when the exact key missed, so pull requests never write
+#    caches; cache-cleanup.yml prunes old ones.
 
-# `merge_group` makes the required "CI passed" check report for GitHub's merge queue (a ruleset that requires the
-# check and enables the queue would otherwise wait forever); see CONTRIBUTING.md, "Repository settings".
 on:
   push:
     branches: [main]
@@ -29,17 +18,16 @@ on:
   merge_group:
   workflow_dispatch:
 
-# Least privilege for every job; no job below needs more.
 permissions:
   contents: read
 
-# A newer push cancels the superseded run of the same branch or PR; runs on main and on tags always finish.
+# A newer push cancels the superseded run of the same branch or pull request; main and tags always finish.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
-  # Part of every build-cache key: bump it with the Xcode image (DEVELOPER_DIR below).
+  # Part of every cache key: bump together with DEVELOPER_DIR.
   TOOLCHAIN_KEY: swift6.4-xcode27.0
   DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
   HOMEBREW_NO_AUTO_UPDATE: "1"
@@ -47,94 +35,118 @@ env:
   HOMEBREW_NO_ANALYTICS: "1"
 
 jobs:
+  # What changed decides which heavy jobs run. `code` is anything that is not documentation or repository metadata;
+  # `risky` is where memory and thread bugs live (the network stack, the engine, the test support, the dependencies), and
+  # gates the sanitizers on pull requests. Anything that is not a pull request or merge group runs everything. If the diff
+  # cannot be computed, everything runs.
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+      risky: ${{ steps.diff.outputs.risky }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || '' }}
+        run: |
+          code=true risky=true
+          if [ -n "$BASE" ] && files="$(git diff --name-only "$BASE" HEAD)"; then
+            code=false risky=false
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              if ! [[ "$file" =~ ^(docs/|LICENSE$|\.github/(ISSUE_TEMPLATE/|CODEOWNERS$|PULL_REQUEST_TEMPLATE\.md$))|\.md$ ]]; then code=true; fi
+              if [[ "$file" =~ ^(Sources/VMRunner/(Network|Engine)/|Sources/(TestKit|CTestKitMalloc)/|Package\.(swift|resolved)$) ]]; then risky=true; fi
+            done <<<"$files"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "risky=$risky" >> "$GITHUB_OUTPUT"
+          echo "code changes: $code; memory/thread-sensitive changes: $risky"
+
   lint:
-    name: Lint (swift-format, SwiftLint)
+    name: Lint and documentation
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Toolchain
-        run: |
-          swift --version
-          swift --version 2>&1 | grep -q 'Swift version 6\.4'
-      - name: Install linters
-        run: brew install swiftlint
-      - name: Lint
-        run: swift run vmr check format swiftlint
+      - run: brew install swiftlint
+      - run: swift run vmr check format swiftlint docs
 
-  build-test:
-    name: Build and unit tests
+  # One definition for the lanes that differ only in the command and the cache they use. `assert` requires evidence that
+  # tests ran: a run that compiled but discovered none (a renamed target, a broken filter) exits 0.
+  gate:
+    name: ${{ matrix.name }}
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Build and unit tests", run: "vmr check build test", cache: .build, swiftlint: true, assert: true, upload: .build-ci/ }
+          - { name: "Coverage gate", run: "vmr check coverage", cache: .build-cov, upload: .build-cov/coverage-summary.json }
+          - { name: "App bundle (hardened, signed, entitlements verified)", run: "vmr build-app release --hardened" }
+          - { name: "Static analyzers", run: "vmr check analyzers" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Toolchain
-        run: |
-          swift --version
-          swift --version 2>&1 | grep -q 'Swift version 6\.4'
-      # The end-to-end tests of the tooling (DevToolsTests) run swift-format, SwiftLint, git and codesign.
+      # The tooling's end-to-end tests run swift-format, SwiftLint, git and codesign.
       - name: Install SwiftLint
+        if: ${{ matrix.swiftlint }}
         run: brew install swiftlint
       - name: Restore build cache
+        if: ${{ matrix.cache }}
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .build
-          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          path: ${{ matrix.cache }}
+          key: spm-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
-      - name: Build and test
-        shell: bash # explicit shell: `bash -eo pipefail`, so a failing `vmr check` is not hidden by `tee`
+            spm-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
+      - name: Run
+        shell: bash # explicit shell: `bash -eo pipefail`, so a failing command is not hidden by `tee`
         env:
+          LANE: ${{ matrix.run }}
           SWIFT_TEST_FLAGS: --xunit-output .build-ci/test-results.xml
         run: |
           mkdir -p .build-ci
-          swift run vmr check build test 2>&1 | tee .build-ci/check.log
-      # A run that compiled but discovered no tests (a renamed target, a broken filter) exits 0, so require evidence.
-      # Swift Testing prints one "Test run with N tests in M suites ..." line per test bundle; XCTest's "Executed N
-      # tests" lines are not counted on purpose, since the packages' tests are Swift Testing.
+          read -ra args <<<"$LANE"
+          swift run "${args[@]}" 2>&1 | tee .build-ci/lane.log
       - name: Assert tests ran
+        if: ${{ matrix.assert }}
         run: |
-          total="$(grep -Eo 'Test run with [0-9]+ tests?' .build-ci/check.log | awk '{ total += $4 } END { print total + 0 }')"
+          total="$(grep -Eo 'Test run with [0-9]+ tests?' .build-ci/lane.log | awk '{ total += $4 } END { print total + 0 }')"
           echo "Swift Testing ran ${total} test(s)"
-          if [ "$total" -lt 1 ]; then
-            echo "::error::the test run executed no tests (no 'Test run with N tests' line in the log)"
-            exit 1
-          fi
+          [ "$total" -ge 1 ] || { echo "::error::the run executed no tests"; exit 1; }
       - name: Save build cache
-        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        if: ${{ matrix.cache && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .build
+          path: ${{ matrix.cache }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
-      - name: Upload test results
-        if: ${{ !cancelled() }}
+      - name: Upload results
+        if: ${{ !cancelled() && matrix.upload }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-results
-          path: .build-ci/
+          name: results-${{ strategy.job-index }}
+          path: ${{ matrix.upload }}
           if-no-files-found: warn
           retention-days: 14
 
-  app-bundle:
-    name: App bundle (release, hardened, signature and entitlement checks)
-    runs-on: xcode-27
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      # Builds and ad-hoc signs only; it never launches the app or starts a VM. The command itself fails on
-      # get-task-allow, unexpected entitlements, a bad signature or a missing hardened-runtime flag.
-      - name: Build and verify
-        run: swift run vmr build-app release --hardened
-
+  # Sanitizers rebuild the graph under instrumentation, so on a pull request they run only when a risky path changed.
   sanitizers:
     name: Sanitizer (${{ matrix.step }})
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' && needs.changes.outputs.risky == 'true' }}
     runs-on: xcode-27
     timeout-minutes: 45
     strategy:
@@ -164,116 +176,18 @@ jobs:
           path: .build-${{ matrix.step }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-  coverage:
-    name: Coverage gate
-    runs-on: xcode-27
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Restore build cache
-        id: cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .build-cov
-          key: spm-cov-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: |
-            spm-cov-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
-      - name: Coverage (COVERAGE_MIN is a ratchet, see .vmr.json)
-        run: swift run vmr check coverage
-      - name: Save build cache
-        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .build-cov
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-      - name: Upload coverage summary
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage-summary
-          path: .build-cov/coverage-summary.json
-          if-no-files-found: warn
-          retention-days: 14
-
-  # arcleak, dolly and deadwood run through their published composite actions, pinned to the commit of the
-  # release tag. The actions default `version` to their own ref, which is a SHA here, so `version` must be
-  # passed. Keep these SHAs and versions equal to Scripts/analyzers.lock (`vmr analyzers pins` checks it). The job
-  # runs on xcode-27 because `swift run vmr` needs Swift 6.4 (the pins check and the SARIF summary are Swift now).
-  # `upload-sarif: 'false'` keeps the job at contents: read; set it to 'true' and grant `security-events: write`
-  # on this job only if code scanning is enabled for the repository. The actions run `github/codeql-action/
-  # upload-sarif@v4` internally (an unpinned reference inside their action.yml, which this workflow cannot pin).
-  analyzers:
-    name: Analyzers (arcleak, dolly, deadwood)
-    runs-on: xcode-27
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Pins match Scripts/analyzers.lock
-        run: swift run vmr analyzers pins
-      - name: arcleak (retain cycles and leaks)
-        uses: g-cqd/arcleak@8a357cd18c43a4bcc84d968f31f954c45242cd69 # v0.10.2
-        with:
-          version: '0.10.2' # arcleak
-          paths: Sources Tests
-          config: .arcleak.json
-          baseline: .arcleak-baseline.json
-          strict: 'true'
-          upload-sarif: 'false'
-      - name: dolly (duplicate code; exact clones fail, near and structural are advisory)
-        if: ${{ !cancelled() }}
-        uses: g-cqd/dolly@2e56ae7ec8b0d491fd15bb20fe2b4f9c9751c702 # v0.10.2
-        with:
-          version: '0.10.2' # dolly
-          paths: Sources Tests
-          config: .dolly.json
-          baseline: .dolly-baseline.json
-          upload-sarif: 'false'
-      - name: deadwood (unused and dead code)
-        if: ${{ !cancelled() }}
-        uses: g-cqd/deadwood@2c048101fda2bb02aa41214b2e761c51059b55cd # v0.10.1
-        with:
-          version: '0.10.1' # deadwood
-          paths: Sources Tests
-          config: .deadwood.json
-          baseline: .deadwood-baseline.json
-          strict: 'true'
-          upload-sarif: 'false'
-      - name: Findings
-        if: ${{ !cancelled() }}
-        run: swift run vmr sarif arcleak.sarif dolly.sarif deadwood.sarif
-      - name: Upload SARIF reports
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: analyzer-sarif
-          path: |
-            arcleak.sarif
-            dolly.sarif
-            deadwood.sarif
-          if-no-files-found: warn
-          retention-days: 14
-
-  # The one required status check for the ruleset. It fails if any job above failed or was cancelled. `skipped` is
-  # tolerated: a job skipped by a future `if:` or path filter must not block a merge, and a skipped dependency of a
-  # failed job already shows up as that job's failure. `if: always()` makes the check report even when a needed job
-  # failed, which a plain `needs` would turn into a skipped (and so, for a ruleset, a pending) check.
+  # The one required status check. It fails if any job failed or was cancelled and tolerates `skipped`, so a job skipped by
+  # the change detection never blocks a merge. `always()` makes it report even when a needed job failed; a plain `needs`
+  # would leave a ruleset waiting on a skipped check.
   ci-ok:
     name: CI passed
     if: ${{ always() }}
-    needs: [lint, build-test, app-bundle, sanitizers, coverage, analyzers]
+    needs: [changes, lint, gate, sanitizers]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Check results
-        env:
+      - env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           bad="$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "\(.key)=\(.value.result)"' <<<"$NEEDS")"
-          if [ -n "$bad" ]; then
-            echo "jobs not successful: $bad" >&2
-            exit 1
-          fi
+          [ -z "$bad" ] || { echo "jobs not successful: $bad" >&2; exit 1; }

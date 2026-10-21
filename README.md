@@ -156,17 +156,20 @@ Python scripts. It depends on [swift-subprocess](https://github.com/swiftlang/sw
 tests link neither.
 
 ```sh
-swift run vmr check                          # fast gate: format, swiftlint, build, test, analyzers
+swift run vmr check                          # fast gate: format, swiftlint, docs, build, test, analyzers
 swift run vmr check --full                   # + ASan, TSan and UBSan test runs, release build, coverage gate
 swift run vmr check test coverage            # only the named steps; --list shows all of them
-swift run vmr analyzers [run|install|baseline|versions|pins] [arcleak|dolly|deadwood...]
+swift run vmr analyzers [run|install|baseline|versions] [arcleak|dolly|deadwood...]
 swift run vmr build-app [debug|release] [--hardened] [--arm64e]
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files
 ```
 
-Every step runs even if one fails; each prints PASS or FAIL and `vmr check` exits non-zero if any failed. CI
-(`.github/workflows/ci.yml`) calls the same commands, so local and CI results match. Per-repository settings (lint
+Every step runs even if one fails; each prints PASS or FAIL and `vmr check` exits non-zero if any failed. Only one gate
+runs per checkout: a second `vmr check` exits at once (status 75) naming the pid of the first, because two gates would
+fight over `.build`. CI (`.github/workflows/ci.yml`) calls the same commands, so local and CI results match; when
+`GITHUB_STEP_SUMMARY` is set, `vmr check` appends a table of the steps (result, duration) to it, with the test counts,
+coverage and analyzer findings the steps reported. Per-repository settings (lint
 paths, coverage bundles, the coverage floor, test targets left out of sanitizer and coverage runs) live in
 `.vmr.json`; `swift run vmr <command> --help` documents every option.
 
@@ -182,8 +185,11 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
   accepted into the `.arcleak-baseline.json`, `.dolly-baseline.json` and
   `.deadwood-baseline.json` with `vmr analyzers baseline arcleak dolly deadwood`, so only new ones fail. Accept an intentional
   finding in source with `// @al:accept -- reason`,
-  `// @dl:accept -- reason` or `// @dw:accept -- reason`. `vmr analyzers pins` checks that the CI workflows pin
-  the same releases as the lock.
+  `// @dl:accept -- reason` or `// @dw:accept -- reason`.
+- **Documentation** (`vmr check docs`) enforces the documentation law of `docs/WHITE-PAPER.md` section 5 over `docs/` and
+  this README: the white paper stays within 200 lines; ADRs, roadmap entries, diary files and research studies have the
+  right names, unique numbers, front matter and headings; supersession, `blocked-by`, `decision` and `feeds` references
+  resolve (no `blocked-by` cycles); and every relative link resolves. It prints `path:line: message` per violation.
 - **CI** on GitHub Actions: lint, build and unit tests, app bundle checks, sanitizers, coverage, analyzers,
   CodeQL, and workflow linting (actionlint, zizmor). Actions are pinned to full commit SHAs and Dependabot keeps
   them current. Hosted runners can't run nested VMs, so CI never starts a virtual machine.

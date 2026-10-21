@@ -8,6 +8,7 @@ decision: ADR-0009
 
 `vmr check|analyzers|build-app|hooks`, fifty end-to-end tests, CI running the same steps.
 
-## Still owed
+## Also landed
 
-A lock so a second `vmr check` on the same tree fails fast instead of waiting on the first.
+An exclusive gate lock (a second `vmr check` fails fast naming the holder), a GitHub job summary, and analyzers run
+through `vmr` in CI so the lock file is the one source of their versions.
