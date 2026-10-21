@@ -71,14 +71,16 @@ enum HelpCatalog {
             ?? HelpEntry(area: .app, title: topic.rawValue, summary: "No help text yet.", paragraphs: ["No help text yet."])
     }
 
+    /// Each topic's searchable text (title, summary and every paragraph, lowercased), built once rather than per query.
+    static let searchIndex: [(topic: HelpTopic, haystack: String)] = HelpTopic.allCases.map { topic in
+        let entry = topic.entry
+        return (topic, ([entry.title, entry.summary] + entry.paragraphs + entry.advanced).joined(separator: " ").lowercased())
+    }
+
     /// Topics whose title, summary, or text contains every word of `query` (case-insensitive).
     static func search(_ query: String) -> [HelpTopic] {
         let words = query.lowercased().split(separator: " ").map(String.init)
         guard !words.isEmpty else { return HelpTopic.allCases }
-        return HelpTopic.allCases.filter { topic in
-            let entry = topic.entry
-            let haystack = ([entry.title, entry.summary] + entry.paragraphs + entry.advanced).joined(separator: " ").lowercased()
-            return words.allSatisfy(haystack.contains)
-        }
+        return searchIndex.filter { entry in words.allSatisfy(entry.haystack.contains) }.map(\.topic)
     }
 }

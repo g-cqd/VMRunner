@@ -60,6 +60,30 @@ struct HelpCatalogTests {
         #expect(!HelpCatalog.search("rosetta snapshots").contains(.rosetta))
     }
 
+    @Test func theSearchIndexCoversEveryTopicInOrder() {
+        #expect(HelpCatalog.searchIndex.map(\.topic) == HelpTopic.allCases)
+        for (topic, haystack) in HelpCatalog.searchIndex {
+            #expect(haystack == haystack.lowercased())
+            #expect(haystack.contains(topic.title.lowercased()), "\(topic.rawValue) title is not searchable")
+        }
+    }
+
+    /// The query-time scan that the index replaced: lowercase and join each entry's text on every call.
+    private func searchWithoutIndex(_ query: String) -> [HelpTopic] {
+        let words = query.lowercased().split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return HelpTopic.allCases }
+        return HelpTopic.allCases.filter { topic in
+            let entry = topic.entry
+            let haystack = ([entry.title, entry.summary] + entry.paragraphs + entry.advanced).joined(separator: " ").lowercased()
+            return words.allSatisfy(haystack.contains)
+        }
+    }
+
+    @Test(arguments: ["rosetta", "SPICE", "disk flush", "  Network   POLICY ", "copy-on-write", "memory", "a", "", "zzzzqqqq"])
+    func searchResultsAreUnchangedByTheIndex(query: String) {
+        #expect(HelpCatalog.search(query) == searchWithoutIndex(query))
+    }
+
     @Test func theNetworkPolicyHelpStaysHonestAboutItsLimits() {
         let limits = (HelpTopic.policyLimits.entry.paragraphs + HelpTopic.policyLimits.entry.advanced).joined(separator: " ")
         for phrase in ["advisory", "DNS over HTTPS", "DNS over QUIC", "No IPv6", "IPsec and PPTP", "port 53", "not been validated"] {

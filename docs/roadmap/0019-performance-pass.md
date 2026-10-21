@@ -8,5 +8,6 @@ decision: ADR-0007
 
 Done: debounced settings writes, allocation-free packet paths, the runtime limit's timer (`RuntimeLimit`, on an
 injected clock and tested on `TestClock`), the display-resize debounce (`Debouncer`) and the launch poll (`poll`) on
-the same seam. Owed: a precomputed help-search index, checksum throughput profiled with the process probe, the network tests' own
-allocation counter replaced by the shared one, and tighter policy-decision ceilings.
+the same seam, and the help-search index built once instead of per query. Owed: checksum throughput profiled with the
+process probe, the network tests' own allocation counter replaced by the shared one, and tighter policy-decision
+ceilings.
