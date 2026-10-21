@@ -10,7 +10,8 @@ extension HelpCatalog {
                 "• **Block list**: everything is allowed except what you block. A good start for a guest that needs the internet "
                     + "but should not reach certain places.",
                 "• **Allow list**: everything is blocked except what you allow. Best for a guest that only needs a few services. "
-                    + "Until you allow something, the guest has no network.",
+                    + "Until you allow something, the guest has no network. The guest can also only look up the names you allow; "
+                    + "any other lookup is refused.",
                 "• **A block rule always wins** over an allow rule.",
                 "• **Block my Mac and local networks** (on by default) keeps the guest away from your Mac, your router and other "
                     + "devices on your network. Turn it off only if the guest must reach them.",
@@ -80,6 +81,14 @@ extension HelpCatalog {
                 "• **Encrypted DNS is not intercepted.** Ordinary DNS (port 53) is always answered by VMRunner, even if the guest "
                     + "asks another server. DNS over HTTPS, DNS over TLS and DNS over QUIC look like normal encrypted traffic, so "
                     + "domain rules can be dodged that way. Block those servers by address or port (853).",
+                "• **DNS answers only what a guest needs.** Your Mac's resolver can reach more than the guest could (company "
+                    + "zones behind a VPN, `.local` names on your network), so VMRunner does not pass every question on. It "
+                    + "answers address, alias (CNAME) and reverse (PTR) lookups; other record types (TXT, MX, SRV, HTTPS) get "
+                    + "\"not implemented\". Names ending in `.local` or `.arpa` are refused, except the reverse lookup of an "
+                    + "address your rules allow. Addresses your rules would block (your Mac, local networks) are removed from "
+                    + "answers, and a name left with none is refused. Lookups never use your Mac's search domains. A refused "
+                    + "name still tells the guest something (its refusal differs from a name that does not exist), so keep "
+                    + "secrets out of names.",
                 "• **No IPv6.** The guest is given IPv4 only, and IPv6 traffic is dropped.",
                 "• **IPsec and PPTP cannot pass.** Tunnels that need protocols other than TCP, UDP and ping (ESP, AH, GRE) do "
                     + "not work through this network. VMRunner detects them; see VPN indicators.",

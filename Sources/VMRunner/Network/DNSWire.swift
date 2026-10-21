@@ -4,6 +4,7 @@ import Foundation
 enum DNSCode {
     static let typeA: UInt16 = 1
     static let typeCNAME: UInt16 = 5
+    static let typePTR: UInt16 = 12
     static let typeAAAA: UInt16 = 28
     static let classIN: UInt16 = 1
     static let noError: UInt8 = 0
@@ -103,6 +104,27 @@ enum DNSWire {
         }
         bytes.append(0)
         return bytes
+    }
+
+    /// The dotted, lower-case name in `data` when it is exactly one uncompressed name of printable ASCII labels (no dot
+    /// or space inside a label, no control byte), at most 255 bytes encoded; `nil` for anything else. What a CNAME or
+    /// PTR record may carry through to the guest: a resolver's record data is not trusted to be a name.
+    static func decodeName(_ data: [UInt8]) -> String? {
+        guard data.count <= maximumNameLength else { return nil }
+        var labels: [String] = []
+        var offset = 0
+        while offset < data.count {
+            let length = Int(data[offset])
+            if length == 0 { return offset + 1 == data.count ? labels.joined(separator: ".") : nil }
+            let end = offset + 1 + length
+            guard length <= 63, end < data.count else { return nil }  // a terminator must follow the label
+            let label = data[(offset + 1)..<end]
+            guard label.allSatisfy({ (0x21...0x7E).contains($0) && $0 != 0x2E }), let text = String(bytes: label, encoding: .utf8)
+            else { return nil }
+            labels.append(text.lowercased())
+            offset = end
+        }
+        return nil
     }
 
     /// Builds the response to `query`.

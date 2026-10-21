@@ -115,6 +115,7 @@ struct NetworkProfileTests {
 
         config.networkPolicy.mode = .allowListed
         #expect(config.exposures.contains { $0.level == .low && $0.text.contains("only destinations your allow-list names") })
+        #expect(config.exposures.contains { $0.text.contains("look up only the names your allow-list names") })
     }
 }
 

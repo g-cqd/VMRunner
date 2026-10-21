@@ -23,19 +23,29 @@ struct SystemNameResolver: HostNameResolver {
             return true
         }
         guard admitted else { return DNSLookupResult(responseCode: DNSCode.serverFailure) }
+        let qualified = Self.fullyQualified(name)
         return await withCheckedContinuation { continuation in
             Thread.detachNewThread {
                 let result =
                     recordType == DNSCode.typeA
-                    ? Self.resolveIPv4(name) : DNSServiceQuery.run(name: name, recordType: recordType, timeout: Self.queryTimeout)
+                    ? Self.resolveIPv4(qualified) : DNSServiceQuery.run(name: qualified, recordType: recordType, timeout: Self.queryTimeout)
                 Self.inFlight.withLock { $0 -= 1 }
                 continuation.resume(returning: result)
             }
         }
     }
 
-    private static func resolveIPv4(_ name: String) -> DNSLookupResult {
-        let answer = SystemResolverCalls.addresses(of: name)
+    /// `name` with the trailing dot that makes it absolute. The guest's name is a complete name, so the Mac's search
+    /// domains and scoped resolver suffixes must not be tried on it: `host` is the top-level name `host.`, never
+    /// `host.corp.example`.
+    static func fullyQualified(_ name: String) -> String {
+        name.hasSuffix(".") ? name : name + "."
+    }
+
+    /// Resolves `qualified` (an absolute name); record owners are reported without the trailing dot.
+    private static func resolveIPv4(_ qualified: String) -> DNSLookupResult {
+        let name = String(qualified.dropLast())
+        let answer = SystemResolverCalls.addresses(of: qualified)
         switch answer.status {
         case .found:
             let owner = answer.canonicalName.flatMap { $0 == name ? nil : $0 }
@@ -92,7 +102,8 @@ enum SystemResolverCalls {
                 answer.addresses.append(UInt32(bigEndian: raw))
             }
             if answer.canonicalName == nil, let canonical = unsafe entry.pointee.ai_canonname {
-                answer.canonicalName = unsafe String(cString: canonical).lowercased()
+                let text = unsafe String(cString: canonical).lowercased()
+                answer.canonicalName = text.hasSuffix(".") ? String(text.dropLast()) : text
             }
             unsafe cursor = entry.pointee.ai_next
         }

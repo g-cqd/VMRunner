@@ -223,7 +223,8 @@ extension VMConfig {
             items.append(
                 Exposure(
                     level: .low,
-                    text: "Network (filtered): the guest can reach only destinations your allow-list names, over IPv4."))
+                    text: "Network (filtered): the guest can reach only destinations your allow-list names, over IPv4, and "
+                        + "can look up only the names your allow-list names."))
         } else if networkPolicy.blockPrivateRanges {
             items.append(
                 Exposure(

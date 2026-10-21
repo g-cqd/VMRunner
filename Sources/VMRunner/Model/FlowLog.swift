@@ -100,6 +100,7 @@ extension NetworkPolicy.Reason {
         case .blockedURL(let rule): "The URL starts with the blocked prefix \(rule)."
         case .notAllowListed: "Not on the allow-list."
         case .unresolved: "The name did not resolve to an address."
+        case .reservedName: "Names ending in .local or .arpa are not looked up for the guest."
         }
     }
 }

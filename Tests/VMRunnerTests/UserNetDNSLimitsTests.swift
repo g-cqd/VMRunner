@@ -54,8 +54,22 @@ private func parsedQuery(_ name: String = "host.test") throws -> DNSQuery {
     try ByteView.withBytes(of: Wire.dnsQuery(id: 0x5150, name: name)) { view throws(PacketError) in try DNSWire.parseQuery(view) }
 }
 
-/// Large answers a hostile resolver (or a hostile name server behind it) can produce.
+/// Large answers a hostile resolver (or a hostile name server behind it) can produce, as PTR records whose data is a
+/// well-formed name of that many bytes (the root name, or the longest name there is): the proxy passes those on.
 private let oversizedAnswers: [(count: Int, dataLength: Int)] = [(300, 255), (70_000, 1)]
+
+private let reverseName = "4.3.2.1.in-addr.arpa"
+
+/// A well-formed encoded name of exactly 1 byte (the root) or 255 bytes (three 63-byte labels and one of 61).
+private func nameData(length: Int) -> [UInt8] {
+    length == 1
+        ? [0] : (0..<3).flatMap { _ in [63] + [UInt8](repeating: 0x61, count: 63) } + [61] + [UInt8](repeating: 0x62, count: 61) + [0]
+}
+
+private func pointerRecords(count: Int, dataLength: Int) -> [DNSRecord] {
+    [DNSRecord](
+        repeating: DNSRecord(name: reverseName, type: DNSCode.typePTR, ttl: 60, data: nameData(length: dataLength)), count: count)
+}
 
 struct UserNetDNSLimitsTests {
     private func start() -> CoreRig {
@@ -70,12 +84,12 @@ struct UserNetDNSLimitsTests {
         var guest = GuestConnection(rig: rig, to: (Wire.gateway, 53))
         guest.sendSYN()
         guest.sendACK()
-        let query = Wire.dnsQuery(id: 0x5150, name: "host.test")
+        let query = Wire.dnsQuery(id: 0x5150, name: reverseName, type: 12)
         guest.sendData(Wire.be16(query.count) + query)
         let request = try #require(rig.host.resolutions.first)
         rig.core.nameResolved(
             token: request.token,
-            result: DNSLookupResult(responseCode: 0, records: records(count: shape.count, dataLength: shape.dataLength)))
+            result: DNSLookupResult(responseCode: 0, records: pointerRecords(count: shape.count, dataLength: shape.dataLength)))
         guest.collect()
         var rounds = 0
         while guest.received.count < 2 || guest.received.count < 2 + (Int(guest.received[0]) << 8 | Int(guest.received[1])), rounds < 400 {
@@ -94,11 +108,11 @@ struct UserNetDNSLimitsTests {
     @Test(arguments: oversizedAnswers)
     func anOversizedAnswerOverUDPIsAWellFormedTruncatedMessage(shape: (count: Int, dataLength: Int)) throws {
         let rig = start()
-        rig.send(Wire.guestUDP(to: (Wire.gateway, 53), from: 41_000, Wire.dnsQuery(id: 0x5150, name: "host.test")))
+        rig.send(Wire.guestUDP(to: (Wire.gateway, 53), from: 41_000, Wire.dnsQuery(id: 0x5150, name: reverseName, type: 12)))
         let request = try #require(rig.host.resolutions.first)
         rig.core.nameResolved(
             token: request.token,
-            result: DNSLookupResult(responseCode: 0, records: records(count: shape.count, dataLength: shape.dataLength)))
+            result: DNSLookupResult(responseCode: 0, records: pointerRecords(count: shape.count, dataLength: shape.dataLength)))
         let response = try #require(rig.host.takeFrames().first)
         #expect(response.payload.count <= 512)
         let reader = try #require(DNSResponseReader(response.payload), "the message must be well formed")
@@ -163,7 +177,14 @@ struct UserNetDNSFuzzTests {
         "caf\u{E9}.test", "a..b", "host.test.",
     ]
 
-    private static func randomResult(_ random: inout XorShift) -> DNSLookupResult {
+    /// Well-formed record data for a PTR answer: the root, a short name and the longest name.
+    private static let validNames = [nameData(length: 1), DNSWire.encodeName("a.test") ?? [], nameData(length: 255)]
+
+    /// A result of random shape. Given `question`, three records in four answer it (owner, type and well-formed data), so
+    /// that the proxy has something to pass on and the big messages are really built.
+    private static func randomResult(_ random: inout XorShift, answering question: (name: String, type: UInt16)? = nil)
+        -> DNSLookupResult
+    {
         let counts = [0, 1, 2, 5, 40, 300, 1_000, 5_000, 70_000]
         let sizes = [0, 1, 4, 16, 255, 256, 1_000, 40_000, 65_535, 70_000]
         let count = counts[random.below(counts.count)]
@@ -174,12 +195,18 @@ struct UserNetDNSFuzzTests {
         let shared = [UInt8](repeating: UInt8(truncatingIfNeeded: random.next()), count: size)
         for _ in 0..<count {
             let length = random.below(4) == 0 ? random.below(size + 1) : size
-            recordList.append(
-                DNSRecord(
-                    name: ownerNames[random.below(ownerNames.count)], type: UInt16(truncatingIfNeeded: random.next()),
-                    ttl: UInt32(truncatingIfNeeded: random.next()), data: length == size ? shared : Array(shared.prefix(length))))
+            let ttl = UInt32(truncatingIfNeeded: random.next())
+            if let question, random.below(4) != 0 {
+                recordList.append(DNSRecord(name: question.name, type: question.type, ttl: ttl, data: validNames[random.below(3)]))
+            } else {
+                recordList.append(
+                    DNSRecord(
+                        name: ownerNames[random.below(ownerNames.count)], type: UInt16(truncatingIfNeeded: random.next()), ttl: ttl,
+                        data: length == size ? shared : Array(shared.prefix(length))))
+            }
         }
-        return DNSLookupResult(responseCode: UInt8(truncatingIfNeeded: random.next()), records: recordList)
+        let code = UInt8(truncatingIfNeeded: random.next())
+        return DNSLookupResult(responseCode: question != nil && random.below(4) != 0 ? DNSCode.noError : code, records: recordList)
     }
 
     @Test func anyResolverResultYieldsAWellFormedMessageWithinTheLimit() throws {
@@ -204,14 +231,14 @@ struct UserNetDNSFuzzTests {
         guest.sendSYN()
         guest.sendACK()
         for iteration in 0..<24 {
-            let result = Self.randomResult(&random)
-            rig.send(Wire.guestUDP(to: (Wire.gateway, 53), from: 41_000, Wire.dnsQuery(id: 1, name: "host.test")))
+            let result = Self.randomResult(&random, answering: (reverseName, DNSCode.typePTR))
+            rig.send(Wire.guestUDP(to: (Wire.gateway, 53), from: 41_000, Wire.dnsQuery(id: 1, name: reverseName, type: 12)))
             let udp = try #require(rig.host.resolutions.last)
             rig.core.nameResolved(token: udp.token, result: result)
             let frame = try #require(rig.host.takeFrames().first { $0.proto == IPProtocol.udp })
             #expect(frame.payload.count <= 512 && DNSResponseReader(frame.payload) != nil, "seed \(Self.seed &+ 1) iteration \(iteration)")
 
-            let query = Wire.dnsQuery(id: 2, name: "host.test")
+            let query = Wire.dnsQuery(id: 2, name: reverseName, type: 12)
             let before = guest.received.count
             guest.sendData(Wire.be16(query.count) + query)
             let tcp = try #require(rig.host.resolutions.last)

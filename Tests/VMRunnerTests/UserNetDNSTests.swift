@@ -42,13 +42,13 @@ struct UserNetDNSProxyTests {
         #expect(rig.host.resolutions.isEmpty)
     }
 
-    @Test func otherRecordTypesAreForwardedToTheResolver() throws {
+    /// Only A, AAAA, CNAME and PTR are served (see `UserNetDNSPolicyTests`); the rest is answered NOTIMP, not forwarded.
+    @Test func aCNAMEQuestionIsForwardedToTheResolver() throws {
         let rig = start()
-        for type in [5, 15, 16, 33, 65] { query(rig, "host.test", type: type) }
-        #expect(rig.host.resolutions.map(\.type) == [5, 15, 16, 33, 65])
-        let request = rig.host.resolutions[1]
-        let mx = DNSRecord(name: "host.test", type: 15, ttl: 5, data: [0, 10, 0])
-        rig.core.nameResolved(token: request.token, result: DNSLookupResult(responseCode: 0, records: [mx]))
+        query(rig, "host.test", type: 5)
+        #expect(rig.host.resolutions.map(\.type) == [5])
+        let alias = DNSRecord(name: "host.test", type: 5, ttl: 5, data: DNSWire.encodeName("real.test") ?? [])
+        rig.core.nameResolved(token: rig.host.resolutions[0].token, result: DNSLookupResult(responseCode: 0, records: [alias]))
         let response = try #require(rig.host.takeFrames().first)
         #expect(response.payload[7] == 1)
     }

@@ -68,6 +68,9 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         case notAllowListed
         /// A name arrived without resolved addresses.
         case unresolved
+        /// The DNS proxy does not resolve this name for a guest: `.local` (the host would ask the local network) and
+        /// `.arpa` names other than the reverse lookup of an address.
+        case reservedName
     }
 
     enum Decision: Hashable, Sendable {

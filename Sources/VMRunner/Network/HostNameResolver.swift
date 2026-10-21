@@ -4,6 +4,9 @@ import Foundation
 ///
 /// Implementations must be safe to call concurrently and must not block a cooperative-pool thread (a blocking
 /// system call belongs on its own thread). Resolution errors are expressed as response codes, not thrown.
+///
+/// `name` is a complete name (lower-case, no trailing dot) that the guest asked for: implementations look it up as an
+/// absolute name, so the host's search domains are never appended to it.
 protocol HostNameResolver: Sendable {
     func lookup(name: String, recordType: UInt16) async -> DNSLookupResult
 }

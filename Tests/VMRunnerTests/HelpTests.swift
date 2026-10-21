@@ -86,7 +86,9 @@ struct HelpCatalogTests {
 
     @Test func theNetworkPolicyHelpStaysHonestAboutItsLimits() {
         let limits = (HelpTopic.policyLimits.entry.paragraphs + HelpTopic.policyLimits.entry.advanced).joined(separator: " ")
-        for phrase in ["advisory", "DNS over HTTPS", "DNS over QUIC", "No IPv6", "IPsec and PPTP", "port 53", "not been validated"] {
+        let phrases = ["advisory", "DNS over HTTPS", "DNS over QUIC", "No IPv6", "IPsec and PPTP", "port 53", "not been validated"]
+        // What the built-in DNS refuses and removes, so the help does not promise a plain resolver.
+        for phrase in phrases + ["not implemented", ".local", "search domains", "removed from answers"] {
             #expect(limits.contains(phrase) || limits.contains(phrase.lowercased()), "missing: \(phrase)")
         }
         let vpn = HelpTopic.guestVpn.entry.paragraphs.joined(separator: " ")

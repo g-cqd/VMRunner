@@ -108,8 +108,61 @@ struct PolicyGate {
         return verdict
     }
 
-    /// Whether the guest may resolve `name` at all: only definite refusals (a blocked domain, or a connection
-    /// rule that blocks the name on every port) deny here. Everything else is decided per connection.
+    /// Whether the DNS proxy may ask the host resolver for `name` on the guest's behalf. Resolving is a policy
+    /// decision, because the host's resolver reaches things the guest cannot (split-DNS and VPN zones, `.local`, the
+    /// local network): the answer is a refusal when
+    /// - ``nameBlock(for:)`` refuses the name;
+    /// - the name is `.local` or `.arpa`, other than the reverse lookup of an IPv4 address (`d.c.b.a.in-addr.arpa`), which is
+    ///   judged as that address, as for a ping;
+    /// - in allow-list mode, no allowed domain or connection rule names it.
+    func resolutionDenial(for name: String, now: TimeInterval) -> NetworkPolicy.Reason? {
+        if let reason = nameBlock(for: name) { return reason }
+        guard let form = try? HostForm(parsing: name), case .name(let normalized) = form else { return nil }
+        if let address = Self.reversedAddress(normalized) {
+            if case .deny(let reason, _) = judgeEcho(address: address, now: now) { return reason }
+            return nil
+        }
+        if ["local", "arpa"].contains(where: { normalized == $0 || normalized.hasSuffix("." + $0) }) { return .reservedName }
+        if policy.mode == .allowListed, !allowsResolving(normalized) { return .notAllowListed }
+        return nil
+    }
+
+    /// A refusal of `address` as an answer for `name` that holds on every port: a built-in range, a blocked address or
+    /// a connection rule that blocks all ports. What depends on the port or on the allow-list is left to the
+    /// connection, which is judged when the guest makes it.
+    func addressBlock(_ address: UInt32, for name: String) -> NetworkPolicy.Reason? {
+        guard case .deny(let reason) = policy.evaluate(host: name, port: 0, resolvedAddresses: [.v4(address)]), Self.isBlock(reason)
+        else { return nil }
+        return reason
+    }
+
+    /// Whether an allow rule names `name`: an allowed domain, or an allowed connection whose target is a domain.
+    private func allowsResolving(_ name: String) -> Bool {
+        if policy.allowedDomains.contains(where: { $0.matches(name) }) { return true }
+        return policy.allowedConnections.contains { rule in
+            if case .name(let domain) = rule.target { domain.matches(name) } else { false }
+        }
+    }
+
+    /// The address a name under `in-addr.arpa` asks about, for exactly four canonical decimal labels.
+    private static func reversedAddress(_ name: String) -> UInt32? {
+        let suffix = ".in-addr.arpa"
+        guard name.hasSuffix(suffix) else { return nil }
+        let octets = name.dropLast(suffix.count).split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4 else { return nil }
+        var address: UInt32 = 0
+        for label in octets.reversed() {
+            guard label.utf8.count <= 3, label.utf8.allSatisfy({ (0x30...0x39).contains($0) }), label.count == 1 || label.first != "0",
+                let value = UInt8(label)
+            else { return nil }
+            address = address << 8 | UInt32(value)
+        }
+        return address
+    }
+
+    /// The definite refusals of a name: a blocked domain, or a connection rule that blocks the name on every port.
+    /// Alone, it is what the names on a CNAME chain are held to (an allow-list does not apply to a CDN's name);
+    /// everything else is decided per connection.
     func nameBlock(for name: String) -> NetworkPolicy.Reason? {
         guard let form = try? HostForm(parsing: name) else { return .malformedHost }
         guard case .name(let normalized) = form else { return nil }

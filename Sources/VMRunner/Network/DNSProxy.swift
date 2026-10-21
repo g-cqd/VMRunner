@@ -32,10 +32,19 @@ enum DNSBeginOutcome {
 /// The DNS server the guest talks to, in front of the host's resolver.
 ///
 /// - **Resolution** goes to the host (``HostNameResolver``), so split-DNS and VPN DNS configured on the Mac apply.
-/// - **Policy** is consulted twice: before resolving (``PolicyGate/nameBlock(for:)``: a blocked domain gets NXDOMAIN
-///   or REFUSED, never reaching the resolver), and after (every CNAME target is checked too, so a harmless name
-///   cannot launder a blocked one). Everything else is judged per connection.
-/// - **Memory**: every address in a successful answer is remembered with its names in the gate's ``NameTable``.
+///   That makes resolving a policy decision, not a service: the guest chooses the names, and the host's resolver
+///   reaches more than the guest could.
+/// - **What is asked**: only A, AAAA, CNAME and PTR questions are answered (anything else is NOTIMP, never forwarded).
+///   Before resolving, ``PolicyGate/resolutionDenial(for:now:)`` refuses a blocked name, `.local`, `.arpa` other than
+///   the reverse lookup of an address the policy allows, and, in allow-list mode, any name no rule allows; the guest
+///   gets the configured block response and nothing reaches the resolver. The same check runs again when the answer
+///   arrives, because the policy may have changed meanwhile.
+/// - **What is answered**: the records are rebuilt from what is valid, not echoed. Only the CNAME chain that starts at
+///   the queried name and the final name's records are kept (a record for any other owner is dropped), CNAME and PTR
+///   data must be a well-formed name, and every CNAME target is held to the block rules. An address the policy refuses
+///   on every port (built-in ranges, blocked addresses) is removed; when that leaves a question with no address, the
+///   guest gets the block response.
+/// - **Memory**: every address in the answer is remembered with the names of that chain in the gate's ``NameTable``.
 /// - **IPv6**: the guest has no IPv6, so AAAA questions get an empty NOERROR answer (after the policy check) and
 ///   guests use IPv4 without waiting for a timeout.
 final class DNSProxy {
@@ -46,7 +55,13 @@ final class DNSProxy {
         let deadline: TimeInterval
     }
 
+    /// The record types a guest needs from a stub resolver; every other type is answered NOTIMP.
+    private static let answeredTypes: Set<UInt16> = [DNSCode.typeA, DNSCode.typeAAAA, DNSCode.typeCNAME, DNSCode.typePTR]
     private static let maximumPending = 256
+    /// CNAME links followed from the queried name.
+    private static let maximumChain = 8
+    /// Addresses kept per answer, so one answer cannot flush the name table.
+    private static let maximumAddresses = 32
     private static let minimumTTL: UInt32 = 30
     private static let maximumTTL: UInt32 = 3_600
 
@@ -73,7 +88,8 @@ final class DNSProxy {
         }
         guard query.opcode == 0 else { return answer(DNSCode.notImplemented) }
         guard query.queryClass == DNSCode.classIN else { return answer(DNSCode.refused) }
-        if let reason = gate.nameBlock(for: query.name) {
+        guard Self.answeredTypes.contains(query.type) else { return answer(DNSCode.notImplemented) }
+        if let reason = gate.resolutionDenial(for: query.name, now: ctx.now) {
             ctx.stats.dnsBlocked += 1
             return answer(blockCode(ctx.config), denial: reason)
         }
@@ -96,14 +112,20 @@ final class DNSProxy {
                 message: DNSWire.response(to: query, code: code, records: records, truncateOverUDP: entry.route.isUDP),
                 name: query.name, responseCode: code, denial: denial, server: entry.server)
         }
-        for record in result.records where record.name != query.name {
-            if let reason = gate.nameBlock(for: record.name) {
-                ctx.stats.dnsBlocked += 1
-                return answer(blockCode(ctx.config), denial: reason)
-            }
+        func blocked(_ reason: NetworkPolicy.Reason) -> DNSAnswer {
+            ctx.stats.dnsBlocked += 1
+            return answer(blockCode(ctx.config), denial: reason)
         }
-        remember(result, query: query, gate: &gate, now: ctx.now)
-        return answer(result.responseCode, records: result.records)
+        // The policy may have changed while the resolver worked.
+        if let reason = gate.resolutionDenial(for: query.name, now: ctx.now) { return blocked(reason) }
+        guard result.responseCode == DNSCode.noError else { return answer(result.responseCode) }
+        let vetted = vet(result.records, for: query, gate: gate)
+        if let reason = vetted.blocked { return blocked(reason) }
+        if query.type == DNSCode.typeA, vetted.addressesKept == 0, let reason = vetted.stripped { return blocked(reason) }
+        // The resolver said there was an answer and none of it is usable.
+        if !result.records.isEmpty, vetted.records.isEmpty { return answer(DNSCode.serverFailure) }
+        remember(vetted, gate: &gate, now: ctx.now)
+        return answer(DNSCode.noError, records: vetted.records)
     }
 
     /// Answers every query older than its deadline with SERVFAIL.
@@ -122,13 +144,64 @@ final class DNSProxy {
         config.dnsBlockResponse == .refused ? DNSCode.refused : DNSCode.nameError
     }
 
-    /// Records each address with the queried name and every name on the CNAME chain.
-    private func remember(_ result: DNSLookupResult, query: DNSQuery, gate: inout PolicyGate, now: TimeInterval) {
-        let chain = Set(result.records.filter { $0.type == DNSCode.typeCNAME || $0.type == DNSCode.typeA }.map(\.name) + [query.name])
-        for record in result.records where record.type == DNSCode.typeA && record.data.count == 4 {
+    /// What survives of a resolver's records, rebuilt to be safe to hand to the guest.
+    private struct Vetted {
+        /// The CNAME chain, then the records of its last name.
+        var records: [DNSRecord] = []
+        /// The queried name and every CNAME target followed from it.
+        var chain: [String]
+        /// Set when a CNAME target is blocked by name.
+        var blocked: NetworkPolicy.Reason?
+        /// The first reason an address was removed, if any was.
+        var stripped: NetworkPolicy.Reason?
+        var addressesKept = 0
+    }
+
+    /// Follows the CNAME chain from the queried name and keeps what belongs to it. Records for any other owner,
+    /// types the question did not ask for, and data that is not valid for its type are left out.
+    private func vet(_ records: [DNSRecord], for query: DNSQuery, gate: PolicyGate) -> Vetted {
+        var vetted = Vetted(chain: [query.name])
+        var current = query.name
+        while vetted.chain.count <= Self.maximumChain,
+            let link = records.first(where: { $0.type == DNSCode.typeCNAME && $0.name == current }),
+            let target = DNSWire.decodeName(link.data), !target.isEmpty, !vetted.chain.contains(target),
+            let data = DNSWire.encodeName(target)
+        {
+            if let reason = gate.nameBlock(for: target) {
+                vetted.blocked = reason
+                return vetted
+            }
+            vetted.records.append(DNSRecord(name: link.name, type: DNSCode.typeCNAME, ttl: link.ttl, data: data))
+            vetted.chain.append(target)
+            current = target
+        }
+        for record in records where record.type == query.type && record.name == current {
+            switch query.type {
+            case DNSCode.typeA:
+                guard record.data.count == 4 else { continue }
+                let address = record.data.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+                if let reason = gate.addressBlock(address, for: query.name) {
+                    vetted.stripped = vetted.stripped ?? reason
+                } else if vetted.addressesKept < Self.maximumAddresses {
+                    vetted.addressesKept += 1
+                    vetted.records.append(record)
+                }
+            case DNSCode.typePTR:
+                guard let name = DNSWire.decodeName(record.data), let data = DNSWire.encodeName(name) else { continue }
+                vetted.records.append(DNSRecord(name: record.name, type: record.type, ttl: record.ttl, data: data))
+            default:
+                break
+            }
+        }
+        return vetted
+    }
+
+    /// Records each address kept with every name on the chain that led to it.
+    private func remember(_ vetted: Vetted, gate: inout PolicyGate, now: TimeInterval) {
+        for record in vetted.records where record.type == DNSCode.typeA {
             let address = record.data.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
             let ttl = TimeInterval(min(max(record.ttl, Self.minimumTTL), Self.maximumTTL))
-            for name in chain { gate.names.record(name: name, address: address, ttl: ttl, now: now) }
+            for name in vetted.chain { gate.names.record(name: name, address: address, ttl: ttl, now: now) }
         }
     }
 }
