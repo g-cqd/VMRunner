@@ -1,6 +1,34 @@
-.build*/
-build/
+# SwiftPM and per-purpose scratch builds (Scripts/check.sh uses .build-asan, .build-cov, ...)
+.build/
+.build-*/
 .swiftpm/
+Packages/
+
+# App bundle produced by Scripts/build-app.sh
+build/
+
+# Xcode
 DerivedData/
 *.xcresult
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Coverage output
+*.profraw
+*.profdata
+coverage/
+lcov.info
+
+# Downloaded and generated tooling (Scripts/analyzers.sh)
+.tools/
+*.sarif
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.idea/
+*.swp

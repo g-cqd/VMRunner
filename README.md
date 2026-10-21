@@ -28,30 +28,16 @@ open build/VMRunner.app --args --start "My VM"     # by name or UUID
 
 | | macOS guest | Linux guest |
 |---|---|---|
-| Media | Latest supported image from Apple, any signed build from [ipsw.me](https://ipsw.me), or a local `.ipsw` | Newest CentOS Stream 9/10 aarch64 boot or DVD ISO, or Debian's netboot `mini.iso` (resolved from the project's own server, SHA-256 verified), or a local ISO |
+| Media | Latest supported image from Apple, any signed build from [ipsw.me](https://ipsw.me), or a local `.ipsw` | Newest CentOS Stream 9/10 aarch64 boot or DVD ISO (resolved from `mirror.stream.centos.org`, SHA-256 verified), or a local ISO |
 | Boot | `VZMacOSBootLoader`, installed with `VZMacOSInstaller` | UEFI (`VZEFIBootLoader`), installer ISO attached over USB |
 | First-boot account | Skips Setup Assistant on macOS 27 guests (`VZMacGuestProvisioningOptions`) | – |
 | Extras | Recovery boot, trackpad or mouse | Nested virtualization (M3+), Rosetta for x86_64 binaries, SPICE clipboard, Secure Boot (host macOS 27+) |
 
-Common to both: CPU/memory, sparse disk (grow-only), extra disk images, disk cache/flush mode, one display,
+Common to both: CPU/memory, sparse disk (grow-only), extra disk images, disk cache/flush mode, 1–2 displays,
 audio in/out, NAT or no network, custom MAC, shared folders (virtiofs), suspend/resume, snapshots,
 duplicate, memory balloon / entropy / vsock devices.
 
-Downloads are resumable and verified: IPSW against ipsw.me's SHA-256, ISOs against the checksum the project publishes
-next to them. Only HTTPS from a short allowlist of hosts is accepted, and redirects that leave it are refused.
-
-**Linux providers.** Only CentOS Stream and Debian's `mini.iso` are registered. Debian netinst, Alpine, AlmaLinux, Rocky,
-Ubuntu Server, and Fedora Server are parsed and tested but unregistered (`LinuxCatalog.candidates`), with their hosts
-off the download allowlist, until they are approved. See the discussion of trust below.
-
-**Graphics.** macOS guests use Apple's paravirtual graphics device (drawn by your Mac's GPU through Metal). Linux guests
-get a 2D virtio-gpu display with no 3D acceleration, so OpenGL and Vulkan are software-rendered.
-
-### Help
-
-Every setting has a tooltip, a "?" popover with a plain-language explanation (with a "For experienced users"
-section), and the **Help** window (Help ▸ VMRunner Help, searchable) covers every feature, its limits, and its trade-offs.
-The text lives in `Sources/VMRunner/Help` and is tested for completeness.
+Downloads are resumable and verified: IPSW against ipsw.me's SHA-256, ISOs against the mirror's `.SHA256SUM`.
 
 ### Display
 
@@ -115,22 +101,51 @@ library and its copies on the same APFS volume (it is, by default: `~/Library/Ap
 - **ASIF disk images**: raw sparse images already clone and snapshot well; ASIF's main benefit would be reclaiming
   space when the guest deletes files, which I haven't verified.
 - macOS allows at most two concurrent macOS guests per host.
-- **Network egress control** (IP, domain, and URL blocks, and VPN requirements) exists as a tested policy engine
-  (`NetworkPolicy`, `VPNMonitor`) but is not enforced on a running machine yet. NAT gives the guest no filtering, and
-  the host cannot see a VPN running inside a guest.
-- **3D acceleration for Linux guests**: not available through Apple's Virtualization framework.
 - **Secure Boot** is implemented for macOS 27+ hosts but couldn't be exercised on the development machine (macOS 26.7).
 
 ## Layout
 
 ```
 Sources/VMRunner
-  Model/       VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
-               Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs), NetworkPolicy and its rules
-  Engine/      ConfigurationBuilder (VMConfig -> VZVirtualMachineConfiguration), Provisioner (media + install),
-               VMController (run/pause/suspend/restore, runtime limit), Downloads, Catalogs, LinuxProviders, VPNMonitor
-  ViewModels/  MachineModel, ConfigEditorModel, NewMachineModel, SnapshotsModel, ...: the logic behind each screen
-  Views/       Thin SwiftUI views; each editor section takes only the fields it shows
-  Help/        The help catalog (HelpTopic, one content file per area)
+  Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
+            Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)
+  Engine/   ConfigurationBuilder (VMConfig -> VZVirtualMachineConfiguration), Provisioner (media + install),
+            VMController (run/pause/suspend/restore, runtime limit), Downloads, Catalogs (ipsw.me, CentOS)
+  Views/    ContentView, MachineView (toolbar, display), ConfigEditor, NewMachineSheet (+ Settings)
 Machines live in ~/Library/Application Support/VMRunner/Machines/<uuid>.vm
 ```
+
+## Quality gates
+
+```sh
+Scripts/check.sh               # fast gate: format, swiftlint, shellcheck, build, test, analyzers
+Scripts/check.sh --full        # + ASan, TSan and UBSan test runs, release build, coverage gate (~1 min warm)
+Scripts/check.sh test coverage # only the named steps; --list shows all of them
+Scripts/install-hooks.sh       # pre-commit hook: format lint, SwiftLint, ShellCheck on staged files
+```
+
+Every step runs even if one fails; each prints PASS or FAIL and the script exits non-zero if any failed. CI
+(`.github/workflows/ci.yml`) calls the same script, so local and CI results match.
+
+- **Coverage** is measured on the logic layer only (Views, `VMRunnerApp`, `VMController`, `Provisioner` and
+  `ConfigurationBuilder` need a display and the virtualization entitlement, so unit tests can't reach them).
+  `COVERAGE_MIN` (default 55) is a ratchet: it only goes up as coverage does (about 60% when introduced).
+- **Analyzers** are the pinned, checksum-verified releases listed in `Scripts/analyzers.lock`, run by
+  `Scripts/analyzers.sh` (binaries land in the git-ignored `.tools/`):
+  [arcleak](https://github.com/g-cqd/arcleak) (retain cycles, anchor leaks, premature releases; any finding
+  fails), [dolly](https://github.com/g-cqd/dolly) (duplicate code; exact clones fail, near and structural clones
+  are advisory) and [deadwood](https://github.com/g-cqd/deadwood) (unused and dead code, production mode; any
+  finding fails). Configuration: `.arcleak.json`, `.dolly.json`, `.deadwood.json`. Existing findings can be
+  accepted into the (currently empty) `.arcleak-baseline.json`, `.dolly-baseline.json` and
+  `.deadwood-baseline.json` with `Scripts/analyzers.sh baseline arcleak dolly deadwood`, so only new ones fail. Accept an intentional
+  finding in source with `// @al:accept -- reason`,
+  `// @dl:accept -- reason` or `// @dw:accept -- reason`.
+- **CI** on GitHub Actions: lint, build and unit tests, app bundle checks, sanitizers, coverage, analyzers,
+  CodeQL, and workflow linting (actionlint, zizmor). Actions are pinned to full commit SHAs and Dependabot keeps
+  them current. Hosted runners can't run nested VMs, so CI never starts a virtual machine.
+- **Hardened build.** `Scripts/build-app.sh` verifies the signature, reads the effective entitlements back and
+  fails on `get-task-allow` or any unexpected entitlement. `Scripts/build-app.sh release --hardened` signs with
+  `Resources/VMRunner.hardened.entitlements`, which adds Apple's Enhanced Security (hardened process and heap,
+  read-only dyld state, platform restrictions v2). `--arm64e` additionally builds with pointer authentication.
+
+See `CONTRIBUTING.md` for the code rules and `SECURITY.md` for how to report a vulnerability.

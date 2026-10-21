@@ -1,0 +1,34 @@
+# Normalize line endings: LF in the repository and in working trees.
+* text=auto eol=lf
+
+# Source and text
+*.swift text eol=lf diff=swift linguist-language=Swift
+*.sh text eol=lf
+.githooks/* text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.plist text eol=lf
+*.entitlements text eol=lf linguist-language=XML
+*.lock text eol=lf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.icns binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.ipsw binary
+*.iso binary
+*.img binary
+*.dmg binary
+
+# Generated or vendored: keep out of language statistics and collapse in diffs
+*.sarif linguist-generated
+.tools/** linguist-vendored
+*.xcresult/** linguist-generated
