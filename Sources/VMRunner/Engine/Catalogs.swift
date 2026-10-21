@@ -78,6 +78,9 @@ struct LinuxImage: Identifiable, Sendable {
     var install: String
     /// A rough download size such as `~1 GB`.
     var approximateSize: String
+    /// The most a download of this image may be, in bytes: a few times its size, so growth is tolerated and a stream that
+    /// never ends is not.
+    var maximumBytes: Int64
     /// Whether the installer's boot chain (shim) is signed so that it boots with Secure Boot on.
     var supportsSecureBoot: Bool
     /// One line on who publishes the image and what vouches for it.
@@ -88,10 +91,12 @@ struct LinuxImage: Identifiable, Sendable {
 }
 
 enum LinuxCatalog {
-    private static func centOS(_ release: Int, flavor: String, medium: String, install: String, size: String) -> LinuxImage {
+    private static func centOS(_ release: Int, flavor: String, medium: String, install: String, size: String, maximumGiB: Int64)
+        -> LinuxImage
+    {
         LinuxImage(
             id: "centos-stream-\(release)-\(flavor)", name: "CentOS Stream \(release)", medium: medium, install: install,
-            approximateSize: size, supportsSecureBoot: true,
+            approximateSize: size, maximumBytes: maximumGiB << 30, supportsSecureBoot: true,
             trustNotes:
                 "Published by the CentOS Project; the SHA-256 is fetched over HTTPS from the same mirror and is not separately signed.",
             provider: .centOSStream(release: release, flavor: flavor))
@@ -99,25 +104,25 @@ enum LinuxCatalog {
 
     /// Images the app offers. Each one's host must be in `DownloadPolicy.allowedHosts`.
     static let images = [
-        centOS(10, flavor: "boot", medium: "boot ISO", install: "network install", size: "~1 GB"),
-        centOS(9, flavor: "boot", medium: "boot ISO", install: "network install", size: "~1 GB"),
-        centOS(10, flavor: "dvd1", medium: "DVD", install: "offline install", size: "~9 GB"),
-        centOS(9, flavor: "dvd1", medium: "DVD", install: "offline install", size: "~9 GB"),
+        centOS(10, flavor: "boot", medium: "boot ISO", install: "network install", size: "~1 GB", maximumGiB: 4),
+        centOS(9, flavor: "boot", medium: "boot ISO", install: "network install", size: "~1 GB", maximumGiB: 4),
+        centOS(10, flavor: "dvd1", medium: "DVD", install: "offline install", size: "~9 GB", maximumGiB: 16),
+        centOS(9, flavor: "dvd1", medium: "DVD", install: "offline install", size: "~9 GB", maximumGiB: 16),
         LinuxImage(
             id: "debian-stable-netboot-mini", name: "Debian stable", medium: "netboot mini ISO", install: "network install",
-            approximateSize: "~200 MB", supportsSecureBoot: true,
+            approximateSize: "~200 MB", maximumBytes: 1 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Debian Project on deb.debian.org; its SHA-256 index is covered by Debian's signed Release file, "
                 + "which the app does not check.",
             provider: .debianNetbootMini),
         LinuxImage(
             id: "alpine-virt", name: "Alpine Linux", medium: "virt ISO", install: "diskless live system",
-            approximateSize: "~93 MB", supportsSecureBoot: false,
+            approximateSize: "~93 MB", maximumBytes: 1 << 30, supportsSecureBoot: false,
             trustNotes: "Published by the Alpine Linux project. The ISO's detached OpenPGP signature (.asc) is checked against "
                 + "the release signer's key built into the app; the SHA-256, fetched over HTTPS from the same server, is checked as well.",
             provider: .alpineVirt),
         LinuxImage(
             id: "ubuntu-server-26.04", name: "Ubuntu Server 26.04 LTS", medium: "live server ISO", install: "offline install",
-            approximateSize: "~3 GB", supportsSecureBoot: true,
+            approximateSize: "~3 GB", maximumBytes: 8 << 30, supportsSecureBoot: true,
             trustNotes: "Published by Canonical. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.gpg) from "
                 + "the Ubuntu CD image key built into the app, or the download is refused.",
             provider: .ubuntuServer(release: "26.04")),
@@ -128,38 +133,38 @@ enum LinuxCatalog {
     static let candidates = [
         LinuxImage(
             id: "debian-stable-netinst", name: "Debian stable", medium: "netinst ISO", install: "network install",
-            approximateSize: "~700 MB", supportsSecureBoot: true,
+            approximateSize: "~700 MB", maximumBytes: 3 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Debian Project. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.sign) "
                 + "from the Debian CD signing key built into the app. "
                 + "Blocked: the ISO download redirects to a third-party mirror, which the redirect policy refuses.",
             provider: .debianNetinst),
         LinuxImage(
             id: "almalinux-10-boot", name: "AlmaLinux 10", medium: "boot ISO", install: "network install",
-            approximateSize: "~1.1 GB", supportsSecureBoot: true,
+            approximateSize: "~1.1 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message "
                 + "that the app does not check.",
             provider: .almaLinux(release: 10, flavor: "boot")),
         LinuxImage(
             id: "almalinux-10-minimal", name: "AlmaLinux 10", medium: "minimal ISO", install: "offline install",
-            approximateSize: "~1.7 GB", supportsSecureBoot: true,
+            approximateSize: "~1.7 GB", maximumBytes: 6 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message "
                 + "that the app does not check.",
             provider: .almaLinux(release: 10, flavor: "minimal")),
         LinuxImage(
             id: "rocky-10-boot", name: "Rocky Linux 10", medium: "boot ISO", install: "network install",
-            approximateSize: "~1.1 GB", supportsSecureBoot: true,
+            approximateSize: "~1.1 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature "
                 + "(.asc) that the app does not check.",
             provider: .rocky(release: 10, flavor: "boot")),
         LinuxImage(
             id: "rocky-10-minimal", name: "Rocky Linux 10", medium: "minimal ISO", install: "offline install",
-            approximateSize: "~2.4 GB", supportsSecureBoot: true,
+            approximateSize: "~2.4 GB", maximumBytes: 8 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature "
                 + "(.asc) that the app does not check.",
             provider: .rocky(release: 10, flavor: "minimal")),
         LinuxImage(
             id: "fedora-server-44-netinst", name: "Fedora Server 44", medium: "netinst ISO", install: "network install",
-            approximateSize: "~1.3 GB", supportsSecureBoot: true,
+            approximateSize: "~1.3 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Fedora Project. The CHECKSUM file must be an inline OpenPGP clear-signed message made by "
                 + "the Fedora 44 release key built into the app, or the download is refused.",
             provider: .fedoraServerNetinst(release: 44)),

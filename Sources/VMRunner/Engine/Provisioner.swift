@@ -141,7 +141,8 @@ enum Provisioner {
             job.title = "Looking up the latest supported macOS"
             job.fraction = nil
             let latest = try await VZMacOSRestoreImage.latestSupported
-            return try await ImageStore.fetch(latest.url, checksum: nil, job: job)
+            return try await ImageStore.fetch(
+                latest.url, checksum: nil, maximumBytes: ImageStore.restoreImageMaximumBytes, job: job)
         case .linuxCatalog(let id):
             guard let entry = LinuxCatalog.images.first(where: { $0.id == id }) else {
                 throw SetupError.missingFile("catalog entry \(id)")
@@ -150,7 +151,8 @@ enum Provisioner {
             job.fraction = nil
             let resolved = try await LinuxCatalog.resolve(entry)
             guard case .remote(let url, let checksum) = resolved.source else { return nil }
-            return try await ImageStore.fetch(url, checksum: checksum, signature: resolved.imageSignature, job: job)
+            return try await ImageStore.fetch(
+                url, checksum: checksum, signature: resolved.imageSignature, maximumBytes: entry.maximumBytes, job: job)
         case .remote(let url, let checksum):
             return try await ImageStore.fetch(url, checksum: checksum, job: job)
         }

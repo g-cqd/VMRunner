@@ -271,6 +271,10 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
         var continuation: CheckedContinuation<URL, any Error>?
         var task: URLSessionDownloadTask?
         var cancelled = false
+        /// Where the transfer comes from, for the error.
+        var source: URL?
+        /// Set once the body is known to be, or has become, larger than `maximumBytes`; the task is cancelled then.
+        var exceeded = false
     }
 
     private let state = Mutex(State())
@@ -279,14 +283,26 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
     private let workDirectory: URL
 
     private let configuration: URLSessionConfiguration
+    private let maximumBytes: Int64
 
-    /// `configuration` is how the transfer runs; tests pass one that serves canned responses.
+    /// The most any single download may be unless the caller knows better: far above the largest restore image, far below
+    /// a disk that fills the volume.
+    static let defaultMaximumBytes: Int64 = 64 << 30
+
+    /// - Parameters:
+    ///   - resumeKey: Names the file that keeps partial data between attempts.
+    ///   - workDirectory: Where partial data and finished downloads are written.
+    ///   - maximumBytes: The most the body may have, whether the server announces it or just keeps sending.
+    ///   - configuration: How the transfer runs; tests pass one that serves canned responses.
+    ///   - onProgress: Called with the bytes written and the bytes expected (-1 when unknown).
     init(
-        resumeKey: String, workDirectory: URL = AppPaths.partialDownloads, configuration: URLSessionConfiguration = makeConfiguration(),
+        resumeKey: String, workDirectory: URL = AppPaths.partialDownloads, maximumBytes: Int64 = defaultMaximumBytes,
+        configuration: URLSessionConfiguration = makeConfiguration(),
         onProgress: @escaping @Sendable (Int64, Int64) -> Void
     ) {
         self.onProgress = onProgress
         self.workDirectory = workDirectory
+        self.maximumBytes = maximumBytes
         self.configuration = configuration
         resumeFile = workDirectory.appending(path: "\(resumeKey).resume")
     }
@@ -323,6 +339,7 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
                         ?? session.downloadTask(with: url)
                     state.continuation = continuation
                     state.task = task
+                    state.source = url
                     return task
                 }
                 if let task {
@@ -352,11 +369,34 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
 
     // MARK: URLSessionDownloadDelegate
 
+    /// Stops a transfer whose announced size, or whose size so far, is over the cap. `totalBytesExpectedToWrite` is -1 when
+    /// the server announces nothing, so a chunked body is caught by the bytes written.
     func urlSession(
         _ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData _: Int64,
         totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64
     ) {
+        if totalBytesWritten > maximumBytes || totalBytesExpectedToWrite > maximumBytes {
+            let first = state.withLock { state -> Bool in
+                defer { state.exceeded = true }
+                return !state.exceeded
+            }
+            if first { downloadTask.cancel() }
+            return
+        }
         onProgress(totalBytesWritten, totalBytesExpectedToWrite)
+    }
+
+    /// Fails the download as too large if it went over the cap; returns whether it did.
+    private func failIfTooLarge(fileSize: Int64? = nil) -> Bool {
+        let source = state.withLock { state -> URL? in
+            if let fileSize, fileSize > maximumBytes { state.exceeded = true }
+            return state.exceeded ? state.source : nil
+        }
+        guard let source else { return false }
+        // The partial data is over the cap too; resuming it would only fail again.
+        try? FileManager.default.removeItem(at: resumeFile)
+        finish(with: .failure(SetupError.responseTooLarge(source)))
+        return true
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -365,6 +405,8 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
             finish(with: .failure(SetupError.badResponse(downloadTask.originalRequest?.url ?? location, http.statusCode)))
             return
         }
+        let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value
+        guard !failIfTooLarge(fileSize: size) else { return }
         // The system deletes `location` when this method returns, so move it out now.
         let kept = workDirectory.appending(path: UUID().uuidString)
         do {
@@ -385,6 +427,7 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         guard let error else { return }
+        guard !failIfTooLarge() else { return }
         let nsError = error as NSError
         if let data = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
             try? data.write(to: resumeFile)
@@ -475,14 +518,20 @@ enum ImageStore {
         }
     }
 
+    /// The most a macOS restore image may be: about twice the largest one so far.
+    static let restoreImageMaximumBytes: Int64 = 48 << 30
+
     /// Downloads `remote` into the shared image cache (or reuses it), verifying the checksum and the signature when known.
+    ///
+    /// The download is cancelled and `SetupError.responseTooLarge` thrown as soon as the server announces more than
+    /// `maximumBytes`, or sends more.
     ///
     /// The result is a file this call verified, or found already verified, in the cache. A machine must not attach it;
     /// `keepInstaller(_:in:)` gives the machine a copy.
     @MainActor
     static func fetch(
-        _ remote: URL, checksum: Checksum?, signature: PGP.Check? = nil, job: SetupJob, imagesDirectory: URL = AppPaths.images,
-        configuration: URLSessionConfiguration = FileDownloader.makeConfiguration()
+        _ remote: URL, checksum: Checksum?, signature: PGP.Check? = nil, maximumBytes: Int64 = FileDownloader.defaultMaximumBytes,
+        job: SetupJob, imagesDirectory: URL = AppPaths.images, configuration: URLSessionConfiguration = FileDownloader.makeConfiguration()
     ) async throws -> URL {
         _ = try DownloadPolicy.validate(remote)
         let name = try DownloadPolicy.cacheFileName(for: remote)
@@ -496,7 +545,7 @@ enum ImageStore {
         let throttle = Throttle(interval: 0.25)
         let downloader = FileDownloader(
             resumeKey: name, workDirectory: imagesDirectory.appending(path: ".partial", directoryHint: .isDirectory),
-            configuration: configuration
+            maximumBytes: maximumBytes, configuration: configuration
         ) { written, total in
             guard total > 0, throttle.allow() else { return }
             let fraction = Double(written) / Double(total)

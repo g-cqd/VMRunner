@@ -56,7 +56,8 @@ extension HelpCatalog {
                 "Restore images are universal (`UniversalMac_*`), so the Mac model you type for ipsw.me does not change the list. "
                     + "A restore image downloads only over HTTPS from Apple's update server (updates.cdn-apple.com); ipsw.me is asked "
                     + "only for the list, and a build whose file is anywhere else is left out. The checksum comes from ipsw.me, "
-                    + "so it detects corruption, and the installer itself verifies Apple's signature."
+                    + "so it detects corruption, and the installer itself verifies Apple's signature. A download that grows past a size "
+                    + "limit (48 GB) is stopped and its partial file deleted."
             ],
             related: [.setup, .settings]
         ),
@@ -89,7 +90,7 @@ extension HelpCatalog {
                     + "and VMRunner checks both and refuses the download on any failure instead of falling back to the checksum alone.",
                 "The keys are built into the app, so VMRunner cannot see a key being revoked or expiring, and a new key needs an app "
                     + "update. A signature does not say the software is safe, and an older signed file still verifies. Only HTTPS from "
-                    + "a short list of project hosts is allowed.",
+                    + "a short list of project hosts is allowed, and a download larger than a ceiling set for each image is stopped.",
             ],
             related: [.installerISO, .secureBoot]
         ),
