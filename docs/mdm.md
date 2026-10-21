@@ -36,7 +36,7 @@ Not recommended and mostly blocked:
 
 ## 3. MDM governing VMRunner itself (the practical part)
 
-A configuration profile with payload `com.apple.ManagedClient.preferences` for the domain `dev.g-cqd.VMRunner` (Forced
+A configuration profile with payload `com.apple.ManagedClient.preferences` for the domain `com.example.VMRunner` (Forced
 settings under `mcx_preference_settings`) lands in `/Library/Managed Preferences`; the app reads it with `UserDefaults`
 and checks `objectIsForced(forKey:)`, and must disable the matching UI ([Apple](https://developer.apple.com/documentation/foundation/userdefaults/objectisforced(forkey:))).
 Those files are world-readable, so no secrets belong in them. A newer route is the DDM

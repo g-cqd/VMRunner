@@ -1,7 +1,7 @@
 import Foundation
 
 /// Checks that the CI workflows pin the same analyzer releases as `Scripts/analyzers.lock`, so the local and CI
-/// gates cannot silently diverge. A workflow carries, per tool, one `uses: g-cqd/<tool>@<commit> # v<version>` line
+/// gates cannot silently diverge. A workflow carries, per tool, one `uses: <owner>/<tool>@<commit> # v<version>` line
 /// and one `version: '<version>' # <tool>` line.
 enum PinChecker {
     static let workflowsDirectory = ".github/workflows"

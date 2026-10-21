@@ -1,6 +1,6 @@
 import Foundation
 
-/// The three g-cqd static analyzers the gate runs.
+/// The three static analyzers the gate runs.
 enum AnalyzerTool: String, CaseIterable, Sendable {
     case arcleak
     case dolly

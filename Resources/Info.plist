@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>dev.g-cqd.VMRunner</string>
+    <key>CFBundleIdentifier</key><string>com.example.VMRunner</string>
     <key>CFBundleName</key><string>VMRunner</string>
     <key>CFBundleDisplayName</key><string>VMRunner</string>
     <key>CFBundleExecutable</key><string>VMRunner</string>

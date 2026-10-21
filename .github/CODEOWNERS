@@ -1,13 +1,14 @@
+# Replace @OWNER with the maintainer handle or team when the repository is published.
 # Review owners, enforced by the repository ruleset ("Require review from Code Owners").
 # The last matching pattern wins. The explicit entries below name what must never change without the owner,
 # even if the catch-all above is later narrowed.
-*                          @g-cqd
+*                          @OWNER
 
 # CI, release and supply-chain configuration
-/.github/                  @g-cqd
-/.github/workflows/        @g-cqd
-/Package.resolved          @g-cqd
-/Scripts/analyzers.lock    @g-cqd
+/.github/                  @OWNER
+/.github/workflows/        @OWNER
+/Package.resolved          @OWNER
+/Scripts/analyzers.lock    @OWNER
 
 # What the signed app may do
-/Resources/*.entitlements  @g-cqd
+/Resources/*.entitlements  @OWNER

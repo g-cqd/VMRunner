@@ -21,7 +21,7 @@ Every step runs even if an earlier one fails; each prints PASS or FAIL and the c
 failed. CI runs the same commands, so a green local run is a green CI run (minus the hosted-runner limits noted
 in `.github/workflows/ci.yml`).
 
-The three analyzers (arcleak, dolly, deadwood) come from pinned, checksum-verified releases listed in
+The three static analyzers (retain cycles, duplicate code, dead code) come from pinned, checksum-verified releases listed in
 `Scripts/analyzers.lock`; `swift run vmr analyzers` downloads them into the git-ignored `.tools/`. See the
 "Quality gates" section of the README for what each one gates on.
 

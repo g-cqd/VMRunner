@@ -1,4 +1,4 @@
-# git hooks engine: https://github.com/g-cqd/project-hooks (schema: docs/configuration.md there).
+# Git hooks engine configuration (the pre-push stage).
 # Custom tasks run only in repositories you trust: `project-hooks trust` once in this clone.
 #
 # pre-commit (swift-format lint and SwiftLint on the staged Swift files) is `vmr`'s own hook, installed by

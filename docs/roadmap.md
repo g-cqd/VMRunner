@@ -15,7 +15,7 @@ real machine unless it says so.
 | 5 | APFS copy-on-write everywhere | Done (duplicate, snapshots, disposable machines, sparse disks) | – |
 | 6 | MCP server, CLI and terminal automation, screenshots and recording, isolation, for AI coding agents | Investigated (`automation.md`) | Build it: local socket + MCP over stdio, per-client capability tokens, screenshot via ScreenCaptureKit window capture, recording, serial console and vsock terminal |
 | 7 | Harden and bump all Swift settings and code-quality enforcement | Done (strict memory safety, warnings as errors, upcoming features, SwiftLint strict + custom rules, swift-format, sanitizers, coverage ratchet) | – |
-| 8 | IP blocks, URL blocks, VPN detection; arcleak, dolly, deadwood; Swift 6.4 | Done (engine, analyzers, host VPN monitor) | UI and enforcement wiring: in progress (see 20) |
+| 8 | IP blocks, URL blocks, VPN detection; retain-cycle, duplicate-code and dead-code analyzers; Swift 6.4 | Done (engine, analyzers, host VPN monitor) | UI and enforcement wiring: in progress (see 20) |
 | 9 | RegexBuilder everywhere | Done (no `NSRegularExpression`; RegexBuilder in the parsers) | Keep new code on RegexBuilder |
 | 10 | More distros, official Debian images, clean providers | Done for Debian and CentOS Stream; Alpine is a candidate | Owner decision: which of the candidates in `Catalogs.candidates` to register (12) |
 | 11 | Move logic to view models, scope views atomically | Done | Keep new screens to the same pattern |
