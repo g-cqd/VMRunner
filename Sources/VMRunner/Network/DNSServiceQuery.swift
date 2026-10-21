@@ -8,11 +8,29 @@ import dnssd
 /// The only unsafe code is the C callback and the service reference; both stay inside ``run(name:recordType:timeout:)``.
 enum DNSServiceQuery {
     /// Collects what the callback delivers. A class so the C context pointer can refer to it.
-    private final class Collector {
-        var records: [DNSRecord] = []
+    ///
+    /// Bounded, because a name server (or a guest-chosen name that reaches a hostile one) decides how many records come
+    /// back: past ``maximumRecords`` records or ``maximumDataBytes`` bytes of record data, later records are dropped.
+    final class Collector {
+        static let maximumRecords = 128
+        static let maximumDataBytes = 32 * 1_024
+
+        private(set) var records: [DNSRecord] = []
+        private(set) var dataBytes = 0
         var error: DNSServiceErrorType = 0
         var gotAnswer = false
         var moreComing = false
+
+        /// Whether one more record with `length` bytes of data is within the budget.
+        func hasRoom(forDataOf length: Int) -> Bool {
+            records.count < Self.maximumRecords && dataBytes + length <= Self.maximumDataBytes
+        }
+
+        /// Keeps `record`; the caller checked ``hasRoom(forDataOf:)``.
+        func append(_ record: DNSRecord) {
+            records.append(record)
+            dataBytes += record.data.count
+        }
     }
 
     private static let noSuchRecord: DNSServiceErrorType = -65_554
@@ -63,10 +81,11 @@ enum DNSServiceQuery {
             return
         }
         guard flags & DNSServiceFlags(kDNSServiceFlagsAdd) != 0, let fullName = unsafe fullName, let data = unsafe data else { return }
+        collector.gotAnswer = true
+        guard collector.hasRoom(forDataOf: Int(length)) else { return }
         var owner = unsafe String(cString: fullName).lowercased()
         if owner.hasSuffix(".") { owner.removeLast() }
         let bytes = unsafe Array(UnsafeRawBufferPointer(start: data, count: Int(length)))
-        collector.records.append(DNSRecord(name: owner, type: type, ttl: ttl, data: bytes))
-        collector.gotAnswer = true
+        collector.append(DNSRecord(name: owner, type: type, ttl: ttl, data: bytes))
     }
 }

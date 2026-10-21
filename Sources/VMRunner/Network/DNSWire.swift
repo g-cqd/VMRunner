@@ -51,7 +51,13 @@ struct DNSQuery {
 /// DNS message encoding and decoding (RFC 1035). Allocates freely: DNS is per-lookup, not per-packet.
 enum DNSWire {
     private static let headerLength = 12
-    private static let maximumUDPResponse = 512
+    /// Type, class, TTL and data length of a record, after its owner name.
+    private static let recordHeaderLength = 10
+    private static let maximumNameLength = 255
+    /// What plain UDP carries without EDNS0 (RFC 1035 section 2.3.4).
+    static let maximumUDPResponse = 512
+    /// What the 16-bit length prefix of DNS over TCP allows.
+    static let maximumMessage = 65_535
 
     /// Parses a query message.
     /// - Throws: ``PacketError/truncated``; ``PacketError/malformed`` for a response (QR set), a question count other
@@ -84,7 +90,8 @@ enum DNSWire {
             rawQuestion: raw.array())
     }
 
-    /// Encodes a name as length-prefixed labels; `nil` if a label is empty or over 63 bytes.
+    /// Encodes a name as length-prefixed labels; `nil` if a label is empty or over 63 bytes, or the encoding exceeds
+    /// the 255 bytes a name may take.
     static func encodeName(_ name: String) -> [UInt8]? {
         var bytes: [UInt8] = []
         for label in name.split(separator: ".", omittingEmptySubsequences: false) where !(label.isEmpty && name.isEmpty) {
@@ -92,6 +99,7 @@ enum DNSWire {
             guard !utf8.isEmpty, utf8.count <= 63 else { return nil }
             bytes.append(UInt8(utf8.count))
             bytes.append(contentsOf: utf8)
+            guard bytes.count < maximumNameLength else { return nil }
         }
         bytes.append(0)
         return bytes
@@ -99,37 +107,60 @@ enum DNSWire {
 
     /// Builds the response to `query`.
     ///
+    /// One byte budget covers both routes: header, question and answers never exceed 65,535 bytes (the DNS-over-TCP
+    /// length prefix is 16 bits), or 512 when `truncateOverUDP` is set. Records are appended until the next one does
+    /// not fit; then TC is set and the answer count is the number actually written. A record whose owner name cannot
+    /// be encoded is left out, not relabelled.
+    ///
     /// - Parameters:
     ///   - query: The question being answered; its id, flags and question section are echoed.
     ///   - code: The response code.
     ///   - records: Answer records, in order (a CNAME chain first).
-    ///   - truncateOverUDP: When the message would exceed 512 bytes, drop the answers and set TC so the guest retries
-    ///     over TCP (no EDNS0 is offered, so 512 is the limit).
-    /// - Returns: The complete DNS message.
+    ///   - truncateOverUDP: Apply the 512-byte limit of plain UDP (no EDNS0 is offered) so the guest retries over TCP.
+    /// - Returns: The complete DNS message, at most 65,535 bytes.
     static func response(to query: DNSQuery, code: UInt8, records: [DNSRecord] = [], truncateOverUDP: Bool = false) -> [UInt8] {
+        let limit = truncateOverUDP ? maximumUDPResponse : maximumMessage
+        // `parseQuery` bounds a question to 259 bytes; one that could not fit is not echoed, so the budget never goes negative.
+        let question = headerLength + query.rawQuestion.count <= limit ? query.rawQuestion : []
+        var budget = limit - headerLength - question.count
         var body: [UInt8] = []
         var answers = 0
+        var truncated = false
         for record in records {
-            let owner = record.name == query.name ? [0xC0, 0x0C] : (encodeName(record.name) ?? [0xC0, 0x0C])
+            guard let owner = record.name == query.name ? [0xC0, 0x0C] : encodeName(record.name) else { continue }
+            let size = owner.count + recordHeaderLength + record.data.count
+            guard size <= budget else {
+                truncated = true
+                break
+            }
+            budget -= size
             body += owner
-            body += [UInt8(record.type >> 8), UInt8(record.type & 0xFF), 0, 1]
-            body += [UInt8(record.ttl >> 24), UInt8((record.ttl >> 16) & 0xFF), UInt8((record.ttl >> 8) & 0xFF), UInt8(record.ttl & 0xFF)]
-            body += [UInt8(record.data.count >> 8), UInt8(record.data.count & 0xFF)]
+            appendBigEndian16(Int(record.type), to: &body)
+            appendBigEndian16(Int(DNSCode.classIN), to: &body)
+            appendBigEndian16(Int(record.ttl >> 16), to: &body)
+            appendBigEndian16(Int(record.ttl & 0xFFFF), to: &body)
+            appendBigEndian16(record.data.count, to: &body)  // at most `budget`, so below 65,536
             body += record.data
-            answers += 1
-        }
-        let truncated = truncateOverUDP && headerLength + query.rawQuestion.count + body.count > maximumUDPResponse
-        if truncated {
-            body = []
-            answers = 0
+            answers += 1  // at most 65,535 / 12, so it fits the 16-bit count
         }
         let flags: UInt16 =
             0x8000 | (query.flags & 0x7800) | (query.flags & 0x0100) | 0x0080 | (truncated ? 0x0200 : 0)
             | UInt16(code & 0xF)
-        var message: [UInt8] = [UInt8(query.id >> 8), UInt8(query.id & 0xFF), UInt8(flags >> 8), UInt8(flags & 0xFF)]
-        message += [0, 1, UInt8(answers >> 8), UInt8(answers & 0xFF), 0, 0, 0, 0]
-        message += query.rawQuestion
+        var message: [UInt8] = []
+        message.reserveCapacity(headerLength + question.count + body.count)
+        appendBigEndian16(Int(query.id), to: &message)
+        appendBigEndian16(Int(flags), to: &message)
+        appendBigEndian16(question.isEmpty ? 0 : 1, to: &message)
+        appendBigEndian16(answers, to: &message)
+        message += [0, 0, 0, 0]
+        message += question
         message += body
         return message
+    }
+
+    /// Appends the low 16 bits of `value`, high byte first. Masking instead of narrowing: it cannot trap.
+    private static func appendBigEndian16(_ value: Int, to bytes: inout [UInt8]) {
+        bytes.append(UInt8((value >> 8) & 0xFF))
+        bytes.append(UInt8(value & 0xFF))
     }
 }

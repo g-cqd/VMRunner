@@ -4,7 +4,7 @@ import Testing
 @testable import VMRunner
 
 /// A tiny deterministic generator so failures reproduce.
-private struct XorShift {
+struct XorShift {
     var state: UInt64
 
     mutating func next() -> UInt64 {

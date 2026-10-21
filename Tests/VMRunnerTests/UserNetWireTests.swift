@@ -216,7 +216,9 @@ struct UserNetWireTests {
         let records = (0..<10).map { _ in DNSRecord(name: "big.test", type: 16, ttl: 1, data: [UInt8](repeating: 65, count: 100)) }
         let response = DNSWire.response(to: parsed, code: 0, records: records, truncateOverUDP: true)
         #expect(response[2] & 0x02 != 0)  // TC
-        #expect(response[6] == 0 && response[7] == 0)  // no answers
+        // The records that fit are kept and counted (12 + 14 + 4 x 112 = 474; a fifth would pass 512), not all dropped.
+        #expect(response[6] == 0 && response[7] == 4)
+        #expect(response.count == 474)
         #expect(DNSWire.response(to: parsed, code: 0, records: records).count > 1_000)
     }
 }

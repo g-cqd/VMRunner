@@ -37,8 +37,9 @@ extension UserNetCore {
                     from: (server, 53), to: (ctx.config.guestAddress, guestPort), mac: ctx.guestDestination, payload: payload)
             }
         case .tcp(let token):
-            guard let flow = tcpByToken[token] else { return }
-            let framed = [UInt8(answer.message.count >> 8), UInt8(answer.message.count & 0xFF)] + answer.message
+            // `DNSWire.response` keeps a message within 65,535 bytes; anything else is not framed rather than trapped on.
+            guard let flow = tcpByToken[token], let length = UInt16(exactly: answer.message.count) else { return }
+            let framed = [UInt8(length >> 8), UInt8(length & 0xFF)] + answer.message
             _ = ByteView.withBytes(of: framed) { flow.enqueueLocalResponse($0, ctx: ctx) }
         }
     }
