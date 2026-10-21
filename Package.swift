@@ -102,6 +102,12 @@ let package = Package(
             path: "Plugins/BuildAppPlugin"
         ),
 
+        // Container spike (roadmap 0024): the pure parts of the spike (arguments, kernel archive check, verdict), free of
+        // any container library so their tests run without one. Linked by nothing but the spike and its tests.
+        .target(name: "ContainerSpikeCore", path: "Sources/ContainerSpikeCore", swiftSettings: hardening),
+        .testTarget(
+            name: "ContainerSpikeTests", dependencies: ["ContainerSpikeCore"], path: "Tests/ContainerSpikeTests", swiftSettings: hardening),
+
         // Test support: a stand-in for the arcleak, dolly and deadwood binaries that DevToolsTests packages
         // into a local fixture release. It is never shipped or run by the gate.
         .executableTarget(name: "FakeAnalyzer", path: "Tests/FakeAnalyzer", swiftSettings: hardening),
