@@ -100,6 +100,18 @@ enum LinuxCatalog {
             trustNotes:
                 "Published by the Debian Project on deb.debian.org; its SHA-256 index is covered by Debian's signed Release file.",
             provider: .debianNetbootMini),
+        LinuxImage(
+            id: "alpine-virt", name: "Alpine Linux", medium: "virt ISO", install: "diskless live system",
+            approximateSize: "~93 MB", supportsSecureBoot: false,
+            trustNotes: "Published by the Alpine Linux project; the SHA-256 is fetched over HTTPS from the same server. "
+                + "The ISO has a detached OpenPGP signature (.asc) that the app does not check.",
+            provider: .alpineVirt),
+        LinuxImage(
+            id: "ubuntu-server-26.04", name: "Ubuntu Server 26.04 LTS", medium: "live server ISO", install: "offline install",
+            approximateSize: "~3 GB", supportsSecureBoot: true,
+            trustNotes: "Published by Canonical; the SHA-256 is fetched over HTTPS from the same server. "
+                + "SHA256SUMS has a detached OpenPGP signature (SHA256SUMS.gpg) that the app does not check.",
+            provider: .ubuntuServer(release: "26.04")),
     ]
 
     /// Verified providers that are deliberately not offered yet: each is one move into `images`, plus its host
@@ -111,12 +123,6 @@ enum LinuxCatalog {
             trustNotes: "Published by the Debian Project; SHA256SUMS has a detached OpenPGP signature (SHA256SUMS.sign). "
                 + "Blocked: the ISO download redirects to a third-party mirror, which the redirect policy refuses.",
             provider: .debianNetinst),
-        LinuxImage(
-            id: "alpine-virt", name: "Alpine Linux", medium: "virt ISO", install: "diskless live system",
-            approximateSize: "~93 MB", supportsSecureBoot: false,
-            trustNotes:
-                "Published by the Alpine Linux project; the ISO has a detached OpenPGP signature (.asc), its checksum file has none.",
-            provider: .alpineVirt),
         LinuxImage(
             id: "almalinux-10-boot", name: "AlmaLinux 10", medium: "boot ISO", install: "network install",
             approximateSize: "~1.1 GB", supportsSecureBoot: true,
@@ -139,11 +145,6 @@ enum LinuxCatalog {
             trustNotes:
                 "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature (.asc).",
             provider: .rocky(release: 10, flavor: "minimal")),
-        LinuxImage(
-            id: "ubuntu-server-26.04", name: "Ubuntu Server 26.04 LTS", medium: "live server ISO", install: "offline install",
-            approximateSize: "~3 GB", supportsSecureBoot: true,
-            trustNotes: "Published by Canonical; SHA256SUMS has a detached OpenPGP signature (SHA256SUMS.gpg).",
-            provider: .ubuntuServer(release: "26.04")),
         LinuxImage(
             id: "fedora-server-44-netinst", name: "Fedora Server 44", medium: "netinst ISO", install: "network install",
             approximateSize: "~1.3 GB", supportsSecureBoot: true,

@@ -30,7 +30,8 @@ extension HelpCatalog {
                 "• **macOS guests** can be any macOS version your Mac supports, from Apple's restore images. At most two macOS VMs "
                     + "can run at "
                     + "the same time (an Apple limit).",
-                "• **Linux guests** must be arm64 builds, such as CentOS Stream or Debian arm64. They boot through UEFI, like a real PC.",
+                "• **Linux guests** must be arm64 builds, such as CentOS Stream, Debian, Alpine, or Ubuntu arm64. "
+                    + "They boot through UEFI, like a real PC.",
                 "• A 64-bit Intel (x86_64) operating system cannot run. It can only run Intel *programs* inside Linux, using Rosetta.",
             ],
             advanced: [
@@ -66,8 +67,12 @@ extension HelpCatalog {
                 "The list shows official images. The newest version is looked up when you press Create and downloaded from the "
                     + "project's own "
                     + "server.",
+                "The list offers CentOS Stream, Debian, Alpine Linux, and Ubuntu Server (the current long-term-support release).",
                 "• A **boot ISO** is small and downloads the packages during installation, so the VM needs a network.",
                 "• A **DVD** ISO is large but installs offline.",
+                "• **Alpine Linux** is a small diskless system that runs from memory until you install it to disk. It does not "
+                    + "support Secure Boot, so leave that off for it.",
+                "• **Ubuntu Server** is a live-server ISO of about 3 GB that installs offline.",
                 "• **Other ISO** lets you install from any arm64 installer you already have. It must boot with UEFI and support "
                     + "virtio disks and networking, which most current arm64 Linux distributions do. Other arm64 systems, "
                     + "such as the BSDs, may work too, but that has not been tested here.",

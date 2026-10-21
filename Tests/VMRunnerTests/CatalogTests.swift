@@ -305,7 +305,7 @@ struct LinuxCatalogContentTests {
 
     @Test func candidatesStayBlockedUntilTheirHostIsAllowed() throws {
         let hosts = Set(LinuxCatalog.candidates.compactMap { try? $0.provider.directoryURL().host() })
-        #expect(hosts.contains("dl-cdn.alpinelinux.org"))
+        #expect(hosts.contains("repo.almalinux.org"))
         for host in hosts where !host.hasSuffix("debian.org") {
             #expect(throws: SetupError.self, "\(host) is not approved yet") {
                 try DownloadPolicy.validate(try #require(URL(string: "https://\(host)/x.iso")))
@@ -347,10 +347,8 @@ struct DebianHostPolicyTests {
         "https://user@deb.debian.org/mini.iso",
         "https://deb.debian.org:8443/mini.iso",
         "https://alpinelinux.org/a.iso",
-        "https://dl-cdn.alpinelinux.org/a.iso",
         "https://repo.almalinux.org/a.iso",
         "https://download.rockylinux.org/a.iso",
-        "https://cdimage.ubuntu.com/a.iso",
         "https://dl.fedoraproject.org/a.iso",
         "https://chuangtzu.ftp.acc.umu.se/debian-cd/a.iso",  // the mirror cdimage.debian.org redirects to
     ])

@@ -22,7 +22,8 @@ enum SetupError: LocalizedError {
         case .badResponse(let url, let status):
             "HTTP \(status) from \(url.host() ?? url.absoluteString)."
         case .untrustedURL(let url):
-            "Refusing to download from \(url.host() ?? url.absoluteString): only HTTPS from Apple, CentOS and Debian hosts is allowed."
+            "Refusing to download from \(url.host() ?? url.absoluteString): "
+                + "only HTTPS from the hosts of Apple and the offered Linux distributions is allowed."
         case .unsafeFileName(let name):
             "Refusing a download with an unsafe file name: \(name)"
         case .responseTooLarge(let url):
@@ -43,9 +44,12 @@ enum SetupError: LocalizedError {
 /// listings) is remote input: a compromised or spoofed response must not be able to point the app at
 /// another host, a plain-HTTP URL, or a path outside the image cache.
 enum DownloadPolicy {
-    /// Hosts the app downloads from: Apple's CDN, the ipsw.me catalog, CentOS mirrors, and Debian. Each Linux
-    /// provider's host must be added here before it moves from `LinuxCatalog.candidates` to `images`.
-    static let allowedHostSuffixes = ["apple.com", "cdn-apple.com", "ipsw.me", "centos.org", "debian.org"]
+    /// Hosts the app downloads from: Apple's CDN, the ipsw.me catalog, and the Linux vendors' own servers. Each Linux
+    /// provider's host must be added here before it moves from `LinuxCatalog.candidates` to `images`; Alpine and Ubuntu
+    /// are pinned to the one host that serves their ISOs and checksums, not to their whole domains.
+    static let allowedHostSuffixes = [
+        "apple.com", "cdn-apple.com", "ipsw.me", "centos.org", "debian.org", "dl-cdn.alpinelinux.org", "cdimage.ubuntu.com",
+    ]
 
     static func validate(_ url: URL) throws(SetupError) -> URL {
         guard url.scheme == "https", url.user() == nil, url.password() == nil, url.port == nil || url.port == 443,
