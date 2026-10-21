@@ -9,6 +9,8 @@ final class StubURLProtocol: URLProtocol {
         var headers: [String: String] = [:]
         /// Delivered in order, one `didLoad` each, so a body can arrive in pieces the way a chunked response does.
         var chunks: [Data] = []
+        /// Leaves the response open after the last chunk, as a connection that is still transferring.
+        var stalls = false
     }
 
     private static let replies = Mutex<[String: Reply]>([:])
@@ -50,7 +52,7 @@ final class StubURLProtocol: URLProtocol {
         }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         for chunk in reply.chunks { client?.urlProtocol(self, didLoad: chunk) }
-        client?.urlProtocolDidFinishLoading(self)
+        if !reply.stalls { client?.urlProtocolDidFinishLoading(self) }
     }
 
     override func stopLoading() {}

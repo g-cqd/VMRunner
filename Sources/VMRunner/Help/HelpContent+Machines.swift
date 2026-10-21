@@ -57,7 +57,8 @@ extension HelpCatalog {
                     + "A restore image downloads only over HTTPS from Apple's update server (updates.cdn-apple.com); ipsw.me is asked "
                     + "only for the list, and a build whose file is anywhere else is left out. The checksum comes from ipsw.me, "
                     + "so it detects corruption, and the installer itself verifies Apple's signature. A download that grows past a size "
-                    + "limit (48 GB) is stopped and its partial file deleted."
+                    + "limit (48 GB) is stopped and its partial file deleted. A cancelled download is resumed only from partial data "
+                    + "saved for the same address; any other is discarded."
             ],
             related: [.setup, .settings]
         ),

@@ -320,6 +320,29 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
         return configuration
     }
 
+    /// The name of the resume file for `url`: a hash of the whole URL. A file name is not enough: Debian's `mini.iso` and a
+    /// vendor's next build share one, and partial data of one must never be offered to the other.
+    static func resumeKey(for url: URL) -> String {
+        SHA256.hash(data: Data(url.absoluteString.utf8)).hexString
+    }
+
+    /// The task that fetches `url`: a continuation of the saved partial data if it is for exactly this URL, otherwise a new
+    /// one. Resume data that names another URL (left under a colliding key, or damaged) is deleted, not followed.
+    private func makeTask(in session: URLSession, for url: URL) -> URLSessionDownloadTask {
+        guard let data = try? Data(contentsOf: resumeFile) else { return session.downloadTask(with: url) }
+        let resumed = session.downloadTask(withResumeData: data)
+        if resumed.originalRequest?.url == url { return resumed }
+        Log.network.notice("Discarding saved partial data that is not for this download")
+        try? FileManager.default.removeItem(at: resumeFile)
+        // Its cancellation is reported to the delegate, which ignores any task but the current one.
+        resumed.cancel()
+        return session.downloadTask(with: url)
+    }
+
+    private func isCurrent(_ task: URLSessionTask) -> Bool {
+        state.withLock { $0.task === task }
+    }
+
     /// Downloads `url` to a temporary file that the caller must move into place.
     /// - Throws: `CancellationError` if the calling task is cancelled; resume data is kept for the next attempt.
     func download(from url: URL) async throws -> URL {
@@ -335,9 +358,7 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
             try await withCheckedThrowingContinuation { continuation in
                 let task = state.withLock { state -> URLSessionDownloadTask? in
                     guard !state.cancelled else { return nil }
-                    let task =
-                        (try? Data(contentsOf: resumeFile)).map(session.downloadTask(withResumeData:))
-                        ?? session.downloadTask(with: url)
+                    let task = makeTask(in: session, for: url)
                     state.continuation = continuation
                     state.task = task
                     state.source = url
@@ -376,6 +397,7 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
         _ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData _: Int64,
         totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64
     ) {
+        guard isCurrent(downloadTask) else { return }
         if totalBytesWritten > maximumBytes || totalBytesExpectedToWrite > maximumBytes {
             let first = state.withLock { state -> Bool in
                 defer { state.exceeded = true }
@@ -401,6 +423,7 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        guard isCurrent(downloadTask) else { return }
         if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             try? FileManager.default.removeItem(at: resumeFile)
             finish(with: .failure(SetupError.badResponse(downloadTask.originalRequest?.url ?? location, http.statusCode)))
@@ -427,7 +450,7 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
-        guard let error else { return }
+        guard let error, isCurrent(task) else { return }
         guard !failIfTooLarge() else { return }
         let nsError = error as NSError
         if let data = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
@@ -545,7 +568,8 @@ enum ImageStore {
         job.fraction = 0
         let throttle = Throttle(interval: 0.25)
         let downloader = FileDownloader(
-            resumeKey: name, workDirectory: imagesDirectory.appending(path: ".partial", directoryHint: .isDirectory),
+            resumeKey: FileDownloader.resumeKey(for: remote),
+            workDirectory: imagesDirectory.appending(path: ".partial", directoryHint: .isDirectory),
             maximumBytes: maximumBytes, configuration: configuration
         ) { written, total in
             guard total > 0, throttle.allow() else { return }
