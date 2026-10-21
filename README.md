@@ -167,7 +167,7 @@ swift run vmr check test coverage            # only the named steps; --list show
 swift run vmr analyzers [run|install|baseline|versions] [arcleak|dolly|deadwood...]
 swift run vmr bench record                   # re-record the benchmark baseline (.vmr-bench.json)
 swift run vmr build-app [debug|release] [--hardened] [--arm64e]
-swift run vmr spike-sign [debug|release]     # container spike: build it and sign it for virtualization; running it boots a VM, owner only
+swift run vmr container-sign [debug|release]     # container runner: build it and sign it for virtualization; running it boots a VM, owner only
 swift run vmr sandbox-spike run --engine seatbelt|app-sandbox|none --descriptor d.json   # sandbox spike; --boot starts a VM, owner only
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files

@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import ContainerSpikeCore
+@testable import ContainerRunnerCore
 
 struct LoopbackTests {
     /// "who has 198.18.0.1, tell 198.18.0.2", as a guest sends it: broadcast destination, the guest's own hardware address.

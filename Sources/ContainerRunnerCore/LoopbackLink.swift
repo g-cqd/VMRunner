@@ -40,7 +40,7 @@ public final class LoopbackLink: Sendable {
         let flag = stopRequested
         continuation.onTermination = { _ in flag.raise() }
         let thread = Thread { Self.read(host, into: continuation, until: flag) }
-        thread.name = "ContainerSpike.LoopbackLink"
+        thread.name = "ContainerRunner.LoopbackLink"
         thread.start()
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 /// The outcome of the baseline run, decided from what the container printed and its exit status.
-public enum SpikeVerdict: Equatable, Sendable {
+public enum RunnerVerdict: Equatable, Sendable {
     case passed
     case commandFailed(exitCode: Int32)
     case unexpectedOutput
@@ -23,8 +23,8 @@ public enum SpikeVerdict: Equatable, Sendable {
     }
 }
 
-/// Exit statuses of the `ContainerSpike` executable, in the `sysexits.h` style the repository's tooling uses.
-public enum SpikeStatus {
+/// Exit statuses of the `ContainerRunner` executable, in the `sysexits.h` style the repository's tooling uses.
+public enum RunnerStatus {
     public static let passed: Int32 = 0
     /// The container ran and the result was wrong.
     public static let failed: Int32 = 1
@@ -35,7 +35,7 @@ public enum SpikeStatus {
 }
 
 /// The lines the owner copies back from a run: what each phase cost, what the container printed, how it ended.
-public struct SpikeReport: Equatable, Sendable {
+public struct RunnerReport: Equatable, Sendable {
     public struct Phase: Equatable, Sendable {
         public let name: String
         public let duration: Duration
@@ -52,18 +52,18 @@ public struct SpikeReport: Equatable, Sendable {
     public var phases: [Phase] = []
     public var output = ""
     public var exitCode: Int32?
-    public var verdict: SpikeVerdict?
+    public var verdict: RunnerVerdict?
     /// The frames the guest's network device delivered, and what they show. Both stay empty without a loopback network.
     public var frames: [FrameSummary] = []
     public var networkVerdict: NetworkVerdict?
 
     public init() {}
 
-    /// The spike's own exit status: ``SpikeStatus/passed`` only when the run reached a verdict and every verdict passed;
-    /// ``SpikeStatus/setupFailed`` when the run never reached one; ``SpikeStatus/failed`` otherwise.
+    /// The runner's own exit status: ``RunnerStatus/passed`` only when the run reached a verdict and every verdict passed;
+    /// ``RunnerStatus/setupFailed`` when the run never reached one; ``RunnerStatus/failed`` otherwise.
     public var processStatus: Int32 {
-        guard let verdict else { return SpikeStatus.setupFailed }
-        return verdict == .passed && (networkVerdict ?? .passed) == .passed ? SpikeStatus.passed : SpikeStatus.failed
+        guard let verdict else { return RunnerStatus.setupFailed }
+        return verdict == .passed && (networkVerdict ?? .passed) == .passed ? RunnerStatus.passed : RunnerStatus.failed
     }
 
     /// `duration` as seconds with two decimals, rounded half up. A negative duration reads as zero.

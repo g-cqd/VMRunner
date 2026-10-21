@@ -1,11 +1,11 @@
 import Foundation
 import Testing
 
-@testable import ContainerSpikeCore
+@testable import ContainerRunnerCore
 
 struct KernelArchiveTests {
     private func withFile<T>(_ contents: Data, _ body: (URL) throws -> T) throws -> T {
-        let directory = FileManager.default.temporaryDirectory.appending(path: "spike-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let directory = FileManager.default.temporaryDirectory.appending(path: "runner-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appending(path: "file", directoryHint: .notDirectory)
@@ -51,8 +51,8 @@ struct KernelArchiveTests {
 
     @Test
     func aMissingFileIsUnreadableNotAMismatch() {
-        let missing = URL(fileURLWithPath: "/nonexistent/spike/kernel")
-        #expect(throws: KernelArchiveError.unreadable(path: "/nonexistent/spike/kernel")) {
+        let missing = URL(fileURLWithPath: "/nonexistent/runner/kernel")
+        #expect(throws: KernelArchiveError.unreadable(path: "/nonexistent/runner/kernel")) {
             try KernelArchive.verify(fileAt: missing, expectedSHA256: Self.abcDigest)
         }
     }

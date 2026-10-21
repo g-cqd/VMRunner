@@ -1,13 +1,13 @@
 public import Foundation
 
-/// What the spike was asked to do.
-public enum SpikeRequest: Equatable, Sendable {
-    case run(SpikeArguments)
+/// What the runner was asked to do.
+public enum RunnerRequest: Equatable, Sendable {
+    case run(RunnerArguments)
     case help
 }
 
-/// Why the command line was refused. The text is what the spike prints before its usage.
-public enum SpikeArgumentError: Error, Equatable, Sendable, CustomStringConvertible {
+/// Why the command line was refused. The text is what the runner prints before its usage.
+public enum RunnerArgumentError: Error, Equatable, Sendable, CustomStringConvertible {
     case missingScratchDirectory
     case extraArgument(String)
     case unknownOption(String)
@@ -25,23 +25,23 @@ public enum SpikeArgumentError: Error, Equatable, Sendable, CustomStringConverti
     }
 }
 
-/// The validated command line of the container spike: one scratch directory and which network the container gets.
-public struct SpikeArguments: Equatable, Sendable {
+/// The validated command line of the container runner: one scratch directory and which network the container gets.
+public struct RunnerArguments: Equatable, Sendable {
     /// How the container is attached to a network.
     public enum Network: String, Equatable, Sendable {
         /// No network device: the baseline run (pull, boot, `uname -a`, exit status).
         case none
-        /// A network device whose frames go to a socketpair read by the spike itself.
+        /// A network device whose frames go to a socketpair read by the runner itself.
         case loopback
     }
 
     public static let usage = """
-        usage: ContainerSpike <scratch-directory> [--network none|loopback]
+        usage: ContainerRunner <scratch-directory> [--network none|loopback]
 
-        Every file the spike creates (kernel, image store, container root) lives under <scratch-directory>.
+        Every file the runner creates (kernel, image store, container root) lives under <scratch-directory>.
         --network none      pull alpine, boot it, run `uname -a`, print the exit status (default)
         --network loopback  the same, with a network device backed by a socketpair instead of a network; the container
-                            pings its gateway and the spike reports the frames the device delivered
+                            pings its gateway and the runner reports the frames the device delivered
         """
 
     /// The absolute, standardized scratch directory.
@@ -50,8 +50,8 @@ public struct SpikeArguments: Equatable, Sendable {
 
     /// Reads `arguments` (the program name already removed). A relative scratch directory is taken from `currentDirectory`.
     ///
-    /// - Throws: ``SpikeArgumentError``.
-    public static func parse(_ arguments: [String], currentDirectory: URL) throws(SpikeArgumentError) -> SpikeRequest {
+    /// - Throws: ``RunnerArgumentError``.
+    public static func parse(_ arguments: [String], currentDirectory: URL) throws(RunnerArgumentError) -> RunnerRequest {
         var scratch: String?
         var network = Network.none
         var index = 0
@@ -79,8 +79,8 @@ public struct SpikeArguments: Equatable, Sendable {
     }
 }
 
-/// Where the spike keeps its files, all under the scratch directory.
-public struct SpikeLayout: Equatable, Sendable {
+/// Where the runner keeps its files, all under the scratch directory.
+public struct RunnerLayout: Equatable, Sendable {
     public let scratch: URL
 
     public init(scratch: URL) {

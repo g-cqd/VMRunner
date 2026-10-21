@@ -1,14 +1,14 @@
 import Foundation
 import Testing
 
-@testable import ContainerSpikeCore
+@testable import ContainerRunnerCore
 
-struct SpikeArgumentsTests {
+struct RunnerArgumentsTests {
     private let current = URL(fileURLWithPath: "/work/dir", isDirectory: true)
 
-    private func failure(_ arguments: [String]) -> SpikeArgumentError? {
+    private func failure(_ arguments: [String]) -> RunnerArgumentError? {
         do {
-            _ = try SpikeArguments.parse(arguments, currentDirectory: current)
+            _ = try RunnerArguments.parse(arguments, currentDirectory: current)
             return nil
         } catch {
             return error
@@ -16,13 +16,13 @@ struct SpikeArgumentsTests {
     }
 
     private func scratch(_ arguments: [String]) throws -> String? {
-        guard case .run(let parsed) = try SpikeArguments.parse(arguments, currentDirectory: current) else { return nil }
+        guard case .run(let parsed) = try RunnerArguments.parse(arguments, currentDirectory: current) else { return nil }
         return parsed.scratch.path
     }
 
     @Test
     func anAbsoluteScratchDirectoryIsKept() throws {
-        #expect(try scratch(["/tmp/spike"]) == "/tmp/spike")
+        #expect(try scratch(["/tmp/runner"]) == "/tmp/runner")
     }
 
     @Test
@@ -30,22 +30,22 @@ struct SpikeArgumentsTests {
         #expect(try scratch(["out/../scratch"]) == "/work/dir/scratch")
     }
 
-    private func network(_ arguments: [String]) throws -> SpikeArguments.Network? {
-        guard case .run(let parsed) = try SpikeArguments.parse(arguments, currentDirectory: current) else { return nil }
+    private func network(_ arguments: [String]) throws -> RunnerArguments.Network? {
+        guard case .run(let parsed) = try RunnerArguments.parse(arguments, currentDirectory: current) else { return nil }
         return parsed.network
     }
 
     @Test
     func theNetworkIsNoneUnlessAskedForByName() throws {
-        #expect(try network(["/tmp/spike"]) == SpikeArguments.Network.none)
-        #expect(try network(["--network", "loopback", "/tmp/spike"]) == .loopback)
-        #expect(try network(["/tmp/spike", "--network", "none"]) == SpikeArguments.Network.none)
+        #expect(try network(["/tmp/runner"]) == RunnerArguments.Network.none)
+        #expect(try network(["--network", "loopback", "/tmp/runner"]) == .loopback)
+        #expect(try network(["/tmp/runner", "--network", "none"]) == RunnerArguments.Network.none)
     }
 
     @Test
     func helpWinsOverEverythingElse() throws {
-        #expect(try SpikeArguments.parse(["/tmp/spike", "-h"], currentDirectory: current) == .help)
-        #expect(try SpikeArguments.parse(["--help"], currentDirectory: current) == .help)
+        #expect(try RunnerArguments.parse(["/tmp/runner", "-h"], currentDirectory: current) == .help)
+        #expect(try RunnerArguments.parse(["--help"], currentDirectory: current) == .help)
     }
 
     @Test
@@ -61,9 +61,9 @@ struct SpikeArgumentsTests {
 
     @Test
     func everyFileLivesUnderTheScratchDirectory() {
-        let layout = SpikeLayout(scratch: URL(fileURLWithPath: "/tmp/spike", isDirectory: true))
+        let layout = RunnerLayout(scratch: URL(fileURLWithPath: "/tmp/runner", isDirectory: true))
         for url in [layout.kernelArchive, layout.kernelStaging, layout.kernelImage, layout.imageStore] {
-            #expect(url.path.hasPrefix("/tmp/spike/"), "\(url.path)")
+            #expect(url.path.hasPrefix("/tmp/runner/"), "\(url.path)")
         }
         #expect(layout.kernelArchive.lastPathComponent == KernelArchive.fileName)
     }

@@ -1,4 +1,4 @@
-/// What the spike reads off one Ethernet frame the guest sent: enough to tell that the guest's network device is wired to
+/// What the runner reads off one Ethernet frame the guest sent: enough to tell that the guest's network device is wired to
 /// the host end and what it asked for. Frames are never forwarded anywhere.
 public struct FrameSummary: Equatable, Sendable, CustomStringConvertible {
     public enum Kind: Equatable, Sendable {
@@ -67,7 +67,7 @@ public struct FrameSummary: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// What the second experiment decides from the frames the guest sent while it tried to reach its gateway.
+/// What the second check decides from the frames the guest sent while it tried to reach its gateway.
 public enum NetworkVerdict: Equatable, Sendable {
     case passed
     /// The guest's network device never delivered a frame to the host end.
@@ -75,7 +75,7 @@ public enum NetworkVerdict: Equatable, Sendable {
     /// Frames arrived, but none asked for the gateway's hardware address.
     case noRequestForGateway
 
-    /// The guest address of the interface the spike configures, and the gateway it is told to use.
+    /// The guest address of the interface the runner configures, and the gateway it is told to use.
     public static let guestAddress = "198.18.0.2"
     public static let gatewayAddress = "198.18.0.1"
 

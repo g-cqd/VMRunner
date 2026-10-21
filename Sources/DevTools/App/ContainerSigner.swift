@@ -1,11 +1,11 @@
 import Foundation
 
-/// Signs the container spike ad hoc with the hardened runtime and `Resources/ContainerSpike.entitlements`, then verifies
-/// the signature and reads the effective entitlements back, as `HelperBundler` does for the sandbox spike's helper. Without
-/// `com.apple.security.virtualization` the spike cannot start a virtual machine, so a file that does not grant it, or that
+/// Signs the container runner ad hoc with the hardened runtime and `Resources/ContainerRunner.entitlements`, then verifies
+/// the signature and reads the effective entitlements back, as `HelperBundler` does for the sandbox helper. Without
+/// `com.apple.security.virtualization` the runner cannot start a virtual machine, so a file that does not grant it, or that
 /// breaks `EntitlementPolicy`, is refused before anything is built or signed.
-struct SpikeSigner {
-    static let productName = "ContainerSpike"
+struct ContainerSigner {
+    static let productName = "ContainerRunner"
 
     let root: URL
     /// An executable that is already built; `nil` builds the product first.
@@ -31,7 +31,7 @@ struct SpikeSigner {
     private func verifyFile(_ expected: Entitlements.Dictionary) throws {
         let file = entitlementsURL.lastPathComponent
         guard expected[Entitlements.virtualization] == .bool(true) else {
-            throw ToolError("\(file) must grant \(Entitlements.virtualization): without it the spike cannot start a virtual machine")
+            throw ToolError("\(file) must grant \(Entitlements.virtualization): without it the runner cannot start a virtual machine")
         }
         let problems = EntitlementPolicy.problems(in: expected, isRelease: true)
         guard problems.isEmpty else {

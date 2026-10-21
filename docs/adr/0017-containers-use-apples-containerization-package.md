@@ -21,10 +21,10 @@ features, and, ideally, macOS containers.
 
 ## Consequences
 
-The first step is a spike that pulls and runs an arm64 Alpine image. It is written and waits for its owner run; until the
-result is in, the package is pinned at 0.52.1 for the spike target only and the app does not link it. See
+The first step is a small container runner that pulls and runs an arm64 Alpine image. It is written and waits for its first
+run by the owner; until the result is in, the package is pinned at 0.52.1 for the runner only and the app does not link it. See
 `docs/research/containers-2026-10.md` and roadmap 0024.
 
 ## What this does not decide
 
-Whether containers can use the user-mode network stack through a custom interface; the spike must confirm it.
+Whether containers can use the user-mode network stack through a custom interface; the first run must confirm it.

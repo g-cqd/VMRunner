@@ -1,4 +1,4 @@
-import ContainerSpikeCore
+import ContainerRunnerCore
 import Foundation
 
 /// Gets the pinned kernel into the scratch directory: download, check the archive's SHA-256, unpack the one member,
@@ -7,7 +7,7 @@ import Foundation
 /// This fetches one fixed HTTPS address and verifies it against a pinned checksum before using it. It does not go through
 /// the app's download policy, because the app target cannot be imported without linking the app.
 enum KernelProvider {
-    static func ensureKernel(layout: SpikeLayout) async throws -> URL {
+    static func ensureKernel(layout: RunnerLayout) async throws -> URL {
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: layout.kernelImage.path) {
             try verify(layout.kernelImage, against: KernelArchive.imageSHA256)
@@ -39,24 +39,24 @@ enum KernelProvider {
             try KernelArchive.verify(fileAt: file, expectedSHA256: expected)
         } catch {
             try? FileManager.default.removeItem(at: file)
-            throw SpikeFailure("\(file.lastPathComponent): \(error); the file was removed")
+            throw RunnerFailure("\(file.lastPathComponent): \(error); the file was removed")
         }
     }
 
     private static func download(to destination: URL) async throws {
         guard let url = URL(string: KernelArchive.urlString), url.scheme == "https" else {
-            throw SpikeFailure("the pinned kernel address is not an HTTPS URL")
+            throw RunnerFailure("the pinned kernel address is not an HTTPS URL")
         }
         let (temporary, response) = try await URLSession.shared.download(from: url)
         defer { try? FileManager.default.removeItem(at: temporary) }
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw SpikeFailure("the kernel download answered \((response as? HTTPURLResponse)?.statusCode ?? 0), not 200")
+            throw RunnerFailure("the kernel download answered \((response as? HTTPURLResponse)?.statusCode ?? 0), not 200")
         }
         try FileManager.default.moveItem(at: temporary, to: destination)
     }
 
     /// Unpacks only the one pinned kernel member into the staging directory.
-    private static func unpack(layout: SpikeLayout) async throws {
+    private static func unpack(layout: RunnerLayout) async throws {
         let process = Process()
         process.executableURL = URL(filePath: "/usr/bin/tar")
         process.arguments = KernelArchive.extractionArguments(archive: layout.kernelArchive, directory: layout.kernelStaging)
@@ -69,6 +69,6 @@ enum KernelProvider {
                 continuation.resume(throwing: error)
             }
         }
-        guard status == 0 else { throw SpikeFailure("tar exited with status \(status) while unpacking the kernel") }
+        guard status == 0 else { throw RunnerFailure("tar exited with status \(status) while unpacking the kernel") }
     }
 }

@@ -14,7 +14,7 @@ updates:
       prefix: ci
 
   # The VMRunner app depends on swift-async-algorithms (and through it swift-collections); the developer tooling
-  # (DevTools, vmr) on swift-subprocess and swift-argument-parser; the container spike (ContainerSpike) on containerization.
+  # (DevTools, vmr) on swift-subprocess and swift-argument-parser; the container runner (ContainerRunner) on containerization.
   # All are pinned with `exact:` in Package.swift; this proposes their updates, and any added later.
   - package-ecosystem: swift
     directory: /

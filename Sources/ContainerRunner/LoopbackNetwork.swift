@@ -1,4 +1,4 @@
-import ContainerSpikeCore
+import ContainerRunnerCore
 import Containerization
 import ContainerizationExtras
 import Foundation
@@ -17,7 +17,7 @@ struct LoopbackNetwork: Network {
     }
 
     mutating func createInterface(_ id: String) throws -> (any Interface)? {
-        if let issuedTo { throw SpikeFailure("the loopback network has one interface and \(issuedTo) holds it") }
+        if let issuedTo { throw RunnerFailure("the loopback network has one interface and \(issuedTo) holds it") }
         issuedTo = id
         return LoopbackInterface(
             ipv4Address: try CIDRv4("\(NetworkVerdict.guestAddress)/24"),

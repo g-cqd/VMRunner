@@ -15,7 +15,7 @@ public enum KernelArchiveError: Error, Equatable, Sendable, CustomStringConverti
 }
 
 /// The pinned guest kernel: a release tarball of a Linux kernel built for containers, its SHA-256, and the one file in it
-/// that is used. The pins were computed from a download made for the spike, not copied from a web page.
+/// that is used. The pins were computed from a download made for the runner, not copied from a web page.
 public enum KernelArchive {
     public static let urlString =
         "https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz"

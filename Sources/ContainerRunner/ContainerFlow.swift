@@ -1,4 +1,4 @@
-import ContainerSpikeCore
+import ContainerRunnerCore
 import Containerization
 import ContainerizationOCI
 import Foundation
@@ -12,8 +12,8 @@ struct ContainerFlow {
     static let initReference = "ghcr.io/apple/containerization/vminit:0.52.1"
     static let imageReference = "docker.io/library/alpine:3.24.2"
 
-    let layout: SpikeLayout
-    let network: SpikeArguments.Network
+    let layout: RunnerLayout
+    let network: RunnerArguments.Network
 
     /// The container's command. The ping has no reply to get, so the shell ends with status 0 regardless; the frames the
     /// ping caused are the result, not the ping's own status.
@@ -25,7 +25,7 @@ struct ContainerFlow {
     }
 
     /// Appends each completed phase to `report`, so a failure half way still tells how far the run got.
-    func run(kernel: URL, report: inout SpikeReport) async throws {
+    func run(kernel: URL, report: inout RunnerReport) async throws {
         guard network == .loopback else {
             try await execute(kernel: kernel, link: nil, report: &report)
             return
@@ -50,7 +50,7 @@ struct ContainerFlow {
         if let failure { throw failure }
     }
 
-    private func execute(kernel: URL, link: LoopbackLink?, report: inout SpikeReport) async throws {
+    private func execute(kernel: URL, link: LoopbackLink?, report: inout RunnerReport) async throws {
         let clock = ContinuousClock()
         var started = clock.now
         func finishPhase(_ name: String) {
@@ -69,7 +69,7 @@ struct ContainerFlow {
         let image = try await manager.imageStore.pull(reference: Self.imageReference, platform: Platform(from: "linux/arm64"))
         finishPhase("pull")
 
-        let id = "spike-\(UUID().uuidString.prefix(8).lowercased())"
+        let id = "runner-\(UUID().uuidString.prefix(8).lowercased())"
         let capture = OutputCapture()
         let memory = UInt64(512) << 20
         let command = command
@@ -94,7 +94,7 @@ struct ContainerFlow {
             try await container.stop()
             report.output = capture.text
             report.exitCode = status.exitCode
-            report.verdict = SpikeVerdict.evaluate(exitCode: status.exitCode, output: capture.text)
+            report.verdict = RunnerVerdict.evaluate(exitCode: status.exitCode, output: capture.text)
         } catch {
             try? await container.stop()
             Console.line("boot log kept at \(layout.imageStore.path)/containers/\(id)/bootlog.log", to: .error)

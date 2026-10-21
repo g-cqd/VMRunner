@@ -1,8 +1,8 @@
-import ContainerSpikeCore
+import ContainerRunnerCore
 import Foundation
 
 /// What went wrong around the container, as a message the owner can paste into a report.
-struct SpikeFailure: Error, CustomStringConvertible {
+struct RunnerFailure: Error, CustomStringConvertible {
     let description: String
 
     init(_ description: String) {
@@ -10,11 +10,11 @@ struct SpikeFailure: Error, CustomStringConvertible {
     }
 }
 
-/// The spike's top level: make the scratch directory, get a verified kernel, run the container, print the report.
-enum SpikeMain {
-    static func run(_ arguments: SpikeArguments) async -> Int32 {
-        let layout = SpikeLayout(scratch: arguments.scratch)
-        var report = SpikeReport()
+/// The runner's top level: make the scratch directory, get a verified kernel, run the container, print the report.
+enum RunnerMain {
+    static func run(_ arguments: RunnerArguments) async -> Int32 {
+        let layout = RunnerLayout(scratch: arguments.scratch)
+        var report = RunnerReport()
         do {
             try FileManager.default.createDirectory(
                 at: layout.scratch, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

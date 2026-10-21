@@ -45,7 +45,7 @@ struct AppBundler {
     // MARK: Build and assemble
 
     private func compile() async throws -> URL {
-        // Only the app: the package also holds targets that link packages the app must never pull in (the container spike).
+        // Only the app: the package also holds targets that link packages the app must never pull in (the container runner).
         var arguments = ["--package-path", root.path, "-c", options.configuration.rawValue, "--product", Self.productName]
         if options.arm64e {
             arguments += ["--arch", "arm64e", "--scratch-path", root.appending(path: ".build-arm64e").path]
