@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Virtualization
+import os
 
 @main
 struct VMRunnerApp: App {
@@ -44,11 +45,21 @@ struct VMRunnerApp: App {
         let arguments = CommandLine.arguments
         guard let flag = arguments.firstIndex(of: "--start"), arguments.indices.contains(flag + 1) else { return }
         let key = arguments[flag + 1]
-        guard let config = library.machines.first(where: { $0.name == key || $0.id.uuidString == key }) else { return }
-        library.selection = config.id
+        let id: UUID
+        switch MachineLookup.resolve(key, in: library.machines) {
+        case .found(let found):
+            id = found
+        case .notFound:
+            Log.machine.error("--start: no machine is named or numbered “\(key, privacy: .private)”")
+            return
+        case .ambiguous(let count):
+            Log.machine.error("--start: \(count) machines are named “\(key, privacy: .private)”; use the machine's id instead")
+            return
+        }
+        library.selection = id
         // Give the window a moment to lay out so the guest display can match its size.
         await poll(every: .milliseconds(100), attempts: 20, clock: ContinuousClock()) { library.displayHint != nil }
-        library.startMachine(config.id, interactive: false)
+        library.startMachine(id, interactive: false)
     }
 }
 
