@@ -2,6 +2,7 @@
 status: in-progress
 blocked-by: []
 date: 2026-10-21
+decision: ADR-0018
 ---
 # 0021 — A small, fast, hard-to-misread CI and a provenance-attested release
 
