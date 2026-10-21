@@ -23,6 +23,8 @@ A review of the stack with the guest as the attacker produced a series of fixes,
   same way, and the stats count the events the reader had no room for.
 - Opening UDP and ping flows is rate-limited and a full table makes room in batches, DNS over TCP buffers at most two
   queries in a ring (a longer length prefix resets the connection), and at most 32 DNS connections are open at once.
+- DHCP is served only for datagrams from `0.0.0.0` or the leased address to the broadcast address or the gateway, and
+  only a claimed client address equal to the lease is answered by unicast.
 
 ## Still owed
 

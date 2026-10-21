@@ -140,7 +140,9 @@ final class DHCPServer {
         writer.be32(0x6382_5363)
         writeOptions(type, includeLease: includeLease && type != .nak, config: config, into: &writer)
         if writer.count < 300 { writer.zeros(300 - writer.count) }
-        let unicast = request.clientAddress != 0 && request.flags & 0x8000 == 0
+        // Only the address this server leases is answered by unicast: `ciaddr` is the client's claim, and a claim for
+        // another address would have the server address a packet to somewhere it was never asked to reach.
+        let unicast = request.clientAddress == config.guestAddress && request.flags & 0x8000 == 0
         ctx.sendUDP(
             from: (config.gatewayAddress, Self.serverPort),
             to: (unicast ? request.clientAddress : IPv4.broadcast, Self.clientPort),

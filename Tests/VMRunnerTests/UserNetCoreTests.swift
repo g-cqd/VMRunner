@@ -70,10 +70,15 @@ struct UserNetLinkTests {
 }
 
 struct UserNetDHCPTests {
-    private func exchange(_ rig: CoreRig, _ payload: [UInt8]) -> DecodedFrame? {
-        let udp = Wire.udp(from: (0, 68), to: (IPv4.broadcast, 67), payload)
-        let ip = Wire.ipv4(from: 0, to: IPv4.broadcast, proto: IPProtocol.udp, udp)
-        rig.send(Wire.ethernet(to: .broadcast, from: Wire.guestMAC, type: EtherType.ipv4, ip))
+    /// Sends a DHCP payload (from `0.0.0.0` to the broadcast address, as a client without a lease does) and returns the
+    /// first frame the stack sends back.
+    private func exchange(
+        _ rig: CoreRig, _ payload: [UInt8], from source: UInt32 = 0, to destination: UInt32 = IPv4.broadcast
+    ) -> DecodedFrame? {
+        let udp = Wire.udp(from: (source, 68), to: (destination, 67), payload)
+        let ip = Wire.ipv4(from: source, to: destination, proto: IPProtocol.udp, udp)
+        rig.send(
+            Wire.ethernet(to: destination == IPv4.broadcast ? .broadcast : Wire.gatewayMAC, from: Wire.guestMAC, type: EtherType.ipv4, ip))
         return rig.host.takeFrames().first
     }
 
@@ -129,6 +134,44 @@ struct UserNetDHCPTests {
         let rig = CoreRig()
         let ack = try #require(exchange(rig, Wire.dhcp(type: 3, clientAddress: Wire.guest, broadcast: false)))
         #expect(ack.ipDestination == Wire.guest && ack.destination == Wire.guestMAC)
+    }
+
+    @Test func aRenewalFromTheLeasedAddressToTheGatewayIsServed() throws {
+        let rig = CoreRig()
+        let ack = try #require(
+            exchange(rig, Wire.dhcp(type: 3, clientAddress: Wire.guest, broadcast: false), from: Wire.guest, to: Wire.gateway))
+        #expect(ack.ipDestination == Wire.guest && ack.destination == Wire.guestMAC)
+    }
+
+    @Test func aDHCPMessageToAnotherServerIsNotAnsweredLocallyButForwardedLikeAnyDatagram() {
+        let rig = CoreRig()
+        rig.learnGuest()
+        let remote = ipv4("93.184.216.34")
+        #expect(exchange(rig, Wire.dhcp(type: 1), from: Wire.guest, to: remote) == nil, "no offer from a server it was not sent to")
+        #expect(rig.host.datagrams.values.map(\.address) == [remote], "it is an ordinary UDP flow, judged by the policy")
+    }
+
+    @Test func aDHCPMessageFromNoAddressToAnotherServerIsDropped() {
+        let rig = CoreRig()
+        rig.learnGuest()
+        #expect(exchange(rig, Wire.dhcp(type: 1), from: 0, to: ipv4("93.184.216.34")) == nil)
+        #expect(rig.host.datagrams.isEmpty, "only the leased address may use the guest's identity to reach the host network")
+        #expect(rig.core.stats.droppedUnsupported == 1)
+    }
+
+    @Test func aNeighbourOnTheSubnetIsNotADHCPServer() {
+        let rig = CoreRig()
+        rig.learnGuest()
+        #expect(exchange(rig, Wire.dhcp(type: 1), from: Wire.guest, to: ipv4("198.18.0.77")) == nil)
+        #expect(exchange(rig, Wire.dhcp(type: 1), from: 0, to: ipv4("198.18.0.77")) == nil)
+        #expect(rig.host.datagrams.isEmpty)
+    }
+
+    @Test func aClaimedClientAddressOtherThanTheLeaseIsAnsweredByBroadcast() throws {
+        let rig = CoreRig()
+        let message = Wire.dhcp(type: 3, requested: Wire.guest, server: Wire.gateway, clientAddress: ipv4("8.8.8.8"), broadcast: false)
+        let ack = try #require(exchange(rig, message))
+        #expect(ack.ipDestination == IPv4.broadcast && ack.destination == .broadcast, "not addressed to 8.8.8.8")
     }
 
     @Test func aSecondClientGetsNothingWhileTheLeaseHolds() throws {

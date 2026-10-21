@@ -21,7 +21,7 @@ extension UserNetCore {
         // is the only address on it that this stack answers. Anything else addressed there is not forwarded to the
         // host, whatever the policy says.
         if ctx.config.isOnLink(header.destination), header.destination != ctx.config.gatewayAddress,
-            header.destination != IPv4.broadcast, !isDHCPRequest(header)
+            header.destination != IPv4.broadcast
         {
             ctx.stats.droppedUnsupported += 1
             return
@@ -37,11 +37,6 @@ extension UserNetCore {
                 wireLength: header.totalLength)
             ctx.stats.droppedUnsupported += 1
         }
-    }
-
-    /// DHCP clients broadcast (or unicast to the gateway) to port 67; those packets are handled locally.
-    private func isDHCPRequest(_ header: IPv4Header) -> Bool {
-        header.proto == IPProtocol.udp && ((try? header.payload.be16(at: 2)) ?? 0) == DHCPServer.serverPort
     }
 
     // MARK: ICMP

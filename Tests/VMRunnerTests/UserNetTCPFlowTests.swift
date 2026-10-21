@@ -287,6 +287,35 @@ struct UserNetTCPCloseTests {
         #expect(rig.core.stats.activeTCPFlows == 1)
     }
 
+    @Test func anEstablishedFlowHonoursAResetExactlyFromTheNextSequenceNumberThroughTheWindow() throws {
+        let rig = CoreRig()
+        var guest = established(rig)
+        let flow = try #require(rig.core.tcpByToken[guest.token])
+        let next = flow.receiveNext
+        let window = UInt32(max(flow.receiveSpace, 1))
+        guest.send([.rst, .ack], sequence: next &- 1)
+        guest.send([.rst, .ack], sequence: next &+ window &+ 1)
+        #expect(rig.core.stats.activeTCPFlows == 1, "one behind and one past the window are both ignored")
+        guest.send([.rst, .ack], sequence: next &+ window)
+        #expect(rig.core.stats.activeTCPFlows == 0, "the last sequence number inside the window is honoured")
+    }
+
+    @Test func aFlowWaitingForTheHandshakeHonoursAnyResetFromTheNextSequenceNumberOn() throws {
+        let rig = CoreRig()
+        rig.learnGuest()
+        var guest = GuestConnection(rig: rig, to: server)
+        guest.sendSYN()
+        guest.token = rig.host.streamOrder[0]
+        rig.core.streamConnected(token: guest.token, error: nil)
+        guest.collect()
+        let flow = try #require(rig.core.tcpByToken[guest.token])
+        #expect(flow.state == .synReceived)
+        guest.send([.rst, .ack], sequence: flow.receiveNext &- 1)
+        #expect(rig.core.stats.activeTCPFlows == 1, "behind the next sequence number is never a valid reset")
+        guest.send([.rst, .ack], sequence: flow.receiveNext &+ 1_000_000)
+        #expect(rig.core.stats.activeTCPFlows == 0, "ahead of it is honoured in this state, whatever the window")
+    }
+
     @Test func aHostSideResetBecomesAResetToTheGuest() {
         let rig = CoreRig()
         var guest = established(rig)

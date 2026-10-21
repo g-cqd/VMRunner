@@ -10,7 +10,7 @@ extension UserNetCore {
             ctx.stats.malformedFrames += 1
             return
         }
-        if datagram.destinationPort == DHCPServer.serverPort {
+        if datagram.destinationPort == DHCPServer.serverPort, isDHCPClientTraffic(header) {
             dhcp.handle(datagram.payload, ctx: ctx)
             return
         }
@@ -32,6 +32,14 @@ extension UserNetCore {
         } else {
             forwardDatagram(key, payload: datagram.payload)
         }
+    }
+
+    /// Whether a datagram to port 67 is for the DHCP server: from the address the guest leases or from `0.0.0.0` (a client
+    /// that has none yet), and to the broadcast address or the gateway (a renewal). A datagram to port 67 of anything else,
+    /// on or off the guest's subnet, is not DHCP; it goes the way any other datagram goes.
+    private func isDHCPClientTraffic(_ header: IPv4Header) -> Bool {
+        (header.source == 0 || header.source == ctx.config.guestAddress)
+            && (header.destination == IPv4.broadcast || header.destination == ctx.config.gatewayAddress)
     }
 
     private func isSubnetBroadcast(_ address: UInt32) -> Bool {

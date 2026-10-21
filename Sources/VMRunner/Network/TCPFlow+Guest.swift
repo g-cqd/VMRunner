@@ -36,7 +36,10 @@ extension TCPFlow {
     /// or forged segment from killing the flow.
     private func acceptReset(_ segment: TCPHeader, ctx: UserNetContext<some UserNetHost>) {
         let offset = TCPSequence.distance(from: receiveNext, to: segment.sequence)
-        guard offset >= 0, offset <= max(receiveSpace, 1) || state == .synReceived else { return }
+        // Never before the next expected sequence number; from there, inside the window, or anywhere while the handshake
+        // is unfinished (there is no window to speak of yet).
+        let withinReach = offset <= max(receiveSpace, 1) || state == .synReceived
+        guard offset >= 0, withinReach else { return }
         terminate(.guestReset, resetGuest: false, ctx: ctx)
     }
 
