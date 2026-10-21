@@ -37,6 +37,18 @@ struct BuildAppTests {
     }
 
     @Test(.timeLimit(.minutes(8)))
+    func onlyTheAppProductIsBuilt() async throws {
+        var files = AppFixture.files()
+        let targets = #"targets: [.executableTarget(name: "VMRunner")]"#
+        files["Package.swift"] = files["Package.swift"]?.replacingOccurrences(
+            of: targets, with: #"targets: [.executableTarget(name: "VMRunner"), .executableTarget(name: "Other")]"#)
+        files["Sources/Other/main.swift"] = "this does not compile\n"
+        let (run, app) = try await buildApp([], files: files)
+        #expect(run.status == 0, "a target that is not the app must not be built: \(run.combined)")
+        #expect(app != nil)
+    }
+
+    @Test(.timeLimit(.minutes(8)))
     func aReleaseBuildWhoseEntitlementsGainGetTaskAllowFails() async throws {
         let withTaskAllow = AppFixture.entitlements([
             "com.apple.security.virtualization": "<true/>",
