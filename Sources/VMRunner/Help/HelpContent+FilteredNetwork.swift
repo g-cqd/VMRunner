@@ -1,4 +1,7 @@
 extension HelpCatalog {
+    /// The stack's defaults, so the limits the help states are the limits it enforces.
+    private static let limits = UserNetConfig()
+
     static let filteredNetwork: [HelpTopic: HelpEntry] = [
         .networkPolicy: HelpEntry(
             area: .network,
@@ -93,6 +96,11 @@ extension HelpCatalog {
                     + "answers, and a name left with none is refused. Lookups never use your Mac's search domains. A refused "
                     + "name still tells the guest something (its refusal differs from a name that does not exist), so keep "
                     + "secrets out of names.",
+                "• **Limits on a busy guest.** At most \(limits.maxTCPFlows) connections and \(limits.maxUDPFlows) UDP or ping flows "
+                    + "are open at once (the longest idle UDP and ping flows are closed to make room), \(limits.maxDNSTCPFlows) of "
+                    + "the connections can be DNS lookups over TCP, and a guest can start \(limits.datagramFlowBurst) new UDP or ping "
+                    + "flows at once, then \(Int(limits.datagramFlowsPerSecond)) a second. Anything beyond is refused as too many "
+                    + "connections.",
                 "• **No IPv6.** The guest is given IPv4 only, and IPv6 traffic is dropped.",
                 "• **IPsec and PPTP cannot pass.** Tunnels that need protocols other than TCP, UDP and ping (ESP, AH, GRE) do "
                     + "not work through this network. VMRunner detects them; see VPN indicators.",

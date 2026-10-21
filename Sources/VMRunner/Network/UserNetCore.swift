@@ -21,11 +21,15 @@ final class UserNetCore<Host: UserNetHost, ClockType: Clock> where ClockType.Dur
     let dns = DNSProxy()
     var tcpFlows: [FlowKey: TCPFlow] = [:]
     var tcpByToken: [UInt64: TCPFlow] = [:]
+    /// How many of ``tcpFlows`` are DNS-over-TCP sessions (`maxDNSTCPFlows` bounds them).
+    var localDNSFlows = 0
     var udpFlows: [FlowKey: DatagramFlow] = [:]
     var icmpFlows: [FlowKey: DatagramFlow] = [:]
     var datagramByToken: [UInt64: DatagramFlow] = [:]
     /// Refusals published recently, so a guest hammering a denied destination yields one event, not thousands.
     var denials = DenialSuppression()
+    /// Opening a UDP or ICMP flow costs a host socket, so how fast the guest may open them is limited.
+    var datagramFlowBudget: TokenBucket
     var pendingBatchEnd: [TCPFlow] = []
     var scratchKeys: [FlowKey] = []
     var nextSequence: UInt32
@@ -39,6 +43,7 @@ final class UserNetCore<Host: UserNetHost, ClockType: Clock> where ClockType.Dur
     init(config: UserNetConfig, policy: NetworkPolicy, host: Host, clock: ClockType) {
         ctx = UserNetContext(config: config, host: host)
         gate = PolicyGate(policy: policy, floorExemptions: config.exemptedFloorKinds)
+        datagramFlowBudget = TokenBucket(burst: config.datagramFlowBurst, perSecond: config.datagramFlowsPerSecond)
         self.clock = clock
         origin = clock.now
         nextSequence = config.initialSequenceSeed

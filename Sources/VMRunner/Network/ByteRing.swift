@@ -51,6 +51,19 @@ final class ByteRing {
         return storage.mutableView.readable.slice(from: start, length: length) ?? .empty
     }
 
+    /// Copies `length` bytes starting `offset` after the head, wherever they sit in the ring; `nil` when fewer are held.
+    func bytes(from offset: Int, count length: Int) -> [UInt8]? {
+        guard offset >= 0, length >= 0, offset + length <= count else { return nil }
+        var copy: [UInt8] = []
+        copy.reserveCapacity(length)
+        while copy.count < length {
+            let piece = contiguous(from: offset + copy.count, limit: length - copy.count)
+            guard !piece.isEmpty else { return nil }
+            copy.append(contentsOf: piece.array())
+        }
+        return copy
+    }
+
     /// Drops `length` bytes from the head.
     func discard(_ length: Int) {
         let dropped = min(max(length, 0), count)

@@ -80,7 +80,7 @@ extension UserNetCore {
         case .allow(let allowedName):
             name = allowedName
         }
-        guard udpFlows.count + icmpFlows.count < ctx.config.maxUDPFlows || evictOldestDatagramFlow() else {
+        guard admitNewDatagramFlow() else {
             publishDenied(.icmp, key: key, name: name, .flowLimit)
             return
         }

@@ -59,6 +59,13 @@ struct UserNetConfig: Sendable {
     var vpnDetection = GuestVPNDetector.Configuration()
     var maxTCPFlows = 1024
     var maxUDPFlows = 1024
+    /// DNS-over-TCP sessions open at once. Far fewer than ``maxTCPFlows``: a resolver needs one or two.
+    var maxDNSTCPFlows = 32
+    /// New UDP and ICMP flows the guest may open at once, then ``datagramFlowsPerSecond``. Each one is a host socket, and
+    /// a guest that sends to a new destination with every datagram would otherwise open (and, at the limit, close
+    /// another to make room for) a socket per packet.
+    var datagramFlowBurst = 256
+    var datagramFlowsPerSecond = 128.0
     var tcpIdleTimeout: TimeInterval = 1_800
     var tcpConnectTimeout: TimeInterval = 20
     var udpIdleTimeout: TimeInterval = 60

@@ -20,6 +20,9 @@ struct UserNetStats: Sendable, Hashable {
     var tcpFlowsDenied: UInt64 = 0
     var tcpFlowsFailed: UInt64 = 0
     var tcpRetransmits: UInt64 = 0
+    /// Datagram flows closed to make room, and the passes that did it (a pass closes a batch, so passes are far fewer).
+    var datagramFlowsEvicted: UInt64 = 0
+    var datagramEvictionPasses: UInt64 = 0
     var udpFlowsOpened: UInt64 = 0
     var udpFlowsDenied: UInt64 = 0
     var icmpEchoes: UInt64 = 0

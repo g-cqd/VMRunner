@@ -56,7 +56,7 @@ extension UserNetCore {
         case .allow(let allowedName):
             name = allowedName
         }
-        guard udpFlows.count + icmpFlows.count < ctx.config.maxUDPFlows || evictOldestDatagramFlow() else {
+        guard admitNewDatagramFlow() else {
             denyDatagram(key, name: name, .flowLimit)
             return
         }
@@ -78,11 +78,25 @@ extension UserNetCore {
         publishDenied(.udp, key: key, name: name, denial)
     }
 
-    /// Closes the least recently used datagram flow to make room. `true` if one was closed.
-    func evictOldestDatagramFlow() -> Bool {
-        let oldest = datagramByToken.values.min { $0.lastActivity < $1.lastActivity }
-        guard let oldest else { return false }
-        closeDatagramFlow(oldest, .evicted)
+    /// Whether the guest may open one more UDP or ICMP flow now. How fast it opens them is limited (each is a host
+    /// socket), and at the table's limit the least recently used flows go in one batch, down to a low-water mark: a
+    /// guest that sends to a new destination with every datagram costs one pass per batch, not a scan of the table
+    /// and a closed socket for every packet.
+    func admitNewDatagramFlow() -> Bool {
+        guard datagramFlowBudget.take(now: ctx.now) else { return false }
+        return udpFlows.count + icmpFlows.count < ctx.config.maxUDPFlows || evictLeastRecentlyUsedDatagramFlows()
+    }
+
+    /// Closes the least recently used eighth of the table (at least one flow). `true` if anything was closed.
+    private func evictLeastRecentlyUsedDatagramFlows() -> Bool {
+        guard !datagramByToken.isEmpty else { return false }
+        let batch = max(ctx.config.maxUDPFlows / 8, 1)
+        let oldestFirst = datagramByToken.values.sorted { ($0.lastActivity, $0.token) < ($1.lastActivity, $1.token) }
+        ctx.stats.datagramEvictionPasses += 1
+        for flow in oldestFirst.prefix(batch) {
+            closeDatagramFlow(flow, .evicted)
+            ctx.stats.datagramFlowsEvicted += 1
+        }
         return true
     }
 

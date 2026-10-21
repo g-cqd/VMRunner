@@ -94,6 +94,7 @@ extension UserNetCore {
         for flow in tcpFlows.values where flow.isLive { flow.terminate(.stackStopped, resetGuest: false, ctx: ctx) }
         tcpFlows.removeAll()
         tcpByToken.removeAll()
+        localDNSFlows = 0
         for flow in Array(datagramByToken.values) { closeDatagramFlow(flow, .stackStopped) }
     }
 }

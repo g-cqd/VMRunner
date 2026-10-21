@@ -170,13 +170,9 @@ extension TCPFlow {
     /// Stages guest bytes for the host socket. They are written together at the end of the batch of frames being
     /// processed (see ``flushToHost(ctx:)``), so a burst of segments costs one write call instead of one each.
     private func forwardToHost(_ bytes: ByteView, ctx: UserNetContext<some UserNetHost>) {
-        guard backend == .host else {
-            localInbox.append(contentsOf: bytes.array())
-            return
-        }
         let ring = toHost ?? ctx.receiveRings.acquire()
         toHost = ring
         _ = ring.append(bytes)  // fits: the caller limited `bytes` to the free receive space
-        hostWriteStaged = true
+        hostWriteStaged = backend == .host  // a DNS flow's bytes wait for the core to take whole queries out
     }
 }

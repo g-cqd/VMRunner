@@ -42,7 +42,7 @@ extension UserNetCore {
             flow.batchEndQueued = true
             pendingBatchEnd.append(flow)
         }
-        if flow.backend == .localDNS, !flow.localInbox.isEmpty { drainDNSStream(flow) }
+        if flow.backend == .localDNS, !(flow.toHost?.isEmpty ?? true) { drainDNSStream(flow) }
     }
 
     /// RFC 793 reset for a segment that belongs to no connection.
@@ -94,7 +94,8 @@ extension UserNetCore {
     }
 
     private func startLocalDNS(key: FlowKey, syn: TCPHeader) {
-        guard tcpFlows.count < ctx.config.maxTCPFlows else {
+        // A DNS connection costs no host socket but still a flow and a buffer: far fewer are allowed than flows in all.
+        guard tcpFlows.count < ctx.config.maxTCPFlows, localDNSFlows < ctx.config.maxDNSTCPFlows else {
             refuse(key: key, syn: syn, denial: .flowLimit, name: nil)
             return
         }
@@ -116,11 +117,12 @@ extension UserNetCore {
     private func register(_ flow: TCPFlow) {
         tcpFlows[flow.key] = flow
         tcpByToken[flow.token] = flow
+        if flow.backend == .localDNS { localDNSFlows += 1 }
     }
 
     func removeTCPFlow(_ flow: TCPFlow) {
         if tcpFlows[flow.key] === flow { tcpFlows[flow.key] = nil }
-        tcpByToken[flow.token] = nil
+        if tcpByToken.removeValue(forKey: flow.token) != nil, flow.backend == .localDNS { localDNSFlows -= 1 }
     }
 
     // MARK: Host events

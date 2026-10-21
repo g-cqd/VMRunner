@@ -75,13 +75,13 @@ final class TCPFlow {
 
     // Guest to host.
     var receiveNext: UInt32
+    /// Guest bytes not yet written to the host socket; for a `localDNS` flow, the bytes of queries the resolver front end
+    /// has not consumed yet (at most ``dnsInboxLimit``).
     var toHost: ByteRing?
     var shutdownAfterDrain = false
     var guestFinReceived = false
     /// Both FINs are exchanged but guest data is still waiting for the host socket; finish once it drains.
     var completionPending = false
-    /// DNS-over-TCP bytes from the guest not yet consumed by the resolver (`localDNS` only).
-    var localInbox: [UInt8] = []
     var unacknowledgedSegments = 0
     /// Guest bytes are waiting in ``toHost`` for the end-of-batch write.
     var hostWriteStaged = false
@@ -155,8 +155,15 @@ final class TCPFlow {
     }
     var unsent: Int { max(heldToGuest - inFlight, 0) }
 
+    /// The largest DNS query message a `localDNS` flow accepts. A real query is a few hundred bytes (header, one
+    /// question, perhaps an EDNS option); a longer length prefix is not a query and resets the connection.
+    static let maximumDNSQuery = 4_096
+    /// What a `localDNS` flow buffers: two maximal framed queries, so the guest may pipeline a little.
+    static let dnsInboxLimit = 2 * (2 + maximumDNSQuery)
+
+    /// How many more bytes the guest may send: the free part of the buffer, which for DNS is the small inbox.
     var receiveSpace: Int {
-        receiveCapacity - (backend == .localDNS ? localInbox.count : (toHost?.count ?? 0))
+        (backend == .localDNS ? min(receiveCapacity, Self.dnsInboxLimit) : receiveCapacity) - (toHost?.count ?? 0)
     }
 
     /// The window field for the next segment, and the value remembered as "advertised".
@@ -233,9 +240,10 @@ final class TCPFlow {
         state = .closed
     }
 
-    /// Both FINs have been exchanged. Finishes now, unless guest data is still waiting for the host socket.
+    /// Both FINs have been exchanged. Finishes now, unless guest data is still waiting for the host socket (a DNS flow
+    /// has no host socket: what is left in its inbox is a query that never completed).
     func finishIfDrained(ctx: UserNetContext<some UserNetHost>) {
-        guard toHost?.isEmpty ?? true else {
+        guard backend == .localDNS || (toHost?.isEmpty ?? true) else {
             completionPending = true
             return
         }
@@ -264,7 +272,6 @@ final class TCPFlow {
         if let ring = toHost { ctx.receiveRings.release(ring) }
         toGuest = nil
         toHost = nil
-        localInbox = []
         retransmitDeadline = .infinity
     }
 }

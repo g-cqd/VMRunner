@@ -48,14 +48,29 @@ extension UserNetCore {
         }
     }
 
-    /// Extracts complete length-prefixed queries from a DNS-over-TCP flow's inbox.
+    /// Extracts complete length-prefixed queries from a DNS-over-TCP flow's inbox (its ring: taking one out moves the
+    /// head, nothing is shifted). A length prefix longer than any query resets the connection instead of waiting
+    /// for the rest.
     func drainDNSStream(_ flow: TCPFlow) {
-        while flow.localInbox.count >= 2 {
-            let length = Int(flow.localInbox[0]) << 8 | Int(flow.localInbox[1])
-            guard flow.localInbox.count >= 2 + length else { return }
-            let message = Array(flow.localInbox[2..<(2 + length)])
-            flow.localInbox.removeFirst(2 + length)
+        guard let ring = flow.toHost else { return }
+        while let prefix = ring.bytes(from: 0, count: 2) {
+            let length = Int(prefix[0]) << 8 | Int(prefix[1])
+            guard length <= TCPFlow.maximumDNSQuery else {
+                flow.terminate(.guestReset, resetGuest: true, ctx: ctx)
+                removeTCPFlow(flow)
+                return
+            }
+            guard let message = ring.bytes(from: 2, count: length) else { break }
+            ring.discard(2 + length)
             ByteView.withBytes(of: message) { handleDNSQuery($0, route: .tcp(flowToken: flow.token)) }
+        }
+        if ring.isEmpty, flow.toHost === ring {  // nothing buffered: give the ring back until the next query
+            ctx.receiveRings.release(ring)
+            flow.toHost = nil
+        }
+        // Room opened up in the small inbox: say so, or a guest that filled the window waits for a probe.
+        if flow.state == .established, flow.receiveSpace - flow.advertisedWindow >= 2 * flow.guestMSS {
+            flow.sendAcknowledgement(ctx: ctx)
         }
     }
 }

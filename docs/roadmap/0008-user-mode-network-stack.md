@@ -21,6 +21,8 @@ A review of the stack with the guest as the attacker produced a series of fixes,
   NAT gateway and `198.18.0.0/15` are denied whatever `blockPrivateRanges` says.
 - Refusals are published once per destination per five seconds with the rest counted ("x N"), log lines are coalesced the
   same way, and the stats count the events the reader had no room for.
+- Opening UDP and ping flows is rate-limited and a full table makes room in batches, DNS over TCP buffers at most two
+  queries in a ring (a longer length prefix resets the connection), and at most 32 DNS connections are open at once.
 
 ## Still owed
 

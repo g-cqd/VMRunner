@@ -100,6 +100,14 @@ struct HelpCatalogTests {
         #expect(HelpTopic.networkPolicy.entry.related.contains(.policyLimits))
     }
 
+    @Test func theLimitsTheHelpStatesAreTheLimitsTheStackEnforces() {
+        let limits = UserNetConfig()
+        let text = HelpTopic.policyLimits.entry.paragraphs.joined(separator: " ")
+        #expect(text.contains("\(limits.maxDNSTCPFlows) of the connections can be DNS lookups"))
+        #expect(text.contains("\(limits.datagramFlowBurst) new UDP or ping flows at once"))
+        #expect(text.contains("\(Int(limits.datagramFlowsPerSecond)) a second"))
+    }
+
     @Test func numbersInHelpComeFromTheSameConstantsAsTheControls() {
         let text = HelpTopic.diskSize.entry.paragraphs.joined(separator: " ")
         #expect(text.contains("\(EditorLimits.maxDiskGiB) GiB"))
