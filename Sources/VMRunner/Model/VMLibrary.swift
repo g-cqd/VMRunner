@@ -19,12 +19,32 @@ final class VMLibrary {
     var alertMessage: String?
     /// Size in points of the detail pane, used to size the guest display at start.
     @ObservationIgnored var displayHint: CGSize?
+    /// A start that waits for the user to approve host paths the app has not seen them choose.
+    var pendingApproval: PendingApproval?
+
+    /// Host paths in a machine's configuration that the user has not approved yet.
+    struct PendingApproval: Identifiable {
+        let id: UUID
+        let name: String
+        let grants: [HostPathGrant]
+
+        var message: String {
+            "“\(name)” gives the guest access to host paths you haven't approved in this app. A machine you copied from "
+                + "elsewhere can name any file your account can read.\n\n"
+                + grants.map { "• \($0.summary)" }.joined(separator: "\n")
+        }
+    }
 
     private let machinesDirectory: URL
     @ObservationIgnored private let persistence: ConfigPersistence
+    @ObservationIgnored private var approvals: HostPathApprovals
 
-    init(machinesDirectory: URL = AppPaths.machines, saveDelay: Duration = .milliseconds(400)) {
+    /// `approvalsFile` defaults to a file beside the machines folder (outside every bundle).
+    init(machinesDirectory: URL = AppPaths.machines, saveDelay: Duration = .milliseconds(400), approvalsFile: URL? = nil) {
         self.machinesDirectory = machinesDirectory
+        approvals = HostPathApprovals(
+            file: approvalsFile
+                ?? machinesDirectory.deletingLastPathComponent().appending(path: "\(machinesDirectory.lastPathComponent).approvals.json"))
         persistence = ConfigPersistence(quietPeriod: saveDelay, clock: ContinuousClock()) { config in
             try config.encoded().write(to: VMBundle(id: config.id, in: machinesDirectory).config, options: .atomic)
         }
@@ -58,6 +78,24 @@ final class VMLibrary {
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         selection = selection ?? machines.first?.id
         discardAllEphemeral()
+        // An upgrade: machines that exist before approvals were ever recorded are the user's own.
+        recordApprovals { try $0.grandfather(machines) }
+    }
+
+    /// Runs `change` on the approvals and reports a failure to save them.
+    private func recordApprovals(_ change: (inout HostPathApprovals) throws -> Void) {
+        do {
+            try change(&approvals)
+        } catch {
+            Log.storage.error("Couldn't save host path approvals: \(error.localizedDescription, privacy: .private)")
+            alertMessage = "Couldn't save which host folders and disks you approved: \(error.localizedDescription)"
+        }
+    }
+
+    /// Records that the user chose these paths for the machine. Call it only from what the user did (a file picker, the
+    /// New Machine sheet), never from a settings change that may come from a file on disk.
+    func approveHostPaths(_ grants: [HostPathGrant], for id: UUID) {
+        recordApprovals { try $0.approve(grants, for: id) }
     }
 
     /// Reads one bundle's config, skipping any whose folder name doesn't match its id (a stray copy would
@@ -115,6 +153,10 @@ final class VMLibrary {
     func add(_ config: VMConfig) throws {
         try bundle(config.id).create()
         try persist(config)
+        // The user made this machine in the New Machine sheet, including a local installer image they picked there.
+        var grants = config.hostGrants
+        if case .local(let path) = config.source { grants.append(HostPathGrant(.installer, path, writable: false)) }
+        approveHostPaths(grants, for: config.id)
         insert(config)
     }
 
@@ -147,6 +189,7 @@ final class VMLibrary {
         if controllers[id]?.isActive == true { return }
         jobs[id]?.cancel()
         persistence.discard(id)
+        recordApprovals { try $0.forget(id) }
         bundle(id).remove(bundle(id).url)
         machines.removeAll { $0.id == id }
         controllers[id] = nil
@@ -186,6 +229,7 @@ final class VMLibrary {
             source.remove(staging)
             throw error
         }
+        recordApprovals { try $0.inherit(from: id, to: copy.id) }
         insert(copy)
     }
 
@@ -219,11 +263,37 @@ final class VMLibrary {
 
     var selectedController: VMController? { selection.map { controller(for: $0) } }
 
-    func startMachine(_ id: UUID) {
+    /// The host paths in the machine's configuration that the user has not approved.
+    func unapprovedHostPaths(for id: UUID) -> [HostPathGrant] {
+        machine(id).map { approvals.missing($0.hostGrants, for: id) } ?? []
+    }
+
+    /// Starts a machine, or, when its configuration names host paths the user has not approved, asks first (`interactive`)
+    /// or refuses and logs (a launch argument has nobody to ask).
+    func startMachine(_ id: UUID, interactive: Bool = true) {
         guard let config = machine(id), config.isProvisioned, jobs[id] == nil else { return }
+        let unapproved = unapprovedHostPaths(for: id)
+        guard unapproved.isEmpty else {
+            if interactive {
+                pendingApproval = PendingApproval(id: id, name: config.name, grants: unapproved)
+            } else {
+                let paths = unapproved.map(\.summary).joined(separator: ", ")
+                Log.machine.error(
+                    "Not starting “\(config.name, privacy: .private)”: host paths aren't approved: \(paths, privacy: .private)")
+            }
+            return
+        }
         let controller = controller(for: id)
         let windowSize = displayHint
         Task { await controller.start(config, bundle: bundle(id), library: self, windowSize: windowSize) }
+    }
+
+    /// The user's answer "Approve and Start" to `pendingApproval`.
+    func approvePendingAndStart() {
+        guard let pending = pendingApproval else { return }
+        pendingApproval = nil
+        approveHostPaths(pending.grants, for: pending.id)
+        startMachine(pending.id)
     }
 
     func suspendMachine(_ id: UUID) {

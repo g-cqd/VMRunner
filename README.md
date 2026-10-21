@@ -83,6 +83,9 @@ Contained stays on NAT on purpose: the filtered network below is newer and less 
 selects it. Choose it yourself (the profile then reads *Custom*).
 
 The entropy device is never removed: the guest needs it for randomness.
+A machine's `config.json` is only data, so the shared folders, extra disks and installer image it names are used only
+after you approved them in the app (the file pickers, the New Machine sheet, or "Approve and Start"). A machine copied
+from elsewhere asks at Start; `VMRunner --start` refuses to start it (ADR-0024).
 These settings narrow the host–guest channels. They don't make an untrusted guest safe on their own.
 
 ## Filtered network (user-mode)

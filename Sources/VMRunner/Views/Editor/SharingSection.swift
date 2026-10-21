@@ -9,6 +9,7 @@ struct SharingSection: View {
     @Binding var clipboard: Bool
     @Binding var rosetta: Bool
     var model: SharingModel
+    let addFolder: (URL) -> Void
 
     @State private var choosingFolder = false
 
@@ -36,7 +37,7 @@ struct SharingSection: View {
             HelpHeader("Sharing", topic: .sharedFolders)
         }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
-            if let url = try? result.get() { folders.append(SharedFolder(path: url.path)) }
+            if let url = try? result.get() { addFolder(url) }
         }
     }
 

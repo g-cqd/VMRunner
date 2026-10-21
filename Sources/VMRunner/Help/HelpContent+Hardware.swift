@@ -99,6 +99,7 @@ extension HelpCatalog {
                 "• Tick **Read-only** to stop the guest from changing it.",
                 "• Never attach the same writable image to two running machines. They would corrupt it.",
                 "Extra disks are **not** protected by Disposable mode: a writable extra disk keeps whatever the guest writes to it.",
+                "A disk you did not add yourself, for example in a machine copied from elsewhere, needs your approval at Start.",
             ],
             related: [.disposable]
         ),

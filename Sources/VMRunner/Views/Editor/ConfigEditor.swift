@@ -38,7 +38,7 @@ struct ConfigEditor: View {
             }
             SharingSection(
                 guest: config.guest, folders: $config.sharedFolders, clipboard: $config.sharesClipboard,
-                rosetta: $config.rosetta, model: sharing)
+                rosetta: $config.rosetta, model: sharing, addFolder: model.addSharedFolder)
             if config.guest == .macOS {
                 BootSection(recovery: $config.bootIntoRecovery, hasBooted: config.hasBooted, provisioning: $config.provisioning)
             }

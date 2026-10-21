@@ -49,6 +49,8 @@ extension HelpCatalog {
                 "• Tick **Read-only** to let the guest look but not change anything. Do this unless the guest must write.",
                 "A writable shared folder is the biggest door between guest and Mac: software in the guest can change or delete "
                     + "everything in it.",
+                "VMRunner only starts a machine with folders you chose in this app. If a machine you copied from elsewhere names "
+                    + "folders, disks or an installer you did not choose, Start lists them and asks before it goes ahead.",
             ],
             advanced: [
                 "Sharing uses virtio-fs. Several folders are exposed under one share, each as a sub-folder named after the original "

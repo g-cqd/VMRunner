@@ -75,6 +75,16 @@ struct ContentView: View {
                 ContentUnavailableView("Select a Machine", systemImage: "sidebar.left")
             }
         }
+        .alert(
+            "Approve host access?",
+            isPresented: Binding(get: { library.pendingApproval != nil }, set: { if !$0 { library.pendingApproval = nil } }),
+            presenting: library.pendingApproval
+        ) { _ in
+            Button("Approve and Start") { library.approvePendingAndStart() }
+            Button("Cancel", role: .cancel) {}
+        } message: { pending in
+            Text(pending.message)
+        }
     }
 }
 

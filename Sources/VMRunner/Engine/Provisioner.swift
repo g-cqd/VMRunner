@@ -34,6 +34,11 @@ enum Provisioner {
         if let iso = try await resolveMedia(config.source, job: job) {
             config.installerISO = iso.path
             config.installerAttached = true
+            // A download lands in the app's own cache; an image the user picked was approved when the machine was created.
+            if case .local = config.source {
+            } else {
+                library.approveHostPaths([HostPathGrant(.installer, iso.path, writable: false)], for: config.id)
+            }
         }
 
         try createBundleAndDisk(for: config, in: bundle, job: job)

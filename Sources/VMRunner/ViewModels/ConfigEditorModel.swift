@@ -75,13 +75,26 @@ final class ConfigEditorModel {
     /// Applies the file the user picked for `target`.
     func importFile(_ url: URL, for target: PickerTarget?) {
         guard var config = library.machine(id), let target else { return }
+        let grant: HostPathGrant
         switch target {
         case .extraDisk:
             config.extraDisks.append(ExtraDisk(path: url.path))
+            grant = HostPathGrant(.extraDisk, url.path, writable: true)
         case .installerISO:
             config.installerISO = url.path
             config.installerAttached = true
+            grant = HostPathGrant(.installer, url.path, writable: false)
         }
         library.update(config)
+        // The user picked this file just now; a writable approval also covers it being switched to read-only.
+        library.approveHostPaths([grant], for: id)
+    }
+
+    /// Adds the folder the user picked to the machine's shared folders.
+    func addSharedFolder(_ url: URL) {
+        guard var config = library.machine(id) else { return }
+        config.sharedFolders.append(SharedFolder(path: url.path))
+        library.update(config)
+        library.approveHostPaths([HostPathGrant(.sharedFolder, url.path, writable: true)], for: id)
     }
 }

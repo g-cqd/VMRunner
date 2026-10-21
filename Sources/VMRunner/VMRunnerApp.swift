@@ -48,7 +48,7 @@ struct VMRunnerApp: App {
         library.selection = config.id
         // Give the window a moment to lay out so the guest display can match its size.
         await poll(every: .milliseconds(100), attempts: 20, clock: ContinuousClock()) { library.displayHint != nil }
-        library.startMachine(config.id)
+        library.startMachine(config.id, interactive: false)
     }
 }
 
