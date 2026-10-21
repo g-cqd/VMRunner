@@ -92,7 +92,9 @@ end, they run the real `vmr` binary against fixture packages, a local fixture an
 repositories. They lint with the pinned SwiftLint (installed on first use, or the binary `SWIFTLINT_BIN` names), build real
 packages and run in about twenty seconds in parallel. Keep new
 tooling in Swift: no shell or Python files. The two dependencies (swift-subprocess, swift-argument-parser) are pinned with
-`exact:`; the app target and its tests must never link them.
+`exact:`; the app target and its tests must never link them. The same goes for `VMHelperKit` and `VMHelper`, the
+headless helper of the sandbox spike (roadmap 0025): `swift run vmr sandbox-spike run` launches it under App Sandbox or a
+Seatbelt profile. Without `--boot` it only probes and validates; `--boot` starts a virtual machine and is for the owner.
 
 ## Continuous integration
 

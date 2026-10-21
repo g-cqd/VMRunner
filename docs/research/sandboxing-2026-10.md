@@ -163,7 +163,185 @@ Debugging: Console filtered on subsystem `com.apple.sandbox.reporting`; the unif
 - Helper sandboxes can break when macOS changes its allowed Mach lookups. Keep a regression test that boots a workload at
   each level.
 
+## Spike results (2026-10-22)
+
+The prototype of the plan above was built and run without starting a machine: everything below was run on the host named
+at the top (an Apple M3, macOS 26.7.1, SDK macOS 27) with `--probe` and `--dry-run`. **Whether a guest boots inside
+either engine is not known yet**; the owner's run, described below, decides it.
+
+### What compiled
+
+- `Sources/VMHelperKit` (library): the JSON descriptor and its path checks, the line-delimited events, the exit-status
+  mapping, the grants both engines are derived from, and the Seatbelt profile generator. Pure Swift with unit tests.
+- `Sources/VMHelper` (executable): links the system frameworks and `VMHelperKit` only, never the app. `--dry-run` builds the
+  `VZVirtualMachineConfiguration` and calls `validate()` without creating a machine; `--probe` tries the operations a
+  helper needs and reports each as allowed or refused; `--start` boots (owner only). Events go to standard output
+  (`booting`, `running`, `stopped`, `error`, `validated`, `probe`), the guest's serial console to standard error. Exit
+  statuses are the `sysexits.h` values: 0, 64 usage, 65 bad descriptor, 66 file missing or hidden, 69 configuration
+  rejected, 70 start failed.
+- `vmr sandbox-spike run --engine none|seatbelt|app-sandbox --level standard|strict --descriptor FILE [--boot]` builds and
+  signs the helper for the engine, launches it, reads the denials of its pid from the unified log, and prints the report.
+  `vmr sandbox-spike profile` prints the generated Seatbelt profile. The signing code is in `Sources/DevTools/App`, next to
+  `AppBundler`, with the entitlements in `Resources/VMHelper*.entitlements` and the bundle's `Resources/VMHelper.Info.plist`.
+- The app target gained no dependency, and `swift run vmr check` is green. The helper copies the minimum of the app's
+  `ConfigurationBuilder` (Linux, EFI or kernel boot, disks, an ISO, entropy, NAT, a file-handle NIC). The app's user-mode
+  network stack (about 5,000 lines in `Sources/VMRunner/Network`) was **not** copied, so a machine started by the helper
+  has a NIC on a socket pair that nothing serves. Extracting the stack and the builder into libraries is the follow-up that
+  lets the app and the helper share them.
+
+### How the engines were set up
+
+- `none`: the helper signed ad hoc with the hardened runtime and only `com.apple.security.virtualization`. The entitlement
+  is needed even by `--dry-run`: `validate()` on an unsigned binary fails with "The process doesn't have the
+  com.apple.security.virtualization entitlement".
+- `app-sandbox`: a bundle (a bare executable with `app-sandbox` traps, as the tests above found) signed with `app-sandbox`
+  and `virtualization`, plus, for the descriptor, `com.apple.security.temporary-exception.files.absolute-path.read-only`
+  and `.read-write` arrays naming each path, plus `network.client` at the standard level when the helper hosts the guest's
+  network. `vmr` reads the entitlements back from the signed bundle and fails if they differ from what was asked.
+  **How the sandboxed helper reaches files** was decided by what worked: with no path entitlement the helper cannot even
+  read its descriptor (status 66); with the exceptions it can. A file descriptor cannot carry a disk, because the
+  framework's disk attachment takes a URL. A security-scoped bookmark is documented to resolve only in the app that made it,
+  so an unsandboxed launcher could not hand one to a separately signed helper (not tested here). Staging the files inside
+  the helper's container was not tried. The price of the exceptions is that the grants live in the signature, so the bundle
+  is signed again for each descriptor (ad hoc, milliseconds), and that the exception entitlement is unavailable to a Mac App
+  Store build, which the app already is not. Running the helper creates
+  `~/Library/Containers/com.example.VMRunner.VMHelper`.
+- `seatbelt`: the plain helper under `sandbox-exec -f build/sandbox-spike/seatbelt-<level>.sb`. The generated profile
+  (`vmr sandbox-spike profile` prints it) is `(deny default)`, `(import "dyld-support.sb")`, the helper's `process-exec`,
+  system reads, nine `sysctl-read` names, four Mach lookups, one shared-memory name, a `file-read-metadata` rule for each
+  directory above a granted file, and for each granted file a `literal` rule plus the `file-issue-extension` rules meant to
+  let the framework hand the file to the per-machine service. The standard level with a hosted network adds outbound sockets
+  and the resolver.
+
+### What running it showed
+
+Every combination of the three engines, both levels and two descriptors (EFI boot with an ISO, a disk and a file-handle NIC;
+kernel boot with an initial ramdisk, a disk and the NAT attachment) **validated**: `validate()` succeeded inside App Sandbox
+and inside the Seatbelt profile, which is the first evidence that neither engine stops the framework from building a
+configuration. The probe, with the first descriptor:
+
+| Operation (as the helper saw it) | none | Seatbelt standard | Seatbelt strict | App Sandbox standard | App Sandbox strict |
+|---|---|---|---|---|---|
+| open the granted files (ISO, disk) | allowed | allowed | allowed | allowed | allowed |
+| datagram socket pair, a datagram crossing it | allowed | allowed | allowed | allowed | allowed |
+| connect TCP, send UDP, connect an ICMP echo socket | allowed | allowed | refused | allowed | refused |
+| resolve `example.com` | allowed | allowed | refused | allowed | refused |
+| read `/etc/hosts`, resolve `localhost` | allowed | allowed | refused | allowed | allowed |
+| bind a UDP socket on loopback | allowed | refused | refused | refused | refused |
+| list the real home directory | allowed | refused | refused | refused | refused |
+| create a file under `/private/tmp` | allowed | refused | refused | refused | refused |
+
+The second descriptor (NAT) at the standard level gave the strict column's socket results in both engines, because only a
+network the helper hosts asks for host sockets.
+
+What the denials and the refusals mean:
+
+- **The strict level is real in both engines.** Without any network permission the socket pair still works, so a guest
+  network that arrives as a descriptor needs no entitlement and no rule, while every outbound socket and the resolver are
+  refused. That is the strict design in the settings model.
+- **The two engines do not give the same baseline.** App Sandbox still lets a process read `/etc/hosts`, so `localhost`
+  resolves at the strict level; the generated profile refuses it. A level cannot promise identical behaviour across
+  engines; it can promise "no host sockets".
+- **Binding is a separate permission.** App Sandbox refused `bind` with only `network.client` (it documents
+  `network.server` for this; not tried), and the profile omits `network-bind`. The user-mode stack connects and never
+  binds, so it should need neither.
+- **What the profile needs to start at all**, found one denial at a time: the loader's bootstrap, which is why the profile
+  imports Apple's private `dyld-support.sb` (without it the process aborts with status 134 before it runs a line, and the
+  log shows no denial); the real path of every file (`/tmp` is a link, and a rule for `/tmp/x` never matches);
+  `file-read-metadata` on every directory above a granted file; `sysctl-read` of `kern.hv_support` (without it
+  `validate()` says virtualization is unavailable on this hardware) and eight more names; the Mach service
+  `com.apple.diskimagescontroller`, which the framework asks to validate a disk image; `com.apple.logd` and
+  `com.apple.system.notification_center`; the shared-memory name `apple.shm.notification_center`. Left denied, harmlessly:
+  `/dev/dtracehelper` and the `syslog` socket.
+- **A path holding a quote, a backslash or a newline cannot be written into a profile.** A `"` ends the quoted string and
+  the rest is parsed as code (`sandbox-exec: unbound variable`), so the descriptor reader and the generator both refuse
+  quotes, backslashes and control characters, relative paths and `..`. Parentheses, semicolons and spaces inside the quoted
+  string are inert and accepted (checked with `sandbox-exec -p`).
+- **The unified log undercounts.** The predicate `sender == "Sandbox" AND eventMessage CONTAINS "(<pid>) deny"` returns lines
+  such as `Sandbox: <name>(<pid>) deny(1) <operation> <target>`, and the launcher's pid is the helper's (`sandbox-exec`
+  replaces itself). But the kernel throttles these lines: three consecutive launches of the same App Sandbox helper logged
+  0, 0 and 1 of the same three denials, and the next three logged 3, 3, 3. A `log stream` running alongside recorded
+  exactly what `log show` returned, so the lines were never emitted. The report therefore trusts the helper's own
+  `refused` verdicts and treats the log as a lower bound.
+- Cost: a probe or a dry run takes 30 to 150 ms in any engine. Boot time was not measured.
+
+### What this means for the model in ADR-0016
+
+- **Engines.** `none`, `appSandbox` and `seatbelt` hold up as three renderings of one set of grants (files to read, files to
+  write, host sockets or not), derived once from the workload. That is how the spike is built, and both engines accepted the
+  same configurations.
+- **Levels.** `standard` and `strict` are meaningful as "may the helper open host sockets"; nothing else was needed to tell
+  them apart. `custom` was not exercised.
+- **File access for App Sandbox helpers is the open design question.** Temporary exceptions work but put the grants in the
+  signature, so the helper bundle is re-signed per workload. Whether an ad-hoc re-signed bundle may be launched by a
+  notarized app, and whether cloning a workload's disks into the helper's container is better, are not tested. The ADR's
+  "What this does not decide" should gain this.
+- **A regression test cannot rely on the log.** The "boot a workload at each level" test in the risks above must read the
+  helper's events and probe verdicts.
+- **A virtual machine inside a Seatbelt helper is still unverified**, as is every Mach service the framework looks up when a
+  machine starts. The profile lists `com.apple.Virtualization.VirtualMachine` as a guess. ADR-0016 is not changed by this
+  spike.
+
+### The owner's boot run
+
+Agents never start virtual machines, so one run is left. It needs an Apple silicon Mac, a checkout of this repository, an
+arm64 Linux installer ISO (the smallest one the app offers is enough) and about ten minutes. The helper writes the disk, so
+use scratch copies.
+
+```sh
+mkdir -p ~/spike && cd ~/spike
+truncate -s 8g disk.img                      # an empty raw disk, sparse on APFS
+cp /path/to/linux-arm64.iso linux.iso        # any arm64 installer ISO that boots under UEFI
+cat > d.json <<'JSON'
+{ "version": 1, "name": "spike", "cpuCount": 2, "memoryMiB": 2048,
+  "boot": { "kind": "efi", "variableStore": "/Users/YOU/spike/efi.nvram" },
+  "disks": [ { "path": "/Users/YOU/spike/disk.img" } ],
+  "installerISO": "/Users/YOU/spike/linux.iso", "network": "fileHandle" }
+JSON
+sed 's/"fileHandle"/"nat"/' d.json > d-nat.json
+```
+
+Paths must be absolute. Then, from the repository root (the first command builds the helper, which takes a few minutes):
+
+```sh
+swift run vmr sandbox-spike run --engine none        --descriptor ~/spike/d.json --boot --run-seconds 40
+swift run vmr sandbox-spike run --engine seatbelt    --descriptor ~/spike/d.json --boot --run-seconds 40
+swift run vmr sandbox-spike run --engine app-sandbox --descriptor ~/spike/d.json --boot --run-seconds 40
+swift run vmr sandbox-spike run --engine seatbelt    --descriptor ~/spike/d-nat.json --boot --run-seconds 40
+swift run vmr sandbox-spike run --engine app-sandbox --descriptor ~/spike/d-nat.json --boot --run-seconds 40
+```
+
+Each run probes, validates, then starts the machine, lets it run for `--run-seconds`, and stops it; it takes about a minute
+plus ten seconds for the log. Run `none` first: it is the control, and if it fails the others mean nothing.
+
+Expected on success, at the top of the report:
+
+```
+boots at all:         yes: the framework reported the machine running after 0.4 s
+boot time:            0.3 s from booting to running (...)
+dry run:              the configuration validated
+```
+
+and under `start:` an exit status of 0 and no `refused` line. A guest that never writes to its serial console is normal for
+an installer ISO (the report says `the guest wrote nothing to its console`); the claim is only that the framework reported
+the machine running.
+
+Report, for each of the five runs, the whole text the command printed, and whether a window or a prompt appeared. If the
+machine did not start, the report already names the failing step (`no: the machine failed to start: ...`) and lists the
+sandbox denials, whose Mach-lookup names are what the profile is missing. Also report `ls ~/Library/Containers | grep
+VMHelper` and whether `~/spike/efi.nvram` exists afterwards. To clean up:
+`rm -rf build/sandbox-spike ~/spike ~/Library/Containers/com.example.VMRunner.VMHelper`.
+
+Reading the result: five times `yes` means both engines carry a headless machine, and the roadmap entry can move on to the
+settings model. A failure under `seatbelt` only means the profile misses a Mach service or a file rule, which the denials
+name. A failure under `app-sandbox` that the denials do not explain would mean the framework needs something an App Sandbox
+helper cannot be given, which would leave `seatbelt` as the only engine for helpers.
+
 ## Not verified
 
-The behaviour of the user-mode stack under App Sandbox, whether the framework issues extensions as inferred, the exact
-unified-log predicate, and the wording of a later Apple engineer comment about the macOS 27 descendants client.
+Everything about a machine that is actually running inside either engine (the owner's run above): the Mach services and file
+rules the framework needs once a machine starts, whether the framework issues the sandbox extensions as inferred, NAT inside
+either engine, and boot time. Also: the user-mode network stack hosted in a helper (it was not extracted from the app), a
+security-scoped bookmark or a container-staged disk as the App Sandbox file mechanism, `network.server` for binding, whether
+an ad-hoc re-signed helper bundle can be launched by a notarized app, and the wording of a later Apple engineer comment about
+the macOS 27 descendants client.
