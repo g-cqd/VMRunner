@@ -177,3 +177,7 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
     `swift package --disable-sandbox --scratch-path .build-plugin build-app ...`, or simply use `swift run vmr`.
 
 See `CONTRIBUTING.md` for the code rules and `SECURITY.md` for how to report a vulnerability.
+
+## License
+
+MIT, see `LICENSE`.
