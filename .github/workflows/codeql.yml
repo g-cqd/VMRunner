@@ -1,0 +1,66 @@
+name: CodeQL
+
+# Code scanning needs a public repository or GitHub Advanced Security. Results appear under Security >
+# Code scanning. If neither applies, delete this workflow (or the analyze step fails at upload).
+#
+# Swift caveat: CodeQL's documented Swift support is "Swift 5.4-6.3" (codeql.github.com, supported languages
+# and frameworks). This package needs Swift 6.4 / Xcode 27, so the Swift extraction may fail or produce partial
+# results until CodeQL adds 6.4; that matrix entry is therefore allowed to fail (`experimental`) rather than
+# block merges. The `actions` entry scans the workflows themselves and has no such limit.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1" # weekly, Monday 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    continue-on-error: ${{ matrix.experimental }}
+    # Only this job may write code-scanning results.
+    permissions:
+      contents: read # check out the code
+      actions: read # CodeQL reads workflow run metadata on private repositories
+      security-events: write # upload code-scanning results
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: swift
+            runner: xcode-27
+            build-mode: manual
+            experimental: true
+          - language: actions
+            runner: ubuntu-24.04
+            build-mode: none
+            experimental: false
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Build (Swift only, traced by CodeQL)
+        if: ${{ matrix.language == 'swift' }}
+        run: swift build
+      - name: Analyze
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"

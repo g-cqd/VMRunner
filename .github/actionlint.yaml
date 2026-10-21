@@ -1,0 +1,7 @@
+# actionlint's built-in runner-label list lags GitHub's runner-images README.
+# `xcode-27` is the hosted macOS image with Xcode 27 (listed in actions/runner-images as of 2026-10);
+# without this entry actionlint reports it as an unknown label.
+self-hosted-runner:
+  labels:
+    - xcode-27
+    - xcode-27-xlarge

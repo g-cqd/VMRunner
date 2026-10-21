@@ -1,0 +1,224 @@
+name: CI
+
+# Every job runs Scripts/check.sh (or build-app.sh) so CI and a local run execute the same steps.
+#
+# Runner notes:
+#  * `xcode-27` is GitHub's hosted macOS image with Xcode 27.0 (27A266a, Swift 6.4). Package.swift needs
+#    swift-tools-version 6.4, so `macos-26` (Xcode 26.x, Swift 6.3 at most) cannot build this package. The
+#    label is a preview as of the runner-images README: verify it still exists and still ships Xcode 27 /
+#    Swift 6.4 when this workflow starts failing at "Toolchain". Pinned Xcode path: see DEVELOPER_DIR below.
+#  * Hosted macOS runners are themselves virtual machines and cannot run nested virtual machines, and the
+#    Virtualization entitlement-gated code needs a display. So only the unit tests run in CI; they never
+#    start a VM. `Views`, `VMController`, `Provisioner` and `ConfigurationBuilder` are covered by hand on a real Mac.
+#  * swiftlint and shellcheck come from Homebrew at whatever version it serves (not pinned); swift-format is
+#    the one in the Xcode toolchain.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege for every job; no job below needs more.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_NO_ANALYTICS: "1"
+
+jobs:
+  lint:
+    name: Lint (swift-format, SwiftLint, ShellCheck)
+    runs-on: xcode-27
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          swift --version
+          swift --version 2>&1 | grep -q 'Swift version 6\.4'
+      - name: Install linters
+        run: brew install swiftlint shellcheck
+      - name: Lint
+        run: Scripts/check.sh format swiftlint shellcheck
+
+  build-test:
+    name: Build and unit tests
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          swift --version
+          swift --version 2>&1 | grep -q 'Swift version 6\.4'
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
+      - name: Build and test
+        env:
+          SWIFT_TEST_FLAGS: --xunit-output .build-ci/test-results.xml
+        run: |
+          mkdir -p .build-ci
+          Scripts/check.sh build test
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results
+          path: .build-ci/
+          if-no-files-found: warn
+          retention-days: 14
+
+  app-bundle:
+    name: App bundle (release, hardened, signature and entitlement checks)
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Builds and ad-hoc signs only; it never launches the app or starts a VM. The script itself fails on
+      # get-task-allow, unexpected entitlements, a bad signature or a missing hardened-runtime flag.
+      - name: Build and verify
+        run: Scripts/build-app.sh release --hardened
+
+  sanitizers:
+    name: Sanitizer (${{ matrix.step }})
+    runs-on: xcode-27
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        step: [asan, tsan, ubsan]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build-${{ matrix.step }}
+          key: spm-${{ matrix.step }}-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            spm-${{ matrix.step }}-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
+      - name: Tests under the sanitizer
+        env:
+          STEP: ${{ matrix.step }}
+        run: Scripts/check.sh "$STEP"
+
+  coverage:
+    name: Coverage gate
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build-cov
+          key: spm-cov-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            spm-cov-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
+      - name: Coverage (COVERAGE_MIN is a ratchet, see Scripts/check.sh)
+        run: Scripts/check.sh coverage
+      - name: Upload coverage summary
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-summary
+          path: .build-cov/coverage-summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # arcleak, dolly and deadwood run through their published composite actions, pinned to the commit of the
+  # release tag. The actions default `version` to their own ref, which is a SHA here, so `version` must be
+  # passed. Keep these SHAs and versions equal to Scripts/analyzers.lock (Scripts/analyzers.sh pins checks it).
+  # `upload-sarif: 'false'` keeps the job at contents: read; set it to 'true' and grant `security-events: write`
+  # on this job only if code scanning is enabled for the repository. The actions run `github/codeql-action/
+  # upload-sarif@v4` internally (an unpinned reference inside their action.yml, which this workflow cannot pin).
+  analyzers:
+    name: Analyzers (arcleak, dolly, deadwood)
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Pins match Scripts/analyzers.lock
+        run: Scripts/analyzers.sh pins
+      - name: arcleak (retain cycles and leaks)
+        uses: g-cqd/arcleak@8a357cd18c43a4bcc84d968f31f954c45242cd69 # v0.10.2
+        with:
+          version: '0.10.2' # arcleak
+          paths: Sources Tests
+          config: .arcleak.json
+          baseline: .arcleak-baseline.json
+          strict: 'true'
+          upload-sarif: 'false'
+      - name: dolly (duplicate code; exact clones fail, near and structural are advisory)
+        if: ${{ !cancelled() }}
+        uses: g-cqd/dolly@2e56ae7ec8b0d491fd15bb20fe2b4f9c9751c702 # v0.10.2
+        with:
+          version: '0.10.2' # dolly
+          paths: Sources Tests
+          config: .dolly.json
+          baseline: .dolly-baseline.json
+          upload-sarif: 'false'
+      - name: deadwood (unused and dead code)
+        if: ${{ !cancelled() }}
+        uses: g-cqd/deadwood@2c048101fda2bb02aa41214b2e761c51059b55cd # v0.10.1
+        with:
+          version: '0.10.1' # deadwood
+          paths: Sources Tests
+          config: .deadwood.json
+          baseline: .deadwood-baseline.json
+          strict: 'true'
+          upload-sarif: 'false'
+      - name: Findings
+        if: ${{ !cancelled() }}
+        run: python3 -I Scripts/sarif-summary.py arcleak.sarif dolly.sarif deadwood.sarif
+      - name: Upload SARIF reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: analyzer-sarif
+          path: |
+            arcleak.sarif
+            dolly.sarif
+            deadwood.sarif
+          if-no-files-found: warn
+          retention-days: 14
+
+  # One required status check for branch protection: it fails if any job above failed or was skipped.
+  ci-ok:
+    name: CI passed
+    if: ${{ always() }}
+    needs: [lint, build-test, app-bundle, sanitizers, coverage, analyzers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 -I -c '
+          import json, os, sys
+          bad = {name: job["result"] for name, job in json.loads(os.environ["NEEDS"]).items() if job["result"] != "success"}
+          if bad:
+              sys.exit(f"jobs not successful: {bad}")
+          '
