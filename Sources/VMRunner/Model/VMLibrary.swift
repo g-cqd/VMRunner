@@ -21,10 +21,22 @@ final class VMLibrary {
     @ObservationIgnored var displayHint: CGSize?
 
     private let machinesDirectory: URL
+    @ObservationIgnored private let persistence: ConfigPersistence
 
-    init(machinesDirectory: URL = AppPaths.machines) {
+    init(machinesDirectory: URL = AppPaths.machines, saveDelay: Duration = .milliseconds(400)) {
         self.machinesDirectory = machinesDirectory
+        persistence = ConfigPersistence(quietPeriod: saveDelay, clock: ContinuousClock()) { config in
+            try config.encoded().write(to: VMBundle(id: config.id, in: machinesDirectory).config, options: .atomic)
+        }
+        persistence.onFailure = { [weak self] config, error in
+            guard let self else { return }
+            Log.storage.error("Couldn't save settings: \(error.localizedDescription, privacy: .public)")
+            alertMessage = "Couldn't save “\(config.name)”: \(error.localizedDescription)"
+        }
     }
+
+    /// Writes any settings change that is still waiting for edits to pause. Call before reading the files on disk.
+    func flushPendingWrites() { persistence.flush() }
 
     func bundle(_ id: UUID) -> VMBundle { VMBundle(id: id, in: machinesDirectory) }
 
@@ -112,12 +124,7 @@ final class VMLibrary {
         // can't tell that saved state no longer matches. Drop it.
         if machines[index].secureBoot != config.secureBoot { bundle(config.id).discardSavedState() }
         machines[index] = config
-        do {
-            try persist(config)
-        } catch {
-            Log.storage.error("Couldn't save settings: \(error.localizedDescription, privacy: .public)")
-            alertMessage = "Couldn't save “\(config.name)”: \(error.localizedDescription)"
-        }
+        persistence.schedule(config)
     }
 
     private func persist(_ config: VMConfig) throws {
@@ -133,6 +140,7 @@ final class VMLibrary {
     func delete(_ id: UUID) {
         if controllers[id]?.isActive == true { return }
         jobs[id]?.cancel()
+        persistence.discard(id)
         bundle(id).remove(bundle(id).url)
         machines.removeAll { $0.id == id }
         controllers[id] = nil

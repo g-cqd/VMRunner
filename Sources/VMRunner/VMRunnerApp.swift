@@ -54,7 +54,10 @@ struct VMRunnerApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { VMLibrary.shared.discardAllEphemeral() }
+        MainActor.assumeIsolated {
+            VMLibrary.shared.flushPendingWrites()
+            VMLibrary.shared.discardAllEphemeral()
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

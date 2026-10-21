@@ -21,6 +21,22 @@ struct LibraryTests {
         return config
     }
 
+    @Test func aSettingsChangeReachesTheDiskOnFlushNotBefore() throws {
+        let directory = try scratchDirectory()
+        let library = VMLibrary(machinesDirectory: directory, saveDelay: .seconds(3600))
+        var config = VMConfig.new(name: "before", guest: .linux)
+        try library.add(config)
+        let file = library.bundle(config.id).config
+
+        config.name = "after"
+        library.update(config)
+        #expect(try VMConfig.decode(from: Data(contentsOf: file)).name == "before")
+        #expect(library.machine(config.id)?.name == "after")
+
+        library.flushPendingWrites()
+        #expect(try VMConfig.decode(from: Data(contentsOf: file)).name == "after")
+    }
+
     @Test func duplicateIsAnIndependentMachineWithItsOwnIdentity() throws {
         let (library, directory) = try makeLibrary()
         defer { try? FileManager.default.removeItem(at: directory) }

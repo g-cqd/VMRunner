@@ -25,11 +25,16 @@ let package = Package(
         // Developer tooling only (DevTools and the `vmr` command line). The VMRunner app and its tests link neither.
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", exact: "1.0.2", traits: []),
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
-        // Test support only: HeapModule backs TestKit's TestClock sleeper queue.
+        // Debounces settings writes in the app; also brings in swift-collections.
+        .package(url: "https://github.com/apple/swift-async-algorithms.git", exact: "1.1.7"),
+        // HeapModule backs TestKit's TestClock sleeper queue.
         .package(url: "https://github.com/apple/swift-collections.git", exact: "1.7.3"),
     ],
     targets: [
-        .executableTarget(name: "VMRunner", path: "Sources/VMRunner", swiftSettings: hardening),
+        .executableTarget(
+            name: "VMRunner",
+            dependencies: [.product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
+            path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(name: "VMRunnerTests", dependencies: ["VMRunner", "TestKit"], path: "Tests/VMRunnerTests", swiftSettings: hardening),
 
         // Deterministic and allocation-aware test support, vendored:
