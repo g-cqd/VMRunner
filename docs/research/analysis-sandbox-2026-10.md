@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "What can a guest tell about being virtual, and what does a sandbox-analysis or agent use need?"
+feeds: [roadmap 0012]
+---
 # Using VMRunner as an analysis and agent sandbox
 
 **Context.** The use case is sandbox analysis, privacy, and letting an AI agent run freely inside a contained machine.
@@ -9,7 +14,7 @@ whether it is virtualized. This note records what is possible; it is honest abou
 - Security profiles (Contained, Isolated, Hardened), the exposure summary, disposable machines (copy-on-write clones deleted
   on stop), snapshots, runtime limits, no suspend, Secure Boot for Linux on macOS 27+ hosts.
 - A network policy engine (allow-lists and deny-lists by IP, port, domain, connection, and http URL) and a user-mode network
-  stack to enforce it; see `docs/automation.md` for the control plane.
+  stack to enforce it; see `docs/research/automation-2026-10.md` for the control plane.
 - Host information is **not** shared with the guest by default; a planned, per-category opt-in would publish selected host
   facts (battery, power source, thermal state, network path) through a read-only share.
 

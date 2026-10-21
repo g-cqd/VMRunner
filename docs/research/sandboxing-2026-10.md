@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "How can App Sandbox and Seatbelt isolate VMs and containers, per app or per workload?"
+feeds: [roadmap 0025, ADR-0016]
+---
 # Sandboxing virtual machines, containers and helpers
 
 Study, not a decision record. Host: macOS 26.7.1; SDK: macOS 27. Items marked *unverified* were not run or could not be

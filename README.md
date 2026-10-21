@@ -11,10 +11,8 @@ Apple/Swift packages and is never linked into the app.
 - [Architecture decisions](docs/adr/): one decision per file, with context, evidence and consequences.
 - [Roadmap](docs/roadmap/): one unit of work per file, with status, blockers and the decision that governs it.
 - [Diary](docs/diary/): the working log, one file per session, with claims, probes and verdicts.
-- Studies: [automation](docs/automation.md), [GPU](docs/gpu-acceleration.md), [MDM](docs/mdm.md),
-  [analysis sandboxes](docs/analysis-sandbox.md), [Windows on ARM](docs/windows-on-arm.md),
-  [provisioning](docs/provisioning.md), [containers](docs/containers.md),
-  [sandboxing](docs/sandboxing.md).
+- [Research](docs/research/): dated studies that feed the roadmap and the decisions: automation, analysis sandboxes, GPU,
+  MDM, Windows on ARM, provisioning, containers and sandboxing.
 
 ## Build and run
 

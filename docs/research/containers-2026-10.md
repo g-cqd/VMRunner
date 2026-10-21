@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "Can Apple's container primitives run OCI images in the app, and what can a macOS container be?"
+feeds: [roadmap 0024, ADR-0017]
+---
 # Containers, OCI images, and macOS "containers"
 
 Study, not a decision record. Facts come from the projects' sources and documentation as of 2026-10-21. Items marked

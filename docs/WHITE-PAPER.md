@@ -52,7 +52,7 @@ making a guest unaware of virtualization are for analysis and privacy use, and t
 
 ## 5. Documentation law
 
-Four artifacts, each with one job.
+Five artifacts, each with one job.
 
 - **White paper** (`docs/WHITE-PAPER.md`): this file. At most 200 lines.
 - **ADRs** (`docs/adr/NNNN-kebab-title.md`): one decision per file, with front matter `status`, `date` and, when
@@ -62,10 +62,13 @@ Four artifacts, each with one job.
   (`pending`, `in-progress`, `done`), `blocked-by` and `date`, and `decision` when an ADR governs it.
 - **Diary** (`docs/diary/YYYY-MM-DD-NN.md`): the working log, one file per work session, at most 256 lines each, with a
   claims table (claim, probe, verdict) and a "Not verified" section.
+- **Research** (`docs/research/topic-YYYY-MM.md`): a dated study that answers one question before a decision is made, with
+  front matter `date`, `question` and `feeds` (the roadmap entries and ADRs it informs). It states what was verified and
+  what was not. A roadmap entry or an ADR cites the study; a study is not edited to match a later decision, it is
+  superseded by a newer one.
 
-Studies that are too long for an ADR (for example the investigations of GPU, MDM, Windows) sit beside these in `docs/`
-and are linked from the roadmap entry they feed. Numbers are zero-padded and unique within a directory. `vmr check docs`
-enforces the shape, so the rules above do not depend on anyone remembering them.
+Numbers are zero-padded and unique within a directory. `vmr check docs` enforces the shape, so the rules above do not
+depend on anyone remembering them.
 
 ## 6. Commit discipline
 

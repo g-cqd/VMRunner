@@ -17,7 +17,7 @@ Users asked for 3D acceleration for every guest.
 
 ## Consequences
 
-Linux guests render in software. See `docs/gpu-acceleration.md`.
+Linux guests render in software. See `docs/research/gpu-acceleration-2026-10.md`.
 
 ## What this does not decide
 

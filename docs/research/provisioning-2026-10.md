@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "How can an ISO install run unattended and run scripts at install steps, compatibly with Kubernetes tooling?"
+feeds: [roadmap 0016, ADR-0012]
+---
 # Installing from an ISO and running scripts during setup
 
 Status: design and investigation. Nothing here is implemented yet. Facts about Virtualization.framework come from the

@@ -30,7 +30,7 @@ already isolates each VM in its own sandboxed service.
 ## Consequences
 
 Nothing is built. The first step is a prototype helper for one Linux workload, signed with the virtualization entitlement
-only, then wrapped in each engine in turn. See `docs/sandboxing.md`.
+only, then wrapped in each engine in turn. See `docs/research/sandboxing-2026-10.md`.
 
 ## What this does not decide
 

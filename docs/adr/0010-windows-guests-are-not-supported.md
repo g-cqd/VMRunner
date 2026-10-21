@@ -16,7 +16,7 @@ installer and the help says plainly that Windows is not supported.
 
 ## Consequences
 
-An experimental slice remains possible and is not recommended. See `docs/windows-on-arm.md`.
+An experimental slice remains possible and is not recommended. See `docs/research/windows-on-arm-2026-10.md`.
 
 ## What this does not decide
 

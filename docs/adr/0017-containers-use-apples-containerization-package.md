@@ -21,7 +21,7 @@ features, and, ideally, macOS containers.
 
 ## Consequences
 
-Nothing is built. The first step is a spike that pulls and runs an arm64 Alpine image. See `docs/containers.md`.
+Nothing is built. The first step is a spike that pulls and runs an arm64 Alpine image. See `docs/research/containers-2026-10.md`.
 
 ## What this does not decide
 

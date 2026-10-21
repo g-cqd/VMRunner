@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "Can Windows on ARM run under Virtualization.framework?"
+feeds: [roadmap 0015, ADR-0010]
+---
 # Windows 11 on ARM under Virtualization.framework
 
 **Status: investigated, not implemented.** It can be made to work, but only through undocumented API and a lot of

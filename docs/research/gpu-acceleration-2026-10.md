@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "Can guests get 3D acceleration, and which?"
+feeds: [roadmap 0014, ADR-0014]
+---
 # GPU acceleration for macOS, Linux, and Windows guests
 
 **Status: investigated.** What can be promised today, and what it would take to go further.

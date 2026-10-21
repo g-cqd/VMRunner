@@ -16,7 +16,7 @@ The question was whether MDM policies can be forwarded into guests.
 
 ## Consequences
 
-A policy engine that reads forced keys and locks the matching controls is the work to build. See `docs/mdm.md`.
+A policy engine that reads forced keys and locks the matching controls is the work to build. See `docs/research/mdm-2026-10.md`.
 
 ## What this does not decide
 

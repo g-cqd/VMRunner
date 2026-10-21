@@ -6,7 +6,7 @@ decision: ADR-0012
 ---
 # 0016 — Unattended installs and scripts at install steps, Kubernetes-compatible
 
-Study: `docs/provisioning.md`. Build in order: spec parser and seed builder, installer seed media, vsock agent.
+Study: `docs/research/provisioning-2026-10.md`. Build in order: spec parser and seed builder, installer seed media, vsock agent.
 
 ## Done when
 

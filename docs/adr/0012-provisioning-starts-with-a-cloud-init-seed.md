@@ -21,7 +21,7 @@ no kernel arguments under UEFI, no `fw_cfg` and no guest agent.
 
 ## Consequences
 
-Nothing is built. Each step needs a real guest run before its help may say it works. See `docs/provisioning.md`.
+Nothing is built. Each step needs a real guest run before its help may say it works. See `docs/research/provisioning-2026-10.md`.
 
 ## What this does not decide
 

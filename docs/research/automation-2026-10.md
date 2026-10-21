@@ -1,3 +1,8 @@
+---
+date: 2026-10-21
+question: "How can AI agents and scripts control machines (MCP, CLI, terminal) with isolation?"
+feeds: [roadmap 0005]
+---
 # Automation: a control service, an MCP server, a CLI, and a terminal into the guest
 
 **Status: investigated and partly prototyped, not implemented.** The goal is to let a person, a script, or an AI agent

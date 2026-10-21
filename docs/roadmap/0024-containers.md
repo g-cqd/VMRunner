@@ -6,7 +6,7 @@ decision: ADR-0017
 ---
 # 0024 — Run OCI images with Apple's container primitives, and what a macOS container can mean
 
-Study: `docs/containers.md`. Decision: ADR-0017.
+Study: `docs/research/containers-2026-10.md`. Decision: ADR-0017.
 
 ## Done when
 

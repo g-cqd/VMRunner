@@ -6,4 +6,4 @@ decision: ADR-0013
 ---
 # 0013 — Let an organisation lock settings through managed preferences
 
-Study: `docs/mdm.md`. Read forced keys with `objectIsForced` and lock the matching controls.
+Study: `docs/research/mdm-2026-10.md`. Read forced keys with `objectIsForced` and lock the matching controls.
