@@ -12,7 +12,7 @@ swift run vmr hooks install           # pre-commit: format lint and SwiftLint on
 ## Before you push: `swift run vmr check`
 
 ```sh
-swift run vmr check                 # fast gate: format, swiftlint, docs, build, test, analyzers
+swift run vmr check                 # fast gate: format, swiftlint, docs, policy, build, test, analyzers
 swift run vmr check --full          # + ASan, TSan, UBSan test runs, release build, coverage and benchmark gates
 swift run vmr check test analyzers  # only the named steps (swift run vmr check --list shows them all)
 ```
@@ -64,6 +64,14 @@ CI runs the same `swift run vmr check` steps, so the lock is the only place the 
   meant to move a figure, run `swift run vmr bench record` and commit the baseline with the change. A new benchmark is a
   Swift Testing suite named `...Benchmarks` with `.tags(.bench), .benchmarksRequested` that reports through TestKit's
   `recordBenchmark`; a plain `swift test` skips it. In CI the step is advisory until its runs there are stable.
+- **`policy` keeps the gate from being relaxed quietly.** It compares the working tree with the branch's base
+  (`origin/main`, or the merge base with it) and fails when a baseline file accepts a finding the base did not, the
+  coverage floor is lower, `.swiftlint.yml` disables a rule, drops an opt-in rule or excludes a path, or `.gitattributes`
+  adds `-diff`, `binary` or `linguist-generated` to a pattern (each hides changes from review). A deliberate relaxation
+  is acknowledged where the reviewer sees it: a `Policy-Ack: <reason>` trailer in any commit message the branch adds, or
+  `VMR_POLICY_ACK=<reason>` for a local run. Without an `origin/main` (a fresh clone) it says so and checks nothing; CI
+  checks out the full history for it. It does not see `// swiftlint:disable` comments, `// @al:accept`-style
+  acceptances or a changed severity in `.swiftlint.yml`, which stay review-only.
 
 ## Code rules
 
@@ -121,7 +129,7 @@ Workflows live in `.github/workflows`; every third-party action is pinned to a f
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| `ci.yml` | push to main, PR, merge queue | `changes` (decides what runs from the diff), `lint` (format, SwiftLint, documentation), `gate` (build and tests, which fails if none ran; coverage; the hardened app bundle; the analyzers), `bench` (the benchmark gate, advisory until it is stable), `sanitizers` (asan, tsan, ubsan; on a PR only when the network stack, the engine, the test support or the dependencies changed). A documentation-only change runs `lint` and nothing else. The aggregate job **CI passed** is the one required check and tolerates skipped jobs |
+| `ci.yml` | push to main, PR, merge queue | `changes` (decides what runs from the diff), `lint` (format, SwiftLint, documentation, policy), `gate` (build and tests, which fails if none ran; coverage; the hardened app bundle; the analyzers), `bench` (the benchmark gate, advisory until it is stable), `sanitizers` (asan, tsan, ubsan; on a PR only when the network stack, the engine, the test support or the dependencies changed). A documentation-only change runs `lint` and nothing else. The aggregate job **CI passed** is the one required check and tolerates skipped jobs |
 | `codeql.yml` | push to main, PR, merge queue, weekly | CodeQL for the workflows and (experimental, Swift 6.4 is not yet supported) Swift |
 | `zizmor.yml` | `.github/**` changes, merge queue, weekly | actionlint and zizmor on the workflows |
 | `dependency-review.yml` | PR | fails a PR that adds a dependency with a high severity advisory |

@@ -76,7 +76,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: swift run --only-use-versions-from-resolved-file vmr check format swiftlint docs
+          fetch-depth: 0 # origin/main, for the policy step to compare the branch with its base
+      - run: swift run --only-use-versions-from-resolved-file vmr check format swiftlint docs policy
 
   # One definition for the lanes that differ only in the command and the cache they use. `assert` requires evidence that
   # tests ran: a run that compiled but discovered none (a renamed target, a broken filter) exits 0.

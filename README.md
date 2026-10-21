@@ -157,7 +157,7 @@ Python scripts. It depends on [swift-subprocess](https://github.com/swiftlang/sw
 tests link neither.
 
 ```sh
-swift run vmr check                          # fast gate: format, swiftlint, docs, build, test, analyzers
+swift run vmr check                          # fast gate: format, swiftlint, docs, policy, build, test, analyzers
 swift run vmr check --full                   # + ASan, TSan and UBSan test runs, release build, coverage and benchmark gates
 swift run vmr check test coverage            # only the named steps; --list shows all of them
 swift run vmr analyzers [run|install|baseline|versions] [arcleak|dolly|deadwood...]
