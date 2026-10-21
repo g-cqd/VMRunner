@@ -11,25 +11,36 @@ name: CI
 #  * Hosted macOS runners are themselves virtual machines and cannot run nested virtual machines, and the
 #    Virtualization entitlement-gated code needs a display. So only the unit tests run in CI; they never
 #    start a VM. `Views`, `VMController`, `Provisioner` and `ConfigurationBuilder` are covered by hand on a real Mac.
+#  * Build caches are split into actions/cache/restore (every run) and actions/cache/save (only on main, only when the
+#    exact key missed), so pull requests and queue runs never write caches (a write from a PR ref is invisible to other
+#    refs anyway) and a hit is never re-uploaded. Keys are Swift/Xcode version + hash of Package.swift and
+#    Package.resolved; restore-keys falls back to the newest cache of the same toolchain. Stale caches are pruned by
+#    cache-cleanup.yml.
 #  * swiftlint comes from Homebrew at whatever version it serves (not pinned); swift-format is the one in the Xcode
 #    toolchain. The tooling depends on swift-subprocess and swift-argument-parser, both pinned with `exact:` in
 #    Package.swift and Package.resolved.
 
+# `merge_group` makes the required "CI passed" check report for GitHub's merge queue (a ruleset that requires the
+# check and enables the queue would otherwise wait forever); see CONTRIBUTING.md, "Repository settings".
 on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 # Least privilege for every job; no job below needs more.
 permissions:
   contents: read
 
+# A newer push cancels the superseded run of the same branch or PR; runs on main and on tags always finish.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
+  # Part of every build-cache key: bump it with the Xcode image (DEVELOPER_DIR below).
+  TOOLCHAIN_KEY: swift6.4-xcode27.0
   DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -68,18 +79,38 @@ jobs:
       # The end-to-end tests of the tooling (DevToolsTests) run swift-format, SwiftLint, git and codesign.
       - name: Install SwiftLint
         run: brew install swiftlint
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore build cache
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
+            spm-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
       - name: Build and test
+        shell: bash # explicit shell: `bash -eo pipefail`, so a failing `vmr check` is not hidden by `tee`
         env:
           SWIFT_TEST_FLAGS: --xunit-output .build-ci/test-results.xml
         run: |
           mkdir -p .build-ci
-          swift run vmr check build test
+          swift run vmr check build test 2>&1 | tee .build-ci/check.log
+      # A run that compiled but discovered no tests (a renamed target, a broken filter) exits 0, so require evidence.
+      # Swift Testing prints one "Test run with N tests in M suites ..." line per test bundle; XCTest's "Executed N
+      # tests" lines are not counted on purpose, since the packages' tests are Swift Testing.
+      - name: Assert tests ran
+        run: |
+          total="$(grep -Eo 'Test run with [0-9]+ tests?' .build-ci/check.log | awk '{ total += $4 } END { print total + 0 }')"
+          echo "Swift Testing ran ${total} test(s)"
+          if [ "$total" -lt 1 ]; then
+            echo "::error::the test run executed no tests (no 'Test run with N tests' line in the log)"
+            exit 1
+          fi
+      - name: Save build cache
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -114,16 +145,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore build cache
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build-${{ matrix.step }}
-          key: spm-${{ matrix.step }}-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          key: spm-${{ matrix.step }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
-            spm-${{ matrix.step }}-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
+            spm-${{ matrix.step }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
       - name: Tests under the sanitizer
         env:
           STEP: ${{ matrix.step }}
         run: swift run vmr check "$STEP"
+      - name: Save build cache
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build-${{ matrix.step }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   coverage:
     name: Coverage gate
@@ -133,14 +172,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore build cache
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build-cov
-          key: spm-cov-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          key: spm-cov-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
-            spm-cov-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
+            spm-cov-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
       - name: Coverage (COVERAGE_MIN is a ratchet, see .vmr.json)
         run: swift run vmr check coverage
+      - name: Save build cache
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build-cov
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Upload coverage summary
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -210,7 +257,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # One required status check for branch protection: it fails if any job above failed or was skipped.
+  # The one required status check for the ruleset. It fails if any job above failed or was cancelled. `skipped` is
+  # tolerated: a job skipped by a future `if:` or path filter must not block a merge, and a skipped dependency of a
+  # failed job already shows up as that job's failure. `if: always()` makes the check report even when a needed job
+  # failed, which a plain `needs` would turn into a skipped (and so, for a ruleset, a pending) check.
   ci-ok:
     name: CI passed
     if: ${{ always() }}
@@ -222,7 +272,7 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          bad="$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"' <<<"$NEEDS")"
+          bad="$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "\(.key)=\(.value.result)"' <<<"$NEEDS")"
           if [ -n "$bad" ]; then
             echo "jobs not successful: $bad" >&2
             exit 1

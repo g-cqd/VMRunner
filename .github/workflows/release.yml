@@ -1,0 +1,114 @@
+name: Release
+
+# Pushing a tag `vX.Y.Z` builds the hardened release app, checks that the tag equals the version in the bundle's
+# Info.plist (CFBundleShortVersionString in Resources/Info.plist), zips it, attests the zip and publishes a
+# GitHub release with generated notes. See CONTRIBUTING.md, "Releasing".
+#
+# NOT wired yet: Developer ID signing and notarization. The app is signed ad-hoc (`vmr build-app`), so a downloaded
+# zip is quarantined by Gatekeeper and must be opened with a right click or `xattr -d com.apple.quarantine`. It is
+# unverified whether the `com.apple.security.virtualization` entitlement can be used under a Developer ID
+# signature without a provisioning profile; until that is confirmed on a real Mac, adding a signing identity and
+# notarytool secrets here would only publish a build that might not launch a VM. The attestation below proves where
+# and how the zip was built (SLSA provenance); it is not a substitute for notarization.
+#
+# Only the Info.plist version is authoritative: bump it in a commit on main, wait for CI, then tag that commit.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+# A release must never be cancelled half way (a second tag push queues instead).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+
+jobs:
+  build:
+    name: Build, verify and zip
+    runs-on: xcode-27 # the same runner label as ci.yml (Xcode 27 / Swift 6.4)
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # all branches and history (origin/main), to check that the tag is on main
+      - name: Tag is a version and is on main
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::tag '$TAG' is not vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::tag '$TAG' is not on main: release from a commit that went through CI on main"
+            exit 1
+          fi
+      - name: Toolchain
+        run: |
+          swift --version
+          swift --version 2>&1 | grep -q 'Swift version 6\.4'
+      - name: Build and verify (release, hardened, signature and entitlement checks)
+        run: swift run vmr build-app release --hardened
+      - name: Tag equals the bundle version
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/VMRunner.app/Contents/Info.plist)"
+          if [ "$TAG" != "v${version}" ]; then
+            echo "::error::tag '$TAG' does not match CFBundleShortVersionString '${version}' in the built bundle"
+            exit 1
+          fi
+          echo "version ${version}"
+      - name: Zip and checksum
+        run: |
+          mkdir dist
+          ditto -c -k --keepParent build/VMRunner.app "dist/VMRunner-${TAG}.zip"
+          (cd dist && shasum -a 256 "VMRunner-${TAG}.zip" > "VMRunner-${TAG}.zip.sha256")
+          cat "dist/VMRunner-${TAG}.zip.sha256"
+      - name: Upload the release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Attest and publish
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the release and upload its assets
+      id-token: write # sign the attestation with the workflow's OIDC identity
+      attestations: write # store the attestation
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+          path: dist
+      - name: Verify the checksum after the artifact hop
+        working-directory: dist
+        run: sha256sum --check --strict "VMRunner-${TAG}.zip.sha256"
+      - name: Attest the zip
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/VMRunner-${{ env.TAG }}.zip
+      - name: Create the release
+        run: |
+          args=(--verify-tag --title "$TAG" --generate-notes)
+          if [[ "$TAG" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$TAG" "${args[@]}" "dist/VMRunner-${TAG}.zip" "dist/VMRunner-${TAG}.zip.sha256"

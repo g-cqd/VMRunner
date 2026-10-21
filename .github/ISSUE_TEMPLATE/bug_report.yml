@@ -1,0 +1,53 @@
+name: Bug report
+description: Something does not work as documented. Security issues go through SECURITY.md, not here.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report vulnerabilities here: follow SECURITY.md (Security tab > Report a vulnerability) so they stay private.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: VMRunner version or commit
+      placeholder: "v0.1.0 or a commit hash"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+      placeholder: "macOS 26.1, MacBook Pro M3"
+    validations:
+      required: true
+  - type: dropdown
+    id: guest
+    attributes:
+      label: Guest operating system
+      options:
+        - macOS
+        - CentOS Stream (Linux)
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove anything private (paths with your user name, serial numbers, tokens) first.
+      render: shell

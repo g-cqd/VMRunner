@@ -1,0 +1,48 @@
+name: Scorecard
+
+# OpenSSF Scorecard grades the repository's supply-chain posture (pinned dependencies, token permissions, branch
+# protection, signed releases, ...) and uploads the findings as code-scanning alerts.
+#
+# Needs a PUBLIC repository or GitHub Advanced Security (code scanning must accept the SARIF upload; several checks
+# also read repository settings the token cannot see on a private repository). While the repository is private
+# without Advanced Security, this workflow fails at the upload step: disable it or delete it until then.
+# `publish_results: false` keeps the run private; set it to true (and add `id-token: write` to the job) once the
+# repository is public to publish the result to api.scorecard.dev and get the badge.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "37 2 * * 3" # weekly, Wednesday 02:37 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: scorecard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out the code
+      actions: read # Scorecard reads workflow runs and settings
+      security-events: write # upload the SARIF results to code scanning
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: false
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: results.sarif
+          category: scorecard

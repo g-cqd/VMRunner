@@ -1,0 +1,75 @@
+name: Cache cleanup
+
+# GitHub keeps 10 GiB of Actions caches per repository and evicts the least recently used ones when a new cache
+# does not fit. Hosted macOS builds produce large caches, so left alone, stale and per-PR entries push out the
+# main-branch caches that every run restores. This workflow keeps that from happening:
+#  * when a pull request closes, its caches (ref refs/pull/<n>/merge) are deleted;
+#  * every week (and on demand), the newest caches by last use are kept up to CACHE_BUDGET_GIB and the rest are
+#    deleted.
+# It uses the preinstalled `gh` CLI with the job's own token: no third-party action, no checkout.
+#
+# A pull request from a fork gets a read-only token, so the close step is skipped for it; the weekly prune
+# removes its caches. `pull_request_target` is deliberately not used.
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "29 3 * * 0" # weekly, Sunday 03:29 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+# Two prunes at once would only race on the same deletes; never cancel one half way.
+concurrency:
+  group: cache-cleanup
+  cancel-in-progress: false
+
+env:
+  # Below GitHub's 10 GiB limit, so the platform's own eviction rarely has to choose.
+  CACHE_BUDGET_GIB: "8"
+
+jobs:
+  cleanup:
+    name: Delete stale Actions caches
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write # list and delete this repository's caches; nothing else
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete the caches of the closed pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ids="$(gh cache list --ref "refs/pull/${PR_NUMBER}/merge" --limit 100 --json id --jq '.[].id')"
+          if [ -z "$ids" ]; then
+            echo "no caches for refs/pull/${PR_NUMBER}/merge"
+            exit 0
+          fi
+          for id in $ids; do
+            gh cache delete "$id"
+          done
+
+      - name: Keep the newest caches within the budget
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          budget=$((CACHE_BUDGET_GIB * 1024 * 1024 * 1024))
+          # Newest use first; walk down the list and drop every cache past the point where the running total exceeds the budget.
+          ids="$(gh cache list --sort last_accessed_at --order desc --limit 1000 --json id,sizeInBytes \
+            | jq -r --argjson budget "$budget" '
+                reduce .[] as $cache ({total: 0, drop: []};
+                  .total += $cache.sizeInBytes
+                  | if .total > $budget then .drop += [$cache.id] else . end)
+                | .drop[]')"
+          if [ -z "$ids" ]; then
+            echo "caches are within the ${CACHE_BUDGET_GIB} GiB budget"
+            exit 0
+          fi
+          for id in $ids; do
+            gh cache delete "$id"
+          done

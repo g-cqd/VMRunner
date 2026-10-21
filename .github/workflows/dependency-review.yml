@@ -1,0 +1,34 @@
+name: Dependency review
+
+# Blocks a pull request that adds or bumps a dependency with a known high or critical vulnerability (SwiftPM
+# manifests and lockfile, and the GitHub Actions in .github/workflows). Reads the dependency graph diff of the PR.
+#
+# Needs a PUBLIC repository or GitHub Advanced Security (the dependency graph and its review API are not available
+# on a private repository without it); until then this job fails with "Dependency review is not supported": disable
+# or delete the workflow in the meantime. Make it a required check in the ruleset only when it runs.
+
+on:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: dependency-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the PR's base and head manifests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never # no pull-requests: write needed

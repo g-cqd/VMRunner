@@ -1,0 +1,13 @@
+# Review owners, enforced by the repository ruleset ("Require review from Code Owners").
+# The last matching pattern wins. The explicit entries below name what must never change without the owner,
+# even if the catch-all above is later narrowed.
+*                          @g-cqd
+
+# CI, release and supply-chain configuration
+/.github/                  @g-cqd
+/.github/workflows/        @g-cqd
+/Package.resolved          @g-cqd
+/Scripts/analyzers.lock    @g-cqd
+
+# What the signed app may do
+/Resources/*.entitlements  @g-cqd

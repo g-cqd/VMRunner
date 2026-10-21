@@ -1,0 +1,16 @@
+# git hooks engine: https://github.com/g-cqd/project-hooks (schema: docs/configuration.md there).
+# Custom tasks run only in repositories you trust: `project-hooks trust` once in this clone.
+#
+# pre-commit (swift-format lint and SwiftLint on the staged Swift files) is `vmr`'s own hook, installed by
+# `swift run vmr hooks install`; project-hooks and vmr must not both own .git/hooks/pre-commit, so only the push
+# stage is configured here.
+pre-push:
+  # The tests are part of the `vmr check` task below; do not run the auto-detected `swift test` a second time.
+  test-override:
+    skip: true
+  tasks:
+    # The fast gate, the same steps as CI's lint, build-test and analyzers jobs: format, swiftlint, build, test,
+    # analyzers. The sanitizers, release build and coverage gate (`vmr check --full`) stay on CI.
+    - name: "vmr check (fast gate)"
+      run: "swift run vmr check"
+      timeout: 1800

@@ -1,0 +1,6 @@
+# The URL assumes the repository will live at github.com/g-cqd/VMRunner with `main` as its default branch; fix it if not.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/g-cqd/VMRunner/blob/main/SECURITY.md
+    about: Do not open a public issue. Follow SECURITY.md to report it privately.

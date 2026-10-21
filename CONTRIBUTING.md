@@ -69,6 +69,52 @@ repositories. They need `swiftlint` on `PATH`, build real packages and run in ab
 tooling in Swift: no shell or Python files. The two dependencies (swift-subprocess, swift-argument-parser) are pinned with
 `exact:`; the app target and its tests must never link them.
 
+## Continuous integration
+
+Workflows live in `.github/workflows`; every third-party action is pinned to a full commit SHA with a trailing
+`# vX.Y.Z` comment (Dependabot keeps them current), and every job declares `timeout-minutes` and least-privilege
+`permissions`.
+
+| Workflow | Runs on | Does |
+|---|---|---|
+| `ci.yml` | push to main, PR, merge queue | `lint`, `build-test` (fails if no test ran), `app-bundle`, `sanitizers` (asan, tsan, ubsan), `coverage`, `analyzers`; the aggregate job **CI passed** is the one required check |
+| `codeql.yml` | push to main, PR, merge queue, weekly | CodeQL for the workflows and (experimental, Swift 6.4 is not yet supported) Swift |
+| `zizmor.yml` | `.github/**` changes, merge queue, weekly | actionlint and zizmor on the workflows |
+| `dependency-review.yml` | PR | fails a PR that adds a dependency with a high severity advisory |
+| `scorecard.yml` | push to main, weekly | OpenSSF Scorecard into code scanning |
+| `cache-cleanup.yml` | PR closed, weekly | deletes a closed PR's caches and keeps the newest caches within 8 GiB |
+| `release.yml` | tag `v*` | builds, attests and publishes a release |
+
+`codeql.yml`, `scorecard.yml` and `dependency-review.yml` need a public repository or GitHub Advanced Security.
+Build caches are restored by every run and saved only on main, on an exact-key miss. The local `swift run vmr check
+--full` runs the same steps as CI.
+
+## Releasing
+
+1. Set `CFBundleShortVersionString` in `Resources/Info.plist` to the new version and merge it to main through a PR.
+2. Wait for CI on main, then tag that commit and push the tag: `git tag -s vX.Y.Z && git push origin vX.Y.Z`.
+3. `release.yml` refuses a tag that is not `vMAJOR.MINOR.PATCH[-prerelease]`, is not on main, or differs from the
+   built bundle's version. It builds `swift run vmr build-app release --hardened`, zips with `ditto`, attests the zip
+   (verify with `gh attestation verify VMRunner-vX.Y.Z.zip --repo OWNER/REPO`) and creates the release with generated
+   notes, the zip and its `.sha256`.
+
+The app is ad-hoc signed, not Developer ID signed or notarized: whether the virtualization entitlement works under a
+Developer ID signature is unverified, so signing is not wired yet.
+
+## Repository settings (once the repository is on GitHub)
+
+These cannot be set from the repository's files; the owner applies them once.
+
+- **Ruleset on `main`** (Settings > Rules): require a pull request with CODEOWNERS review (`.github/CODEOWNERS`);
+  require the status check **CI passed**; require linear history; require signed commits; block force pushes and
+  deletion; enable the **merge queue** (CI, CodeQL and the workflow lint already trigger on `merge_group`). Add a tag
+  ruleset for `v*` that restricts who can create and delete release tags.
+- **Actions** (Settings > Actions > General): allow only actions pinned to a full-length commit SHA ("Require actions
+  to be pinned to a full-length commit SHA"); set the default workflow token to read-only and do not let workflows
+  approve pull requests; require approval for workflows from outside collaborators.
+- **Code security** (Settings > Advanced Security): enable secret scanning with push protection, Dependabot alerts
+  and security updates, private vulnerability reporting (`SECURITY.md` relies on it), and code scanning.
+
 ## Pull requests
 
 Keep changes small and focused, add or update tests for behavior changes, and describe the user-visible effect.
