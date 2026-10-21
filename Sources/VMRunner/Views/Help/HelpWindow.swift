@@ -15,7 +15,7 @@ struct HelpWindowView: View {
                 ForEach(navigator.results, id: \.area) { group in
                     Section(group.area.rawValue) {
                         ForEach(group.topics) { topic in
-                            Text(topic.title).tag(Optional(topic))
+                            Text(topic.title).tag(topic)
                         }
                     }
                 }
