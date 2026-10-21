@@ -1,11 +1,13 @@
 import Foundation
 
 /// What the stack does with a TCP connection attempt the policy denies.
-enum DenyAction: Sendable, Hashable {
+enum DenyAction: String, Sendable, Hashable, Codable, CaseIterable, Identifiable {
     /// Answer with RST: the guest sees "connection refused" immediately. The default; fails fast.
     case reset
     /// Say nothing: the guest sees a timeout. Reveals less, and hangs the guest's connect attempt.
     case drop
+
+    var id: Self { self }
 }
 
 /// The DNS response code for a name the policy blocks.

@@ -60,10 +60,23 @@ struct HelpCatalogTests {
         #expect(!HelpCatalog.search("rosetta snapshots").contains(.rosetta))
     }
 
+    @Test func theNetworkPolicyHelpStaysHonestAboutItsLimits() {
+        let limits = (HelpTopic.policyLimits.entry.paragraphs + HelpTopic.policyLimits.entry.advanced).joined(separator: " ")
+        for phrase in ["advisory", "DNS over HTTPS", "DNS over QUIC", "No IPv6", "IPsec and PPTP", "port 53", "not been validated"] {
+            #expect(limits.contains(phrase) || limits.contains(phrase.lowercased()), "missing: \(phrase)")
+        }
+        let vpn = HelpTopic.guestVpn.entry.paragraphs.joined(separator: " ")
+        #expect(vpn.contains("Both are guesses"))
+        #expect(HelpTopic.networkPolicy.entry.paragraphs.joined(separator: " ").contains("always wins"))
+        #expect(HelpTopic.networkPolicy.entry.related.contains(.policyLimits))
+    }
+
     @Test func numbersInHelpComeFromTheSameConstantsAsTheControls() {
         let text = HelpTopic.diskSize.entry.paragraphs.joined(separator: " ")
         #expect(text.contains("\(EditorLimits.maxDiskGiB) GiB"))
         #expect(text.contains("\(EditorLimits.diskStepGiB) GiB"))
+        let rules = HelpTopic.policyRules.entry.paragraphs.joined(separator: " ")
+        #expect(rules.contains("\(EditorLimits.maxRulesPerList) rules"))
     }
 }
 

@@ -3,12 +3,15 @@ extension HelpCatalog {
         .networkMode: HelpEntry(
             area: .network,
             title: "Network mode",
-            summary: "NAT gives the guest internet access through your Mac; None gives it no network at all.",
+            summary: "NAT shares your Mac's connection; Filtered adds rules you control; None gives the guest no network.",
             paragraphs: [
                 "• **NAT**: the guest gets a private address and reaches the internet (and your local network) through your Mac, using "
                     + "whatever connection your Mac uses. Nothing outside can start a connection to the guest. The guest can usually "
                     + "reach "
                     + "services your Mac offers on the NAT gateway address.",
+                "• **Filtered (user-mode)**: like NAT, but VMRunner checks every connection against rules you write (allow-lists, "
+                    + "block-lists, ports, domains) and shows what the guest tried. It is new and less proven than NAT; see "
+                    + "*Filtered network and policy*.",
                 "• **None**: the guest has no network device. Use this for an air-gapped machine.",
                 "Bridged networking (putting the guest directly on your LAN) is not offered, because it needs a special Apple "
                     + "entitlement "
@@ -19,7 +22,7 @@ extension HelpCatalog {
                     + "capture it, "
                     + "so do not assume a host VPN protects the guest."
             ],
-            related: [.macAddress, .securityProfiles]
+            related: [.networkPolicy, .macAddress, .securityProfiles]
         ),
         .macAddress: HelpEntry(
             area: .network,

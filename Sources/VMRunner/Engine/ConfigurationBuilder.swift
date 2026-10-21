@@ -42,9 +42,16 @@ enum ConfigurationBuilder {
         return (even(width, 640...7680), even(height, 480...4320))
     }
 
-    static func build(
-        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil
-    ) throws -> VZVirtualMachineConfiguration {
+    /// A validated configuration, and the user-mode network stack its NIC talks to when the machine is `.filtered`.
+    ///
+    /// The stack is created but **not started**: the caller starts it before the machine and must stop it on every path
+    /// that ends the machine, and must not reuse it for a second configuration (a stack serves one NIC for one run).
+    struct Built {
+        let configuration: VZVirtualMachineConfiguration
+        let networkStack: UserNetStack?
+    }
+
+    static func build(_ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil) throws -> Built {
         let display = display ?? (config.displayWidth, config.displayHeight)
         let vz = VZVirtualMachineConfiguration()
         vz.cpuCount = min(max(config.cpuCount, cpuRange.lowerBound), cpuRange.upperBound)
@@ -56,7 +63,8 @@ enum ConfigurationBuilder {
         }
 
         vz.storageDevices += try storage(for: config, bundle: bundle)
-        vz.networkDevices = network(for: config)
+        let network = try network(for: config)
+        vz.networkDevices = network.devices
         if let sound = sound(for: config) { vz.audioDevices = [sound] }
         if config.entropyDevice { vz.entropyDevices = [VZVirtioEntropyDeviceConfiguration()] }
         if config.memoryBalloon { vz.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()] }
@@ -64,7 +72,7 @@ enum ConfigurationBuilder {
         vz.directorySharingDevices += try directoryShares(for: config)
 
         try vz.validate()
-        return vz
+        return Built(configuration: vz, networkStack: network.stack)
     }
 
     // MARK: macOS
@@ -185,12 +193,20 @@ enum ConfigurationBuilder {
         return devices
     }
 
-    private static func network(for config: VMConfig) -> [VZNetworkDeviceConfiguration] {
-        guard config.networkMode == .nat else { return [] }
+    private static func network(for config: VMConfig) throws -> (devices: [VZNetworkDeviceConfiguration], stack: UserNetStack?) {
+        guard config.networkMode.hasNetworkDevice else { return ([], nil) }
         let device = VZVirtioNetworkDeviceConfiguration()
-        device.attachment = VZNATNetworkDeviceAttachment()
+        var stack: UserNetStack?
+        if config.networkMode == .filtered {
+            let user = try UserNetStack.attachment(
+                config: config.userNetConfig, policy: config.networkPolicy, pathChangeAction: config.hostPathChangeAction)
+            device.attachment = user.attachment
+            stack = user.stack
+        } else {
+            device.attachment = VZNATNetworkDeviceAttachment()
+        }
         if let mac = config.macAddress.flatMap({ VZMACAddress(string: $0) }) { device.macAddress = mac }
-        return [device]
+        return ([device], stack)
     }
 
     private static func sound(for config: VMConfig) -> VZVirtioSoundDeviceConfiguration? {
@@ -266,5 +282,15 @@ extension VMConfig {
     /// Guest pixels per window point: macOS follows its configured density, Linux follows `pixelsPerPoint`.
     var displayScale: Double {
         guest == .macOS ? Double(pixelsPerInch) / 72 : Double(max(1, pixelsPerPoint))
+    }
+}
+
+/// Why a user-mode stack could not be created, in words for the error alert.
+extension UserNetError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .invalidConfiguration(let problem): "The filtered network can't be set up: \(problem)."
+        case .systemCall(let code): "The filtered network can't be set up (system error \(code))."
+        }
     }
 }

@@ -120,11 +120,17 @@ final class VMLibrary {
 
     func update(_ config: VMConfig) {
         guard let index = machines.firstIndex(where: { $0.id == config.id }) else { return }
+        let previous = machines[index]
         // Secure Boot lives in the firmware variable store, not in the VZ configuration, so the framework
-        // can't tell that saved state no longer matches. Drop it.
-        if machines[index].secureBoot != config.secureBoot { bundle(config.id).discardSavedState() }
+        // can't tell that saved state no longer matches. Drop it. A different network device (NAT, none, or the
+        // user-mode stack) is a different device configuration, which saved state can't be restored into.
+        if previous.secureBoot != config.secureBoot || previous.networkMode != config.networkMode {
+            bundle(config.id).discardSavedState()
+        }
         machines[index] = config
         persistence.schedule(config)
+        // Rules edited while the machine runs reach its network stack at once; the controller ignores it when none runs.
+        if previous.networkPolicy != config.networkPolicy { controllers[config.id]?.networkPolicyDidChange(config.networkPolicy) }
     }
 
     private func persist(_ config: VMConfig) throws {

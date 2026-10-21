@@ -11,6 +11,7 @@ final class ConfigEditorModel {
 
     let id: UUID
     let snapshots: SnapshotsModel
+    let network: NetworkPolicyModel
     var pickerTarget: PickerTarget?
     var alertMessage: String?
     private(set) var allocatedBytes: Int64 = 0
@@ -25,6 +26,7 @@ final class ConfigEditorModel {
         self.library = library
         diskFloorGiB = library.machine(id)?.diskGiB ?? 0
         snapshots = SnapshotsModel(bundle: library.bundle(id))
+        network = NetworkPolicyModel(id: id, library: library)
     }
 
     var bundle: VMBundle { library.bundle(id) }

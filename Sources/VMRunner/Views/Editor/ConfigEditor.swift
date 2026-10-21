@@ -32,7 +32,10 @@ struct ConfigEditor: View {
             displaySection
             InputSection(guest: config.guest, pointing: $config.pointingDevice, capturesSystemKeys: $config.capturesSystemKeys)
             AudioSection(output: $config.audioOutput, input: $config.audioInput)
-            NetworkSection(mode: $config.networkMode, macAddress: $config.macAddress)
+            NetworkSection(config: $config)
+            if config.networkMode == .filtered {
+                NetworkPolicySection(policy: $config.networkPolicy, model: model.network)
+            }
             SharingSection(
                 guest: config.guest, folders: $config.sharedFolders, clipboard: $config.sharesClipboard,
                 rosetta: $config.rosetta, model: sharing)

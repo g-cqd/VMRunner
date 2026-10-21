@@ -157,6 +157,7 @@ extension VMConfig {
             items.append(
                 Exposure(level: .medium, text: "Network: the guest can reach the internet and, through the host, your local network."))
         case .none: items.append(Exposure(level: .none, text: "Network: none."))
+        case .filtered: items += filteredNetworkExposures
         }
         for folder in sharedFolders {
             items.append(
@@ -203,6 +204,45 @@ extension VMConfig {
                 items.append(Exposure(level: .medium, text: "Remote Login (SSH) is enabled in the guest."))
             }
         }
+        return items
+    }
+}
+
+extension VMConfig {
+    /// Filtered networking narrows reach, but it is a young implementation that sits in this app's own process, so the
+    /// summary says what it enforces, what it can't, and that the guest's frames are parsed by VMRunner itself.
+    fileprivate var filteredNetworkExposures: [Exposure] {
+        var items: [Exposure] = []
+        if networkPolicy.mode == .allowListed {
+            items.append(
+                Exposure(
+                    level: .low,
+                    text: "Network (filtered): the guest can reach only destinations your allow-list names, over IPv4."))
+        } else if networkPolicy.blockPrivateRanges {
+            items.append(
+                Exposure(
+                    level: .medium,
+                    text: "Network (filtered): the guest can reach the internet over IPv4. Your Mac, your local network "
+                        + "and other private ranges are blocked."))
+        } else {
+            items.append(
+                Exposure(
+                    level: .medium,
+                    text: "Network (filtered): the guest can reach the internet and, through your Mac, your local network "
+                        + "(private ranges are not blocked). Only your block rules apply."))
+        }
+        if networkPolicy.usesDomainRules {
+            items.append(
+                Exposure(
+                    level: .low,
+                    text: "Domain rules are advisory: encrypted DNS (DoH, DoT) and servers that share an address can get "
+                        + "around them. Use address rules where it matters."))
+        }
+        items.append(
+            Exposure(
+                level: .low,
+                text: "Filtered networking is implemented by VMRunner itself, not by macOS: the guest's network frames are "
+                    + "parsed inside this app, and the implementation has not been validated against every guest."))
         return items
     }
 }

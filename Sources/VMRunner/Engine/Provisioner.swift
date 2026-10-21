@@ -79,7 +79,9 @@ enum Provisioner {
         // Installation must write to the real disk, never a disposable copy.
         var installConfig = config
         installConfig.ephemeral = false
-        let vz = try ConfigurationBuilder.build(installConfig, bundle: bundle)
+        // The installer works from a local image; a user-mode stack here would have nobody to start and stop it.
+        if installConfig.networkMode == .filtered { installConfig.networkMode = .none }
+        let vz = try ConfigurationBuilder.build(installConfig, bundle: bundle).configuration
         let machine = VZVirtualMachine(configuration: vz)
         let installer = VZMacOSInstaller(virtualMachine: machine, restoringFromImageAt: ipsw)
 

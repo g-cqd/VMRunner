@@ -33,6 +33,7 @@ struct MachineToolbar: ToolbarContent {
             }
             .help("Time until the runtime limit shuts this machine down")
         }
+        if let activity = model.networkActivity { NetworkActivityButton(activity: activity) }
         Button("Suspend", systemImage: "moon.zzz.fill", action: model.suspend)
             .disabled(!model.canSuspend)
             .help(model.suspendHelp)

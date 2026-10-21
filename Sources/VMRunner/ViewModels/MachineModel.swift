@@ -67,6 +67,8 @@ final class MachineModel {
     var isRunning: Bool { controller.isActive }
     var isPaused: Bool { controller.state == .paused }
     var deadline: Date? { controller.deadline }
+    /// The running machine's filtered-network log and VPN signals; `nil` unless the machine runs with filtered networking.
+    var networkActivity: NetworkActivity? { controller.network }
     var canSuspend: Bool { controller.canSuspend }
     var suspendHelp: String {
         controller.canSuspend ? "Save state to disk and stop" : (controller.suspendUnavailableReason ?? "Suspend isn't available")

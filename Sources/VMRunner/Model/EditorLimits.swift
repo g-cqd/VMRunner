@@ -13,4 +13,8 @@ enum EditorLimits {
     static let pixelsPerInchStep = 2
     static let runtimeMinutes = 0...1440
     static let runtimeStepMinutes = 15
+    /// Rules one policy list may hold. Every rule is checked on each new connection, so the list is kept human-sized.
+    static let maxRulesPerList = 200
+    /// Lines the live connection log keeps; older ones fall off.
+    static let recentFlowLimit = 200
 }

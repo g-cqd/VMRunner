@@ -17,6 +17,8 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     private(set) var suspendUnavailableReason: String?
     /// When the runtime limit will shut the machine down, if one is set.
     private(set) var deadline: Date?
+    /// The live view of this run's filtered network; `nil` for other network modes and while stopped.
+    private(set) var network: NetworkActivity?
     var errorMessage: String?
 
     @ObservationIgnored private var observation: NSKeyValueObservation?
@@ -35,7 +37,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         errorMessage = nil
         var config = config
         // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable.
-        if config.networkMode == .nat, config.macAddress.flatMap({ VZMACAddress(string: $0) }) == nil {
+        if config.networkMode.hasNetworkDevice, config.macAddress.flatMap({ VZMACAddress(string: $0) }) == nil {
             config.macAddress = VZMACAddress.randomLocallyAdministered().string
             library.update(config)
         }
@@ -54,13 +56,14 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         do {
             if config.ephemeral { try bundle.prepareEphemeral(guest: config.guest) }
             activeBundle = bundle
-            let vz = try ConfigurationBuilder.build(config, bundle: bundle, display: display)
-            probeSuspendSupport(of: vz, allowed: mayResume)
+            var built = try ConfigurationBuilder.build(config, bundle: bundle, display: display)
+            beginNetwork(built.networkStack, policy: config.networkPolicy)
+            probeSuspendSupport(of: built.configuration, allowed: mayResume, filtered: config.networkMode == .filtered)
 
             var notice: String?
             if bundle.hasSavedState, canSuspend {
                 do {
-                    try await restore(vz, from: bundle)
+                    try await restore(built.configuration, from: bundle)
                     startRuntimeLimit(minutes: config.maxRuntimeMinutes)
                     return
                 } catch {
@@ -70,12 +73,13 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
                     tearDown()
                     activeBundle = bundle
                     notice = "Couldn't restore the suspended state (\(error.localizedDescription)). Booted normally instead."
+                    // A configuration that failed to restore can't be reused, and neither can its network stack.
+                    built = try ConfigurationBuilder.build(config, bundle: bundle, display: display)
+                    beginNetwork(built.networkStack, policy: config.networkPolicy)
                 }
             }
 
-            // A configuration that failed to restore can't be reused, so build a fresh one.
-            let fresh = notice == nil ? vz : try ConfigurationBuilder.build(config, bundle: bundle, display: display)
-            let machine = attach(VZVirtualMachine(configuration: fresh))
+            let machine = attach(VZVirtualMachine(configuration: built.configuration))
             switch config.guest {
             case .macOS:
                 try await machine.start(options: try macStartOptions(config))
@@ -95,15 +99,37 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         }
     }
 
-    private func probeSuspendSupport(of configuration: VZVirtualMachineConfiguration, allowed: Bool) {
+    private func probeSuspendSupport(of configuration: VZVirtualMachineConfiguration, allowed: Bool, filtered: Bool) {
         do {
             try configuration.validateSaveRestoreSupport()
             canSuspend = allowed
             suspendUnavailableReason = allowed ? nil : "Suspend is off for disposable or locked-down machines."
         } catch {
             canSuspend = false
-            suspendUnavailableReason = error.localizedDescription
+            // The framework decides whether a user-mode network device can be saved; say so instead of leaving a bare error.
+            suspendUnavailableReason =
+                filtered
+                ? "\(error.localizedDescription) Filtered networking may be the cause: switch the network to NAT to suspend."
+                : error.localizedDescription
         }
+    }
+
+    /// Starts a new run's user-mode stack before the machine, and watches it. A stack left from an earlier attempt is
+    /// stopped first, because each start gets its own.
+    func beginNetwork(_ stack: UserNetStack?, policy: NetworkPolicy) {
+        network?.stop()
+        guard let stack else {
+            network = nil
+            return
+        }
+        let activity = NetworkActivity(stack: stack, policy: policy)
+        activity.start()
+        network = activity
+    }
+
+    /// Forwards an edited policy to the running stack, if there is one. Other network settings apply at the next start.
+    func networkPolicyDidChange(_ policy: NetworkPolicy) {
+        network?.apply(policy)
     }
 
     /// Provisioning is only consumed by a boot that keeps its result: a disposable clone or a recovery boot
@@ -221,6 +247,8 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     }
 
     private func tearDown() {
+        network?.stop()
+        network = nil
         runtimeLimit?.cancel()
         runtimeLimit = nil
         deadline = nil

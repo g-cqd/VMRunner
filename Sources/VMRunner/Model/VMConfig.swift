@@ -10,9 +10,20 @@ enum GuestOS: String, Codable, CaseIterable, Identifiable, Sendable {
 
 enum NetworkMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case nat, none
+    /// Virtio NIC wired to VMRunner's own user-mode network stack, which applies `VMConfig.networkPolicy` to every connection.
+    case filtered
 
     var id: Self { self }
-    var label: String { self == .nat ? "NAT" : "None" }
+    var label: String {
+        switch self {
+        case .nat: "NAT"
+        case .none: "None"
+        case .filtered: "Filtered (user-mode)"
+        }
+    }
+
+    /// Whether the guest gets a network card (and so a MAC address that saved state depends on).
+    var hasNetworkDevice: Bool { self != .none }
 }
 
 enum DiskCaching: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -137,6 +148,13 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     // Network
     var networkMode = NetworkMode.nat
     var macAddress: String?
+    /// Rules for `.filtered` networking; kept (and ignored) in the other modes so switching back loses nothing.
+    var networkPolicy = NetworkPolicy()
+    /// `.filtered` only: what the guest sees when a TCP connection is denied. Fixed when the machine starts.
+    var networkDenyAction = DenyAction.reset
+    /// `.filtered` only: reset open connections when the Mac changes network (Wi-Fi to Ethernet, a VPN connects), so the guest
+    /// reconnects over the new path instead of stalling. Fixed when the machine starts.
+    var networkResetsOnHostChange = true
 
     // Sharing
     var sharedFolders: [SharedFolder] = []
