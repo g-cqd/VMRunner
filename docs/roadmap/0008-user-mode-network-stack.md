@@ -17,6 +17,8 @@ A review of the stack with the guest as the attacker produced a series of fixes,
   instead of aborting the app.
 - DNS resolution is a policy decision (ADR-0028): names, record types, answer records and addresses are checked, and the
   proxy no longer forwards what a guest merely asks for.
+- The host's own addresses are a floor under every policy (ADR-0029): loopback, `0.0.0.0`, link-local and metadata, the
+  NAT gateway and `198.18.0.0/15` are denied whatever `blockPrivateRanges` says.
 
 ## Still owed
 

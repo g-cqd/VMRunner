@@ -94,7 +94,9 @@ extension NetworkPolicy.Reason {
         case .blockedConnection(let rule): "Matches the blocked connection \(rule)."
         case .portNotAllowListed(let port): "Port \(port) is not on the allowed ports."
         case .urlNotAllowListed: "The URL does not start with an allowed prefix."
-        case .reservedRange(let kind, let address): "\(address) is \(kind.explanation), and private ranges are blocked."
+        case .reservedRange(let kind, let address):
+            "\(address) is \(kind.explanation), and "
+                + (kind.isFloor ? "the guest is never let reach those." : "private ranges are blocked.")
         case .blockedAddress(let rule, let address): "\(address) is inside the blocked address rule \(rule)."
         case .blockedDomain(let rule): "The name matches the blocked domain \(rule)."
         case .blockedURL(let rule): "The URL starts with the blocked prefix \(rule)."
@@ -118,6 +120,7 @@ extension ReservedRangeKind {
         case .multicast: "a multicast address"
         case .unspecified: "an unspecified address"
         case .reserved: "a reserved address"
+        case .benchmarking: "in the range the virtual network itself uses"
         }
     }
 }

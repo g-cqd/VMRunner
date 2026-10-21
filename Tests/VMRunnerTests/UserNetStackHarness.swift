@@ -117,10 +117,21 @@ struct TestNetwork {
     let events: FlowEventLog
 }
 
-/// Boots a stack and a scripted guest, runs `body`, and always stops the stack.
+extension UserNetConfig {
+    /// A stack whose guest can reach the loopback servers the integration tests start. The floor (ADR-0029) denies
+    /// loopback to every real stack; this is the one place a test lifts it, for that one kind.
+    static var loopbackReachable: UserNetConfig {
+        var config = UserNetConfig()
+        config.exemptedFloorKinds = [.loopback]
+        return config
+    }
+}
+
+/// Boots a stack and a scripted guest, runs `body`, and always stops the stack. The guest can reach loopback servers
+/// unless a test passes its own `config`.
 func withNetwork(
     policy: NetworkPolicy = CoreRig.openPolicy, resolver: StubResolver = StubResolver(), boot: Bool = true,
-    config: UserNetConfig = UserNetConfig(), pathChanges: AsyncStream<Void> = AsyncStream { _ in },
+    config: UserNetConfig = .loopbackReachable, pathChanges: AsyncStream<Void> = AsyncStream { _ in },
     _ body: (TestNetwork) async throws -> Void
 ) async throws {
     let made = try UserNetStack.make(config: config, policy: policy, resolver: resolver, pathChanges: { pathChanges })

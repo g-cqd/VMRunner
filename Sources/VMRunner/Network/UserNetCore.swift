@@ -38,7 +38,7 @@ final class UserNetCore<Host: UserNetHost, ClockType: Clock> where ClockType.Dur
     ///   before this is called.
     init(config: UserNetConfig, policy: NetworkPolicy, host: Host, clock: ClockType) {
         ctx = UserNetContext(config: config, host: host)
-        gate = PolicyGate(policy: policy)
+        gate = PolicyGate(policy: policy, floorExemptions: config.exemptedFloorKinds)
         self.clock = clock
         origin = clock.now
         nextSequence = config.initialSequenceSeed

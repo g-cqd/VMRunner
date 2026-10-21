@@ -89,7 +89,7 @@ extension UserNetIntegration {
             let server = try #require(LoopbackServer(.sink))
             defer { server.close() }
             let total = Self.megabytes * 1_048_576
-            var config = UserNetConfig()
+            var config = UserNetConfig.loopbackReachable
             config.mtu = mtu
             try await withNetwork(config: config) { network in
                 let guest = network.guest
@@ -111,7 +111,7 @@ extension UserNetIntegration {
             let total = Self.megabytes * 1_048_576
             let server = try #require(LoopbackServer(.bulk(pattern(total))))
             defer { server.close() }
-            var config = UserNetConfig()
+            var config = UserNetConfig.loopbackReachable
             config.mtu = mtu
             try await withNetwork(config: config) { network in
                 let guest = network.guest

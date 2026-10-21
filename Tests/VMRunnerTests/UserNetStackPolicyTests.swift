@@ -23,7 +23,7 @@ extension UserNetIntegration {
         @Test func theDefaultPolicyDeniesLoopbackAndTheServerNeverSeesAConnection() async throws {
             let server = try #require(LoopbackServer(.echo))
             defer { server.close() }
-            try await withNetwork(policy: NetworkPolicy()) { network in
+            try await withNetwork(policy: NetworkPolicy(), config: UserNetConfig()) { network in
                 #expect(network.guest.connect(to: (loopback, server.port)) == nil)
                 let denied = try #require(await network.events.next { if case .denied = $0.phase { true } else { false } })
                 #expect(denied.phase == .denied(.policy(.reservedRange(.loopback, address: .v4(loopback)))))
@@ -31,6 +31,20 @@ extension UserNetIntegration {
                 network.guest.sendUDP(to: (loopback, server.port), [1])
                 #expect(await network.events.next { $0.transport == .udp && $0.phase != .opened } != nil)
                 #expect(server.connectionCount == 0)
+            }
+        }
+
+        @Test func theFloorHoldsOnARealStackEvenWithEveryRuleAndSwitchOff() async throws {
+            let server = try #require(LoopbackServer(.echo))
+            defer { server.close() }
+            var wide = policy { $0.blockPrivateRanges = false }
+            wide.mode = .allowListed
+            wide.allowedAddresses = [try AddressRule("127.0.0.1")]
+            try await withNetwork(policy: wide, config: UserNetConfig()) { network in
+                #expect(network.guest.connect(to: (loopback, server.port)) == nil)
+                network.guest.sendUDP(to: (loopback, server.port), [1])
+                #expect(await network.events.next { $0.transport == .udp && $0.phase != .opened } != nil)
+                #expect(server.connectionCount == 0, "the Mac's loopback is never contacted")
             }
         }
 
@@ -188,7 +202,9 @@ extension UserNetIntegration {
         @Test func relaxingThePolicyAdmitsNewFlows() async throws {
             let server = try #require(LoopbackServer(.echo))
             defer { server.close() }
-            try await withNetwork(policy: NetworkPolicy()) { network in
+            var strict = CoreRig.openPolicy
+            strict.blockedAddresses = [try AddressRule("127.0.0.0/8")]
+            try await withNetwork(policy: strict) { network in
                 #expect(!reaches(network, server))
                 network.stack.updatePolicy(CoreRig.openPolicy)
                 #expect(reaches(network, server))
@@ -229,7 +245,8 @@ extension UserNetIntegration {
         @Test func stoppingClosesFlowsReportsThemAndFinishesTheStreams() async throws {
             let server = try #require(LoopbackServer(.echo))
             defer { server.close() }
-            let made = try UserNetStack.make(policy: CoreRig.openPolicy, resolver: StubResolver(), pathChanges: { AsyncStream { _ in } })
+            let made = try UserNetStack.make(
+                config: .loopbackReachable, policy: CoreRig.openPolicy, resolver: StubResolver(), pathChanges: { AsyncStream { _ in } })
             let events = FlowEventLog(made.stack.flowEvents)
             made.stack.start()
             let guest = GuestHarness(link: GuestLink(descriptor: made.guestDescriptor))

@@ -50,6 +50,10 @@ struct UserNetConfig: Sendable {
     /// intercepted; block those destinations by address or port instead.
     var interceptAllDNS = true
     var dnsBlockResponse = DNSBlockResponse.nameError
+    /// Built-in ranges that are always denied (``ReservedRangeKind/isFloor``) and are not, for this stack. Empty, and
+    /// nothing in the app sets it: it exists so that integration tests can reach the loopback servers they start. No
+    /// policy value reaches it, so a saved or edited policy can never lift the floor.
+    var exemptedFloorKinds: Set<ReservedRangeKind> = []
     /// Where TCP initial sequence numbers start; tests pin it for deterministic frames.
     var initialSequenceSeed = UInt32.random(in: 0...UInt32.max)
     var vpnDetection = GuestVPNDetector.Configuration()

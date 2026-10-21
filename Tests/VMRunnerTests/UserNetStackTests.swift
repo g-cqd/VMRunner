@@ -228,7 +228,7 @@ extension UserNetIntegration {
         }
 
         @Test(.enabled(if: icmpSocketsWork, "needs an unprivileged ICMP socket")) func aDeniedPingGetsNoAnswer() async throws {
-            try await withNetwork(policy: NetworkPolicy()) { network in
+            try await withNetwork(policy: NetworkPolicy(), config: UserNetConfig()) { network in
                 network.guest.ping(loopback, identifier: 1)
                 #expect(network.guest.receivePingReply(timeout: 0.3) == nil)
                 #expect(await network.events.next { $0.transport == .icmp && $0.phase != .opened } != nil)

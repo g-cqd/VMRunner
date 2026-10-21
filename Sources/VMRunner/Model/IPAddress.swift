@@ -203,6 +203,9 @@ struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
 }
 
 /// Why an address is considered non-public.
+///
+/// Two groups: the *floor* (see ``isFloor``), which no policy setting lifts, and the rest, which
+/// ``NetworkPolicy/blockPrivateRanges`` governs.
 enum ReservedRangeKind: String, Hashable, Sendable {
     /// `169.254.169.254`, the instance-metadata endpoint of the major clouds.
     case cloudMetadata
@@ -223,9 +226,24 @@ enum ReservedRangeKind: String, Hashable, Sendable {
     case unspecified
     /// `240.0.0.0/4`, including the limited broadcast address.
     case reserved
+    /// `198.18.0.0/15` (RFC 2544): where the user-mode network puts its gateway and guest, so never a destination.
+    case benchmarking
+
+    /// Whether the range is part of the floor: the guest's own host, its virtual network and the addresses that name
+    /// the machine or its cloud (loopback, unspecified, link-local and metadata, the NAT gateway and the user-mode
+    /// network's range). They are denied whatever the policy says, because reaching them reaches the Mac itself, which
+    /// no list of rules is meant to grant by accident. The other kinds are other people's networks, which
+    /// ``NetworkPolicy/blockPrivateRanges`` governs.
+    var isFloor: Bool {
+        switch self {
+        case .cloudMetadata, .hostGateway, .loopback, .linkLocal, .unspecified, .benchmarking: true
+        case .privateNetwork, .carrierGradeNAT, .uniqueLocal, .siteLocal, .multicast, .reserved: false
+        }
+    }
 }
 
-/// The built-in non-public ranges that `NetworkPolicy.blockPrivateRanges` enforces.
+/// The built-in non-public ranges: the floor (always enforced) and the private networks `NetworkPolicy.blockPrivateRanges`
+/// governs.
 enum ReservedRanges {
     private static func v4(_ bits: UInt32, _ prefix: Int, _ kind: ReservedRangeKind) -> (kind: ReservedRangeKind, rule: AddressRule) {
         (kind, AddressRule(network: .v4(bits), prefixLength: prefix))
@@ -245,6 +263,7 @@ enum ReservedRanges {
         v4(0x7F00_0000, 8, .loopback),
         v4(0xA9FE_0000, 16, .linkLocal),
         v4(0x6440_0000, 10, .carrierGradeNAT),
+        v4(0xC612_0000, 15, .benchmarking),
         v4(0xE000_0000, 4, .multicast),
         v4(0x0000_0000, 8, .unspecified),
         v4(0xF000_0000, 4, .reserved),
@@ -260,5 +279,17 @@ enum ReservedRanges {
     /// - Complexity: O(1); the table is a fixed size.
     static func kind(of address: IPAddress) -> ReservedRangeKind? {
         table.first { $0.rule.contains(address) }?.kind
+    }
+
+    /// The kind of the first range containing `address` that is enforced: always the floor, and the private networks
+    /// only when `blockingPrivateRanges`. `exempting` names floor kinds to let through (see
+    /// ``NetworkPolicy/evaluate(host:port:resolvedAddresses:exempting:)``).
+    static func enforcedKind(
+        of address: IPAddress, blockingPrivateRanges: Bool, exempting: Set<ReservedRangeKind> = []
+    ) -> ReservedRangeKind? {
+        table.first { entry in
+            guard entry.rule.contains(address), !exempting.contains(entry.kind) else { return false }
+            return entry.kind.isFloor || blockingPrivateRanges
+        }?.kind
     }
 }

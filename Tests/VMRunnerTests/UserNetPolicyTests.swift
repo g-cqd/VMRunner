@@ -66,9 +66,11 @@ struct UserNetDefaultPolicyTests {
         #expect(attempt(rig, to: (example, 443), port: 50_004) == .connected)
     }
 
-    @Test func turningOffPrivateRangeBlockingIsWhatTheTestsUse() {
+    /// Turning the switch off admits private networks; loopback is on the floor and stays refused (UserNetFloorTests).
+    @Test func turningOffPrivateRangeBlockingAdmitsPrivateNetworks() {
         let rig = CoreRig(policy: policy { _ in })
-        #expect(attempt(rig, to: (ipv4("127.0.0.1"), 8_080)) == .connected)
+        #expect(attempt(rig, to: (ipv4("10.0.0.5"), 8_080)) == .connected)
+        #expect(attempt(rig, to: (ipv4("127.0.0.1"), 8_080), port: 50_001) == .refused)
     }
 
     @Test func denialsCarryTheReasonAndDestination() throws {
@@ -299,9 +301,9 @@ struct UserNetPolicyChangeTests {
 
     @Test func relaxingThePolicyAdmitsNewFlowsImmediately() {
         let rig = CoreRig(policy: NetworkPolicy())
-        #expect(attempt(rig, to: (ipv4("127.0.0.1"), 80)) == .refused)
+        #expect(attempt(rig, to: (ipv4("10.0.0.5"), 80)) == .refused)
         rig.core.updatePolicy(policy { _ in }, existingFlows: .terminate)
-        #expect(attempt(rig, to: (ipv4("127.0.0.1"), 80), port: 50_001) == .connected)
+        #expect(attempt(rig, to: (ipv4("10.0.0.5"), 80), port: 50_001) == .connected)
     }
 
     @Test func aHostPathChangeResetsEveryFlowSoTheGuestReconnects() {

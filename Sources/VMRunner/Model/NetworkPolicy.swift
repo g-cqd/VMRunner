@@ -27,15 +27,19 @@ enum VPNRequirement: String, Hashable, Sendable, Codable, CaseIterable {
 /// 2. ``blockedPorts``;
 /// 3. ``blockedDomains`` (names only);
 /// 4. a name with no resolved addresses is denied (`.unresolved`): it cannot be connected to safely;
-/// 5. **every** address (the literal itself plus all `resolvedAddresses`) against ``blockPrivateRanges`` and
+/// 5. **every** address (the literal itself plus all `resolvedAddresses`) against the built-in ranges and
 ///    ``blockedAddresses``, including the IPv4 address embedded in mapped, NAT64, 6to4, and IPv4-compatible IPv6
-///    forms;
+///    forms. The built-in ranges are the *floor* (loopback, unspecified, link-local and cloud metadata, the NAT
+///    gateway and `198.18.0.0/15`: see ``ReservedRangeKind/isFloor``), always denied, and the private networks
+///    (RFC 1918, carrier-grade NAT, unique-local, multicast and the reserved blocks), denied while
+///    ``blockPrivateRanges`` is on;
 /// 6. in ``Mode/allowListed``, the host must match ``allowedDomains``, or every address must lie in
 ///    ``allowedAddresses``; otherwise `.notAllowListed`;
 /// 7. for http URLs, ``blockedURLPrefixes``.
 ///
-/// Allow-list entries never override a block: allowing `192.168.64.1` while ``blockPrivateRanges`` is on still denies.
-/// Turn ``blockPrivateRanges`` off to allow a private destination deliberately.
+/// Allow-list entries never override a block: allowing `127.0.0.1` or `192.168.64.1` still denies, because those are
+/// the floor, and allowing `10.0.0.5` denies while ``blockPrivateRanges`` is on. Turn ``blockPrivateRanges`` off to
+/// allow a private network deliberately; nothing lifts the floor.
 ///
 /// The VPN requirement is not part of `evaluate`; it depends on host state over time, not on a destination.
 struct NetworkPolicy: Hashable, Sendable, Codable {
@@ -88,8 +92,9 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         let pathRulesApplied: Bool
     }
 
-    /// Block private, loopback, link-local (incl. cloud metadata), CGNAT, unique-local, multicast, unspecified and
-    /// reserved ranges, and the NAT gateway `192.168.64.0/24` guests use to reach host services. On by default.
+    /// Block the private networks: RFC 1918, carrier-grade NAT (`100.64.0.0/10`), unique-local IPv6, multicast and the
+    /// reserved blocks. On by default. It does not govern the *floor* (loopback, `0.0.0.0`, link-local and cloud
+    /// metadata, the NAT gateway `192.168.64.0/24`, `198.18.0.0/15`): those are denied whatever this says.
     var blockPrivateRanges = true
     var blockedAddresses: [AddressRule] = []
     var blockedDomains: [DomainRule] = []
@@ -146,13 +151,20 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
     /// - Returns: `.allow`, or `.deny` with the first reason found. Never throws; unparseable input is a denial.
     /// - Note: connect only to addresses you passed here.
     func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress]) -> Decision {
+        evaluate(host: host, port: port, resolvedAddresses: resolvedAddresses, exempting: [])
+    }
+
+    /// As ``evaluate(host:port:resolvedAddresses:)``, with `floorKinds` not enforced. For the integration tests, which
+    /// must reach servers they start on the loopback interface: nothing outside the tests passes a non-empty set
+    /// (``UserNetConfig/exemptedFloorKinds`` is the only source), and the policy itself has no such setting.
+    func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress], exempting floorKinds: Set<ReservedRangeKind>) -> Decision {
         let form: HostForm
         do {
             form = try HostForm(parsing: host)
         } catch {
             return .deny(error.reason)
         }
-        return evaluate(form: form, port: port, resolvedAddresses: resolvedAddresses)
+        return evaluate(form: form, port: port, resolvedAddresses: resolvedAddresses, exempting: floorKinds)
     }
 
     /// Decides whether a request for `url` may proceed.
@@ -173,7 +185,7 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         } catch {
             return URLEvaluation(decision: .deny(error.reason), pathRulesApplied: false)
         }
-        let decision = evaluate(form: target.host, port: target.port, resolvedAddresses: resolvedAddresses)
+        let decision = evaluate(form: target.host, port: target.port, resolvedAddresses: resolvedAddresses, exempting: [])
         let pathRulesApply = target.scheme == .http
         guard decision.isAllowed, pathRulesApply else { return URLEvaluation(decision: decision, pathRulesApplied: pathRulesApply) }
         func matches(_ rule: URLRule) -> Bool {
@@ -186,7 +198,9 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         return URLEvaluation(decision: outsideAllowedURLs ? .deny(.urlNotAllowListed) : .allow, pathRulesApplied: true)
     }
 
-    private func evaluate(form: HostForm, port: UInt16, resolvedAddresses: [IPAddress]) -> Decision {
+    private func evaluate(form: HostForm, port: UInt16, resolvedAddresses: [IPAddress], exempting floorKinds: Set<ReservedRangeKind>)
+        -> Decision
+    {
         if blockedPorts.contains(where: { $0.contains(port) }) { return .deny(.blockedPort(port)) }
         var addresses = resolvedAddresses
         switch form {
@@ -199,7 +213,7 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         if let rule = blockedConnections.first(where: { $0.blocks(host: form, port: port, addresses: addresses) }) {
             return .deny(.blockedConnection(rule))
         }
-        if let reason = firstAddressDenial(in: addresses) { return .deny(reason) }
+        if let reason = firstAddressDenial(in: addresses, exempting: floorKinds) { return .deny(reason) }
         guard mode == .allowListed else { return .allow }
         return allowListDecision(form, port: port, addresses: addresses)
     }
@@ -213,10 +227,10 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         return .allow
     }
 
-    private func firstAddressDenial(in addresses: [IPAddress]) -> Reason? {
+    private func firstAddressDenial(in addresses: [IPAddress], exempting floorKinds: Set<ReservedRangeKind>) -> Reason? {
         for address in addresses {
             for candidate in address.blockCandidates {
-                if blockPrivateRanges, let kind = ReservedRanges.kind(of: candidate) {
+                if let kind = ReservedRanges.enforcedKind(of: candidate, blockingPrivateRanges: blockPrivateRanges, exempting: floorKinds) {
                     return .reservedRange(kind, address: address)
                 }
                 if let rule = blockedAddresses.first(where: { $0.contains(candidate) }) {

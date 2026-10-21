@@ -140,11 +140,67 @@ struct AddressJudgementTests {
         #expect(try address("2001:db8::1").normalized == address("2001:db8::1"))
     }
 
-    @Test func turningOffPrivateBlockingAllowsPrivateTargets() throws {
+    @Test func turningOffPrivateBlockingAllowsPrivateNetworksButNotTheFloor() throws {
         var open = NetworkPolicy()
         open.blockPrivateRanges = false
-        #expect(open.evaluate(host: "10.0.0.1", port: 80, resolvedAddresses: []) == .allow)
-        #expect(open.evaluate(host: "svc.example", port: 80, resolvedAddresses: try addresses("::1", "169.254.169.254")) == .allow)
+        for text in ["10.0.0.1", "172.16.0.9", "192.168.1.1", "100.64.0.1", "fd00::1"] {
+            #expect(open.evaluate(host: text, port: 80, resolvedAddresses: []) == .allow, "\(text) is a private network")
+        }
+        #expect(open.evaluate(host: "svc.example", port: 80, resolvedAddresses: try addresses("10.0.0.1")) == .allow)
+    }
+
+    /// The floor is the Mac itself and its virtual network; no setting and no allow rule opens it (ADR-0029).
+    @Test(arguments: [
+        ("127.0.0.1", ReservedRangeKind.loopback), ("127.1.2.3", .loopback), ("0.0.0.0", .unspecified), ("169.254.169.254", .cloudMetadata),
+        ("169.254.10.10", .linkLocal), ("192.168.64.1", .hostGateway), ("198.18.0.1", .benchmarking), ("198.19.255.254", .benchmarking),
+        ("::1", .loopback), ("::", .unspecified), ("fe80::1", .linkLocal), ("::ffff:127.0.0.1", .loopback),
+        ("::ffff:169.254.169.254", .cloudMetadata), ("64:ff9b::7f00:1", .loopback), ("2002:7f00:1::1", .loopback),
+    ])
+    func theFloorHoldsWhateverThePolicySays(text: String, kind: ReservedRangeKind) throws {
+        var policy = NetworkPolicy()
+        policy.blockPrivateRanges = false
+        policy.mode = .allowListed
+        policy.allowedAddresses = [try AddressRule("0.0.0.0/0"), try AddressRule("::/0")]
+        policy.allowedConnections = [try ConnectionRule("0.0.0.0/0"), try ConnectionRule("[::/0]")]
+        for host in ["svc.example", text] {
+            let decision = policy.evaluate(host: host, port: 80, resolvedAddresses: try addresses(text))
+            guard case .deny(.reservedRange(let found, _)) = decision else {
+                Issue.record("\(text) via \(host) was not denied: \(decision)")
+                continue
+            }
+            #expect(found == kind && found.isFloor)
+        }
+    }
+
+    @Test func theFloorIsExactlyTheKindsADecisionCannotLift() {
+        let floor: Set<ReservedRangeKind> = [.cloudMetadata, .hostGateway, .loopback, .linkLocal, .unspecified, .benchmarking]
+        let all: [ReservedRangeKind] = [
+            .cloudMetadata, .hostGateway, .privateNetwork, .loopback, .linkLocal, .carrierGradeNAT, .uniqueLocal, .siteLocal, .multicast,
+            .unspecified, .reserved, .benchmarking,
+        ]
+        #expect(Set(all.filter(\.isFloor)) == floor)
+        #expect(ReservedRanges.table.allSatisfy { all.contains($0.kind) })
+    }
+
+    @Test func theBenchmarkingBlockIsCoveredEdgeToEdge() throws {
+        let policy = NetworkPolicy()
+        for text in ["198.18.0.0", "198.19.255.255"] {
+            #expect(policy.evaluate(host: "svc.example", port: 80, resolvedAddresses: try addresses(text)).isAllowed == false)
+        }
+        for text in ["198.17.255.255", "198.20.0.0"] {
+            #expect(policy.evaluate(host: "svc.example", port: 80, resolvedAddresses: try addresses(text)) == .allow)
+        }
+    }
+
+    /// The only way past the floor is the stack's own exemption, which exists for the integration tests.
+    @Test func onlyAnExplicitExemptionLiftsTheFloorAndOnlyForItsKind() throws {
+        var open = NetworkPolicy()
+        open.blockPrivateRanges = false
+        let loopback = try addresses("127.0.0.1")
+        #expect(open.evaluate(host: "svc.example", port: 80, resolvedAddresses: loopback, exempting: [.loopback]) == .allow)
+        #expect(!open.evaluate(host: "svc.example", port: 80, resolvedAddresses: loopback, exempting: [.linkLocal]).isAllowed)
+        #expect(!open.evaluate(host: "svc.example", port: 80, resolvedAddresses: loopback).isAllowed)
+        #expect(UserNetConfig().exemptedFloorKinds.isEmpty, "the app never exempts anything")
     }
 
     /// DNS rebinding: the name is fine, one of the addresses behind it is not. Every address must pass.

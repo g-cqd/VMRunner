@@ -59,10 +59,10 @@ struct NetworkAllowListTests {
         #expect(!policy.evaluate(host: "bad.good.example", port: 443, resolvedAddresses: resolved).isAllowed)
         #expect(!policy.evaluate(host: "good.example", port: 25, resolvedAddresses: resolved).isAllowed)
         #expect(!policy.evaluate(host: "good.example", port: 443, resolvedAddresses: try addresses("93.184.216.99")).isAllowed)
-        // The NAT gateway is on the allow-list, but the private-range block wins until it is turned off deliberately.
+        // The NAT gateway is on the allow-list, but the floor wins, and turning private blocking off does not lift it.
         #expect(!policy.evaluate(host: "192.168.64.1", port: 80, resolvedAddresses: []).isAllowed)
         policy.blockPrivateRanges = false
-        #expect(policy.evaluate(host: "192.168.64.1", port: 80, resolvedAddresses: []) == .allow)
+        #expect(!policy.evaluate(host: "192.168.64.1", port: 80, resolvedAddresses: []).isAllowed)
     }
 
     @Test func denyListModeIgnoresAllowLists() throws {

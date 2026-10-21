@@ -74,31 +74,41 @@ enum GateVerdict: Hashable, Sendable {
 struct PolicyGate {
     var policy: NetworkPolicy
     var names = NameTable()
+    /// Floor ranges not enforced; always empty outside the integration tests (see ``UserNetConfig/exemptedFloorKinds``).
+    let floorExemptions: Set<ReservedRangeKind>
 
-    init(policy: NetworkPolicy) {
+    init(policy: NetworkPolicy, floorExemptions: Set<ReservedRangeKind> = []) {
         self.policy = policy
+        self.floorExemptions = floorExemptions
+    }
+
+    private func evaluate(_ host: String, port: UInt16, resolvedAddresses: [IPAddress]) -> NetworkPolicy.Decision {
+        policy.evaluate(host: host, port: port, resolvedAddresses: resolvedAddresses, exempting: floorExemptions)
     }
 
     /// Judges a connection to `address:port`. Allocates (strings and arrays): called once per new flow, never per packet.
     func judge(address: UInt32, port: UInt16, now: TimeInterval) -> GateVerdict {
         let ip = IPAddress.v4(address)
-        let literal = policy.evaluate(host: ip.description, port: port, resolvedAddresses: [])
+        let literal = evaluate(ip.description, port: port, resolvedAddresses: [])
         let known = names.names(for: address, now: now)
         if case .deny(let reason) = literal, Self.isBlock(reason) { return .deny(reason, name: known.last) }
         var allowedName: String?
         var softDenial: NetworkPolicy.Reason?
         for name in known.reversed() {
-            switch policy.evaluate(host: name, port: port, resolvedAddresses: [ip]) {
+            switch evaluate(name, port: port, resolvedAddresses: [ip]) {
             case .allow: allowedName = allowedName ?? name
             case .deny(let reason):
                 if Self.isBlock(reason) { return .deny(reason, name: name) }
                 softDenial = softDenial ?? reason
             }
         }
-        if literal == .allow { return .allow(name: allowedName ?? known.last) }
-        if let allowedName { return .allow(name: allowedName) }
-        if case .deny(let reason) = literal { return .deny(softDenial ?? reason, name: known.last) }
-        return .allow(name: known.last)
+        switch literal {
+        case .allow:
+            return .allow(name: allowedName ?? known.last)
+        case .deny(let reason):
+            if let allowedName { return .allow(name: allowedName) }
+            return .deny(softDenial ?? reason, name: known.last)
+        }
     }
 
     /// Judges an ICMP echo: like a connection with no port, so a port allow-list does not apply.
@@ -131,7 +141,7 @@ struct PolicyGate {
     /// a connection rule that blocks all ports. What depends on the port or on the allow-list is left to the
     /// connection, which is judged when the guest makes it.
     func addressBlock(_ address: UInt32, for name: String) -> NetworkPolicy.Reason? {
-        guard case .deny(let reason) = policy.evaluate(host: name, port: 0, resolvedAddresses: [.v4(address)]), Self.isBlock(reason)
+        guard case .deny(let reason) = evaluate(name, port: 0, resolvedAddresses: [.v4(address)]), Self.isBlock(reason)
         else { return nil }
         return reason
     }

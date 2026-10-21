@@ -255,7 +255,7 @@ enum UserNetAllocationScenarios {
         let (vpnChanges, vpnContinuation) = AsyncStream.makeStream(of: GuestVPNState.self, bufferingPolicy: .bufferingNewest(4))
         _ = (flowEvents, vpnChanges)
         let loop = UserNetLoop(
-            config: UserNetConfig(), policy: CoreRig.openPolicy, guestDescriptor: pair.hostSide, handle: handle, inbox: inbox,
+            config: .loopbackReachable, policy: CoreRig.openPolicy, guestDescriptor: pair.hostSide, handle: handle, inbox: inbox,
             shared: UserNetSharedState(), flowEvents: flowContinuation, vpnChanges: vpnContinuation, resolver: StubResolver())
         let port = server.port
         let guestDescriptor = pair.guestSide

@@ -13,8 +13,11 @@ extension HelpCatalog {
                     + "Until you allow something, the guest has no network. The guest can also only look up the names you allow; "
                     + "any other lookup is refused.",
                 "• **A block rule always wins** over an allow rule.",
-                "• **Block my Mac and local networks** (on by default) keeps the guest away from your Mac, your router and other "
-                    + "devices on your network. Turn it off only if the guest must reach them.",
+                "• **Block my Mac and local networks** (on by default) keeps the guest away from your router and the other devices "
+                    + "on your network, and from your Mac under its network address. Turn it off only if the guest must reach them.",
+                "• **Your Mac's own addresses are always blocked**, whatever you set: loopback (`127.0.0.1`), `0.0.0.0`, "
+                    + "link-local addresses including the cloud metadata address `169.254.169.254`, and the virtual networks' own "
+                    + "ranges. An allow rule cannot open them.",
                 "• **When a connection is blocked**: *refuse* tells the guest at once; *ignore* says nothing, so programs wait "
                     + "until they time out.",
                 "• **Reset connections when my Mac changes network**: after Wi-Fi, Ethernet or a VPN changes, open connections "
@@ -30,9 +33,9 @@ extension HelpCatalog {
                     + "Connections are relayed with ordinary Mac sockets, so they leave through whatever network your Mac uses "
                     + "right now, including a VPN's default route.",
                 "Evaluation order: malformed destinations, blocked ports, blocked domains, blocked connections, then the "
-                    + "private-range and blocked-address checks on every address involved. In allow-list mode the destination "
-                    + "must then match an allowed connection, or an allowed domain or address (and an allowed port when ports "
-                    + "are listed).",
+                    + "always-blocked ranges, the private-range switch and the blocked-address checks on every address involved. "
+                    + "In allow-list mode the destination must then match an allowed connection, or an allowed domain or address "
+                    + "(and an allowed port when ports are listed).",
                 "One thread handles all of the guest's traffic, so very fast transfers can be slower than NAT. Suspend may be "
                     + "unavailable with this mode; the Suspend button explains if so, and changing the network mode discards a "
                     + "suspended state.",

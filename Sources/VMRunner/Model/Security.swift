@@ -236,7 +236,8 @@ extension VMConfig {
                 Exposure(
                     level: .medium,
                     text: "Network (filtered): the guest can reach the internet and, through your Mac, your local network "
-                        + "(private ranges are not blocked). Only your block rules apply."))
+                        + "(private ranges are not blocked). Only your block rules apply, except that your Mac's own "
+                        + "addresses (loopback, link-local, the virtual network) stay blocked."))
         }
         if networkPolicy.usesDomainRules {
             items.append(

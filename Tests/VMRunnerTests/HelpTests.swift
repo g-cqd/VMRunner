@@ -94,6 +94,8 @@ struct HelpCatalogTests {
         let vpn = HelpTopic.guestVpn.entry.paragraphs.joined(separator: " ")
         #expect(vpn.contains("Both are guesses"))
         #expect(HelpTopic.networkPolicy.entry.paragraphs.joined(separator: " ").contains("always wins"))
+        let policy = HelpTopic.networkPolicy.entry.paragraphs.joined(separator: " ")
+        #expect(policy.contains("Your Mac's own addresses are always blocked") && policy.contains("169.254.169.254"))
         #expect(HelpTopic.networkPolicy.entry.related.contains(.policyLimits))
     }
 

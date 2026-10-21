@@ -15,8 +15,9 @@ struct NetworkPolicySection: View {
             Text(policy.mode.summary).font(.caption).foregroundStyle(.secondary)
             Toggle("Block my Mac and local networks", isOn: $policy.blockPrivateRanges)
                 .help(
-                    "Blocks private, loopback, link-local and other non-public addresses, including your Mac's side of the virtual "
-                        + "network. Turn off to let the guest reach devices on your LAN.")
+                    "Blocks private networks (home and office LANs, shared and unique-local addresses). Your Mac's own addresses "
+                        + "(loopback, link-local, the virtual network) are always blocked. Turn off to let the guest reach devices "
+                        + "on your LAN.")
             if let warning = model.allowListWarning {
                 Label(warning, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
