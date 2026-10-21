@@ -46,7 +46,7 @@ final class VMLibrary {
             file: approvalsFile
                 ?? machinesDirectory.deletingLastPathComponent().appending(path: "\(machinesDirectory.lastPathComponent).approvals.json"))
         persistence = ConfigPersistence(quietPeriod: saveDelay, clock: ContinuousClock()) { config in
-            try config.encoded().write(to: VMBundle(id: config.id, in: machinesDirectory).config, options: .atomic)
+            try config.encoded().writePrivately(to: VMBundle(id: config.id, in: machinesDirectory).config)
         }
         persistence.onFailure = { [weak self] config, error in
             guard let self else { return }
@@ -70,10 +70,12 @@ final class VMLibrary {
             alertMessage = "Couldn't create the machines folder: \(error.localizedDescription)"
             return
         }
-        let bundles = (try? fileManager.contentsOfDirectory(at: machinesDirectory, includingPropertiesForKeys: nil)) ?? []
+        let entries =
+            (try? fileManager.contentsOfDirectory(at: machinesDirectory, includingPropertiesForKeys: [.isSymbolicLinkKey])) ?? []
         machines =
-            bundles
+            entries
             .filter { $0.pathExtension == "vm" }
+            .filter(isNotSymbolicLink)
             .compactMap(loadConfig)
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         selection = selection ?? machines.first?.id
@@ -96,6 +98,13 @@ final class VMLibrary {
     /// New Machine sheet), never from a settings change that may come from a file on disk.
     func approveHostPaths(_ grants: [HostPathGrant], for id: UUID) {
         recordApprovals { try $0.approve(grants, for: id) }
+    }
+
+    /// A bundle must be a real folder in the machines folder: a link could point anywhere and be repointed after the check.
+    private func isNotSymbolicLink(_ entry: URL) -> Bool {
+        guard (try? entry.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true else { return true }
+        Log.storage.error("Ignoring \(entry.lastPathComponent, privacy: .private): a bundle can't be a symbolic link")
+        return false
     }
 
     /// Reads one bundle's config, skipping any whose folder name doesn't match its id (a stray copy would
@@ -179,7 +188,7 @@ final class VMLibrary {
     }
 
     private func persist(_ config: VMConfig) throws {
-        try config.encoded().write(to: bundle(config.id).config, options: .atomic)
+        try config.encoded().writePrivately(to: bundle(config.id).config)
     }
 
     private func insert(_ config: VMConfig) {
@@ -226,7 +235,7 @@ final class VMLibrary {
                 ? VZMacMachineIdentifier().dataRepresentation
                 : VZGenericMachineIdentifier().dataRepresentation
             try identifier.write(to: staged.machineIdentifier)
-            try copy.encoded().write(to: staged.config, options: .atomic)
+            try copy.encoded().writePrivately(to: staged.config)
             try FileManager.default.moveItem(at: staging, to: destination.url)
         } catch {
             source.remove(staging)

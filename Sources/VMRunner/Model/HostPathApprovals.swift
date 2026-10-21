@@ -108,8 +108,7 @@ struct HostPathApprovals {
             machines: Dictionary(uniqueKeysWithValues: machines.map { ($0.key.uuidString, $0.value.sorted(by: Self.order)) }))
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(stored).write(to: file, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        try encoder.encode(stored).writePrivately(to: file)
         isFresh = false
     }
 

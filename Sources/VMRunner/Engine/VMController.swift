@@ -218,6 +218,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         do {
             if machine.state == .running { try await machine.pause() }
             try await machine.saveMachineStateTo(url: bundle.savedState)
+            try bundle.restrictSavedState()
             try await machine.stop()
             if virtualMachine === machine { tearDown() }
         } catch {

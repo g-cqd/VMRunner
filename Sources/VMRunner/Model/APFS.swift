@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import os
 
 /// Copy-on-write helpers. A clone shares every block with its source until one side writes, so duplicating,
 /// snapshotting, or booting a throwaway copy of a 100 GB disk is instant and costs no space up front.
@@ -9,16 +10,23 @@ enum APFS {
         let code: Int32
 
         var errorDescription: String? {
-            code == ENOTSUP || code == EXDEV
+            if code == ELOOP { return "Won't clone \(source.lastPathComponent): it is a symbolic link, which could point anywhere." }
+            return code == ENOTSUP || code == EXDEV
                 ? "Copy-on-write cloning needs the source and destination on the same APFS volume."
                 : "Couldn't clone \(source.lastPathComponent): \(POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO).localizedDescription)"
         }
     }
 
     /// Clones a file or an entire directory tree atomically with `clonefile(2)`.
+    ///
+    /// The paths come from a bundle someone else may have made, so a source that is itself a symbolic link is refused:
+    /// cloning the target would copy a file the bundle has no business with, and cloning the link would make a "private"
+    /// copy that writes through to the original. `CLONE_NOFOLLOW` closes the window between this check and the call.
     static func clone(_ source: URL, to destination: URL) throws {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: source.path)
+        guard (attributes?[.type] as? FileAttributeType) != .typeSymbolicLink else { throw CloneError(source: source, code: ELOOP) }
         // Swift bridges both paths to NUL-terminated C strings that stay valid for the duration of the call.
-        guard unsafe clonefile(source.path, destination.path, 0) == 0 else {
+        guard unsafe clonefile(source.path, destination.path, UInt32(CLONE_NOFOLLOW)) == 0 else {
             throw CloneError(source: source, code: errno)
         }
     }
@@ -47,7 +55,17 @@ extension VMBundle {
         let decoder = JSONDecoder()
         return
             directories
-            .compactMap { try? decoder.decode(Snapshot.self, from: Data(contentsOf: $0.appending(path: "snapshot.json"))) }
+            .compactMap { directory -> Snapshot? in
+                guard let snapshot = try? decoder.decode(Snapshot.self, from: Data(contentsOf: directory.appending(path: "snapshot.json")))
+                else { return nil }
+                // The folder name is the identity: a copied folder carries the original's id and would alias it.
+                guard directory.lastPathComponent == snapshot.id.uuidString else {
+                    Log.storage.error(
+                        "Ignoring snapshot folder \(directory.lastPathComponent, privacy: .private): name doesn't match its id")
+                    return nil
+                }
+                return snapshot
+            }
             // Restoring a snapshot copies its size into the settings, so a size the editor couldn't have set is refused.
             .filter { (1...EditorLimits.maxDiskGiB).contains($0.diskGiB) }
             .sorted { $0.date > $1.date }
@@ -61,11 +79,11 @@ extension VMBundle {
         guard !hasSavedState else { throw SnapshotError.machineIsSuspended }
         let snapshot = Snapshot(name: name, diskGiB: config.diskGiB)
         let directory = snapshotDirectory(snapshot.id)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try AppPaths.createPrivateDirectory(directory)
         do {
             try APFS.clone(disk, to: directory.appending(path: disk.lastPathComponent))
             try APFS.clone(stateFile(for: config.guest), to: directory.appending(path: stateFile(for: config.guest).lastPathComponent))
-            try JSONEncoder().encode(snapshot).write(to: directory.appending(path: "snapshot.json"))
+            try JSONEncoder().encode(snapshot).writePrivately(to: directory.appending(path: "snapshot.json"))
         } catch {
             remove(directory)
             throw error

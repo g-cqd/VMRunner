@@ -65,6 +65,11 @@ struct VMBundle: Sendable {
         remove(savedState)
     }
 
+    /// Makes the saved memory image readable by the current user only. The guest's memory is in it, secrets included.
+    func restrictSavedState() throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: savedState.path)
+    }
+
     /// Bytes actually allocated on disk (the disk image is sparse).
     var allocatedBytes: Int64 { DiskUsage.allocatedBytes(in: url) }
 
@@ -78,6 +83,14 @@ struct VMBundle: Sendable {
             Log.storage.error(
                 "Couldn't remove \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
+    }
+}
+
+extension Data {
+    /// Writes the file atomically and leaves it readable by the current user only.
+    func writePrivately(to url: URL) throws {
+        try write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }
 
