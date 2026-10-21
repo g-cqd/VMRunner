@@ -24,7 +24,7 @@ enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
             "Keeps the network, but cuts host channels: no clipboard, microphone, Rosetta, nested virtualization, or vsock; "
                 + "shared folders become read-only."
         case .isolated:
-            "Contained, plus no network, no shared folders or extra disks, no sound, "
+            "Contained, plus no network, no shared folders, extra disks or attached installer, no sound, "
                 + "and Secure Boot on Linux when the host runs macOS 27 or later."
         case .hardened:
             "Isolated, plus a disposable disk (changes are discarded on stop), no suspend files, no memory balloon, "
@@ -69,6 +69,7 @@ extension VMConfig {
         config.audioOutput = false
         config.sharedFolders = []
         config.extraDisks = []
+        config.installerAttached = false
         config.secureBoot = guest == .linux && HostCapabilities.secureBoot
         guard profile == .hardened else { return config }
 
@@ -94,6 +95,7 @@ extension VMConfig {
         var readOnlyShares: Int
         var writableDisks: Int
         var readOnlyDisks: Int
+        var installer: Bool
         var clipboard: Bool
         var microphone: Bool
         var speakers: Bool
@@ -119,6 +121,7 @@ extension VMConfig {
             readOnlyShares: sharedFolders.filter(\.readOnly).count,
             writableDisks: extraDisks.filter { !$0.readOnly }.count,
             readOnlyDisks: extraDisks.filter(\.readOnly).count,
+            installer: attachedInstallerPath != nil,
             clipboard: linux && sharesClipboard,
             microphone: audioInput,
             speakers: audioOutput,
@@ -170,6 +173,9 @@ extension VMConfig {
                 disk.readOnly
                     ? Exposure(level: .low, text: "Extra disk (read-only): \(URL(filePath: disk.path).lastPathComponent)")
                     : Exposure(level: .medium, text: "Extra disk (writable): \(URL(filePath: disk.path).lastPathComponent)"))
+        }
+        if let installer = attachedInstallerPath {
+            items.append(Exposure(level: .medium, text: "The guest can read the installer image \(installer) (attached read-only)."))
         }
         if guest == .linux, sharesClipboard { items.append(Exposure(level: .medium, text: "Clipboard is shared with the host.")) }
         if audioInput { items.append(Exposure(level: .medium, text: "The guest can record from the microphone.")) }

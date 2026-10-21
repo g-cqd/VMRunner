@@ -71,6 +71,7 @@ Settings ▸ **Security** picks a profile, then every switch stays individually 
 | Microphone | off | off | off | off |
 | Sound output | on | on | **off** | off |
 | Shared folders / extra disks | as set | **read-only** | **removed** | removed |
+| Attached installer ISO (Linux) | as set | as set | **detached** | detached |
 | Secure Boot (Linux, host macOS 27+) | off | off | **on** | on |
 | Disposable disk (changes discarded on stop) | off | off | off | **on** |
 | Suspend (writes RAM to disk) | on | on | on | **off** |

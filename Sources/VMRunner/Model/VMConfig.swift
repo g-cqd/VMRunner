@@ -121,6 +121,9 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var extraDisks: [ExtraDisk] = []
     var installerISO: String?
     var installerAttached = true
+    /// The installer image the machine boots with attached as a read-only USB drive: Linux guests only, and only while
+    /// attached. The guest can read the whole file, so this is a host channel like a shared folder.
+    var attachedInstallerPath: String? { guest == .linux && installerAttached ? installerISO : nil }
 
     // Display
     var displayWidth = 1920

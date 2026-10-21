@@ -91,8 +91,8 @@ extension HelpCatalog {
                 "• **Contained**: keeps the network but closes the side doors: no clipboard, microphone, Rosetta, nested "
                     + "virtualization, or vsock, "
                     + "and shared folders become read-only.",
-                "• **Isolated**: Contained, and also no network, no shared folders or extra disks, and no sound. Linux gets Secure "
-                    + "Boot if your Mac supports it.",
+                "• **Isolated**: Contained, and also no network, no shared folders, extra disks or attached installer image, and no "
+                    + "sound. Linux gets Secure Boot if your Mac supports it.",
                 "• **Hardened**: Isolated, and also disposable (changes are discarded), no suspend, no memory balloon, no automatic "
                     + "login or "
                     + "remote login on a new macOS account, and a 2-hour runtime limit.",

@@ -111,8 +111,10 @@ extension HelpCatalog {
                 "After Linux is installed, **untick \"Attach installer at boot\"** so the machine boots from its own disk. "
                     + "If you forget, you may see the installer again.",
                 "**Change ISO** lets you swap in a different installer or rescue image.",
+                "While it is attached, the guest can read the whole file, so only attach images you trust it to read. The Isolated "
+                    + "and Hardened profiles detach it; ticking the box again makes the profile read **Custom**.",
             ],
-            related: [.linuxImages]
+            related: [.linuxImages, .securityProfiles]
         ),
         .graphics: HelpEntry(
             area: .display,

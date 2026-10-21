@@ -60,6 +60,7 @@ struct InstallerSection: View {
             if let isoPath {
                 LabeledContent("ISO", value: URL(filePath: isoPath).lastPathComponent)
                 Toggle("Attach installer at boot", isOn: $attached)
+                    .settingHelp(.installerISO)
                 Text("Untick after installation finishes so the VM boots from its disk.")
                     .font(.caption).foregroundStyle(.secondary)
             }

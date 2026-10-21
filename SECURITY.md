@@ -32,7 +32,7 @@ In scope:
   ipsw.me, ISO `.SHA256SUM` from the mirror), or accept an oversized response.
 - **The VM isolation claims.** The security profiles (Standard, Contained, Isolated, Hardened) promise that
   specific host-guest channels are off: network, clipboard, Rosetta, nested virtualization, vsock, microphone,
-  sound output, shared folders and extra disks, memory balloon, suspend, runtime limit, disposable disk. A
+  sound output, shared folders, extra disks and the attached installer image, memory balloon, suspend, runtime limit, disposable disk. A
   profile that leaves a channel open which the UI or README says is closed, or a setting that is not actually
   applied to the `VZVirtualMachineConfiguration`, is a vulnerability.
 - **Build and signing scripts and CI.** `vmr build-app` (`Sources/DevTools/App`) entitlement handling (for example

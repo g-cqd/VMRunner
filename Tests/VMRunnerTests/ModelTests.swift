@@ -80,6 +80,51 @@ struct SecurityTests {
         #expect(hardened.entropyDevice, "entropy must stay on or the guest has no randomness")
     }
 
+    @Test(arguments: [SecurityProfile.isolated, .hardened])
+    func closedProfilesDetachTheInstallerImage(profile: SecurityProfile) {
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.installerISO = "/Users/me/.ssh/id_ed25519"
+        #expect(config.attachedInstallerPath == "/Users/me/.ssh/id_ed25519")
+
+        let closed = config.applying(profile)
+
+        #expect(!closed.installerAttached)
+        #expect(closed.attachedInstallerPath == nil)
+        #expect(closed.installerISO == config.installerISO, "the choice is kept so the user can re-attach it")
+        #expect(closed.detectedProfile == profile)
+
+        var reattached = closed
+        reattached.installerAttached = true
+        #expect(reattached.detectedProfile == nil, "a re-attached installer must not read as \(profile.label)")
+    }
+
+    @Test(arguments: [SecurityProfile.standard, .contained])
+    func openProfilesLeaveTheInstallerAlone(profile: SecurityProfile) {
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.installerISO = "/tmp/linux.iso"
+        #expect(config.applying(profile).installerAttached)
+        #expect(config.applying(profile).detectedProfile == profile)
+    }
+
+    @Test func theInstallerOnlyAttachesToLinuxGuests() {
+        var config = VMConfig.new(name: "x", guest: .macOS)
+        config.installerISO = "/tmp/linux.iso"
+        #expect(config.attachedInstallerPath == nil)
+        #expect(!config.exposures.contains { $0.text.contains("/tmp/linux.iso") })
+    }
+
+    @Test func exposuresNameTheAttachedInstallerByFullPath() throws {
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.installerISO = "/Users/me/.ssh/id_ed25519"
+
+        let exposure = try #require(config.exposures.first { $0.text.contains("/Users/me/.ssh/id_ed25519") })
+        #expect(exposure.level >= .medium)
+
+        #expect(!config.applying(.hardened).exposures.contains { $0.text.contains("id_ed25519") })
+        config.installerAttached = false
+        #expect(!config.exposures.contains { $0.text.contains("id_ed25519") })
+    }
+
     @Test func containedKeepsFoldersButMakesThemReadOnly() {
         var config = VMConfig.new(name: "x", guest: .macOS)
         config.sharedFolders = [SharedFolder(path: "/tmp/a", readOnly: false)]

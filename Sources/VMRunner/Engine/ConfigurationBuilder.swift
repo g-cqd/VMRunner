@@ -168,7 +168,7 @@ enum ConfigurationBuilder {
 
     // MARK: Shared devices
 
-    private static func storage(for config: VMConfig, bundle: VMBundle) throws -> [VZStorageDeviceConfiguration] {
+    static func storage(for config: VMConfig, bundle: VMBundle) throws -> [VZStorageDeviceConfiguration] {
         func attachment(_ url: URL, readOnly: Bool) throws -> VZDiskImageStorageDeviceAttachment {
             try VZDiskImageStorageDeviceAttachment(
                 url: url, readOnly: readOnly,
@@ -185,7 +185,7 @@ enum ConfigurationBuilder {
                 VZVirtioBlockDeviceConfiguration(
                     attachment: try attachment(URL(filePath: disk.path), readOnly: disk.readOnly)))
         }
-        if config.guest == .linux, config.installerAttached, let iso = config.installerISO {
+        if let iso = config.attachedInstallerPath {
             guard FileManager.default.fileExists(atPath: iso) else { throw SetupError.missingFile(iso) }
             let readOnly = try VZDiskImageStorageDeviceAttachment(url: URL(filePath: iso), readOnly: true)
             devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
