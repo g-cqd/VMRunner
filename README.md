@@ -2,19 +2,20 @@
 
 A small SwiftUI app that creates and runs **macOS** and **Linux (CentOS Stream)** virtual machines on Apple
 silicon with Apple's [Virtualization framework](https://developer.apple.com/documentation/virtualization).
-No dependencies beyond the system frameworks.
+The app has no dependencies beyond the system frameworks; the developer tooling (`vmr`, below) uses two pinned
+Apple/Swift packages and is never linked into the app.
 
 ## Build and run
 
 ```sh
-Scripts/build-app.sh            # release build -> build/VMRunner.app (ad-hoc signed, hardened runtime)
-Scripts/build-app.sh debug      # debug build
+swift run vmr build-app         # release build -> build/VMRunner.app (ad-hoc signed, hardened runtime), then verified
+swift run vmr build-app debug   # debug build
 open build/VMRunner.app
 swift test                      # unit tests
 ```
 
-The app needs the `com.apple.security.virtualization` entitlement, which the script applies when signing.
-`swift run` won't work for the same reason: use the script.
+The app needs the `com.apple.security.virtualization` entitlement, which `vmr build-app` applies when signing.
+`swift run VMRunner` won't work for the same reason: use `vmr build-app`.
 
 Requires an Apple silicon Mac on macOS 26+. Built with Xcode 27 / Swift 6.
 
@@ -115,37 +116,64 @@ Sources/VMRunner
 Machines live in ~/Library/Application Support/VMRunner/Machines/<uuid>.vm
 ```
 
-## Quality gates
+## Quality gates and developer tooling
+
+All tooling is Swift: the `vmr` executable (`Sources/vmr`, logic in `Sources/DevTools`) replaced the former shell and
+Python scripts. It depends on [swift-subprocess](https://github.com/swiftlang/swift-subprocess) and
+[swift-argument-parser](https://github.com/apple/swift-argument-parser), both pinned with `exact:`; the app and its
+tests link neither.
 
 ```sh
-Scripts/check.sh               # fast gate: format, swiftlint, shellcheck, build, test, analyzers
-Scripts/check.sh --full        # + ASan, TSan and UBSan test runs, release build, coverage gate (~1 min warm)
-Scripts/check.sh test coverage # only the named steps; --list shows all of them
-Scripts/install-hooks.sh       # pre-commit hook: format lint, SwiftLint, ShellCheck on staged files
+swift run vmr check                          # fast gate: format, swiftlint, build, test, analyzers
+swift run vmr check --full                   # + ASan, TSan and UBSan test runs, release build, coverage gate
+swift run vmr check test coverage            # only the named steps; --list shows all of them
+swift run vmr analyzers [run|install|baseline|versions|pins] [arcleak|dolly|deadwood...]
+swift run vmr build-app [debug|release] [--hardened] [--arm64e]
+swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
+swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files
 ```
 
-Every step runs even if one fails; each prints PASS or FAIL and the script exits non-zero if any failed. CI
-(`.github/workflows/ci.yml`) calls the same script, so local and CI results match.
+Every step runs even if one fails; each prints PASS or FAIL and `vmr check` exits non-zero if any failed. CI
+(`.github/workflows/ci.yml`) calls the same commands, so local and CI results match. Per-repository settings (lint
+paths, coverage bundles, the coverage floor, test targets left out of sanitizer and coverage runs) live in
+`.vmr.json`; `swift run vmr <command> --help` documents every option.
 
 - **Coverage** is measured on the logic layer only (Views, `VMRunnerApp`, `VMController`, `Provisioner` and
   `ConfigurationBuilder` need a display and the virtualization entitlement, so unit tests can't reach them).
-  `COVERAGE_MIN` (default 55) is a ratchet: it only goes up as coverage does (about 60% when introduced).
+  `COVERAGE_MIN` (default 55, set in `.vmr.json`) is a ratchet: it only goes up as coverage does (about 60% when introduced).
 - **Analyzers** are the pinned, checksum-verified releases listed in `Scripts/analyzers.lock`, run by
-  `Scripts/analyzers.sh` (binaries land in the git-ignored `.tools/`):
+  `vmr analyzers` (binaries land in the git-ignored `.tools/`; the SHA-256 of each archive is checked against the
+  lock, not against the release's own checksum file, before anything is unpacked or run):
   [arcleak](https://github.com/g-cqd/arcleak) (retain cycles, anchor leaks, premature releases; any finding
   fails), [dolly](https://github.com/g-cqd/dolly) (duplicate code; exact clones fail, near and structural clones
   are advisory) and [deadwood](https://github.com/g-cqd/deadwood) (unused and dead code, production mode; any
   finding fails). Configuration: `.arcleak.json`, `.dolly.json`, `.deadwood.json`. Existing findings can be
-  accepted into the (currently empty) `.arcleak-baseline.json`, `.dolly-baseline.json` and
-  `.deadwood-baseline.json` with `Scripts/analyzers.sh baseline arcleak dolly deadwood`, so only new ones fail. Accept an intentional
+  accepted into the `.arcleak-baseline.json`, `.dolly-baseline.json` and
+  `.deadwood-baseline.json` with `vmr analyzers baseline arcleak dolly deadwood`, so only new ones fail. Accept an intentional
   finding in source with `// @al:accept -- reason`,
-  `// @dl:accept -- reason` or `// @dw:accept -- reason`.
+  `// @dl:accept -- reason` or `// @dw:accept -- reason`. `vmr analyzers pins` checks that the CI workflows pin
+  the same releases as the lock.
 - **CI** on GitHub Actions: lint, build and unit tests, app bundle checks, sanitizers, coverage, analyzers,
   CodeQL, and workflow linting (actionlint, zizmor). Actions are pinned to full commit SHAs and Dependabot keeps
   them current. Hosted runners can't run nested VMs, so CI never starts a virtual machine.
-- **Hardened build.** `Scripts/build-app.sh` verifies the signature, reads the effective entitlements back and
-  fails on `get-task-allow` or any unexpected entitlement. `Scripts/build-app.sh release --hardened` signs with
+- **Hardened build.** `vmr build-app` verifies the signature, reads the effective entitlements back and
+  fails on `get-task-allow` or any unexpected entitlement. `vmr build-app release --hardened` signs with
   `Resources/VMRunner.hardened.entitlements`, which adds Apple's Enhanced Security (hardened process and heap,
   read-only dyld state, platform restrictions v2). `--arm64e` additionally builds with pointer authentication.
+- **Git hook.** `swift run vmr hooks install` links `.git/hooks/pre-commit` to the built `vmr` binary, which git then
+  runs as `pre-commit` (it dispatches on its program name; `vmr hooks pre-commit` is the explicit form). The link
+  points at the binary where it was built, so every `swift build` updates the hook with no reinstall; after
+  `swift package clean` it dangles and git skips it (with a hint) until you build again. A fresh clone has no binary
+  yet: `swift run vmr hooks install` builds one and installs it in a single step. Bypass with `git commit --no-verify`.
+- **SwiftPM plugins.** `swift package plugin --list` shows `check`, `analyzers` and `build-app`, thin wrappers that
+  forward their arguments to `vmr`. `swift run vmr` stays the primary path, because the plugin sandbox is narrow:
+  - `swift package --allow-writing-to-package-directory --allow-network-connections all:443 analyzers [...]` works
+    inside the sandbox (downloads and verifies the pinned releases, writes `.tools/`).
+  - `swift package --allow-writing-to-package-directory check format` also works inside the sandbox. Every other gate
+    step, and `build-app`, cannot: SwiftLint writes a cache outside the package, and `swift build` and `swift test` cannot
+    start inside the plugin sandbox (SwiftPM cannot nest its own sandbox), while a nested build would wait forever
+    on the lock the outer `swift package` holds on `.build`. Run those as
+    `swift package --disable-sandbox --scratch-path .build-plugin check ...` or
+    `swift package --disable-sandbox --scratch-path .build-plugin build-app ...`, or simply use `swift run vmr`.
 
 See `CONTRIBUTING.md` for the code rules and `SECURITY.md` for how to report a vulnerability.

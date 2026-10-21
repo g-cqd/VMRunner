@@ -3,8 +3,6 @@
 
 # Source and text
 *.swift text eol=lf diff=swift linguist-language=Swift
-*.sh text eol=lf
-.githooks/* text eol=lf
 *.md text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

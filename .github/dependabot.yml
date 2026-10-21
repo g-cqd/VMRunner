@@ -2,7 +2,7 @@ version: 2
 updates:
   # Keeps the SHA-pinned actions current: Dependabot rewrites both the SHA and the trailing "# vX.Y.Z" comment.
   # The g-cqd analyzer actions are pinned together with Scripts/analyzers.lock; a Dependabot bump of one of
-  # them must be mirrored there (Scripts/analyzers.sh pins fails CI until it is).
+  # them must be mirrored there (`vmr analyzers pins` fails CI until it is).
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -15,7 +15,8 @@ updates:
     commit-message:
       prefix: ci
 
-  # The package has no dependencies today; this keeps it that way visibly and covers any added later.
+  # The VMRunner app has no dependencies. The developer tooling (DevTools, vmr) depends on swift-subprocess and
+  # swift-argument-parser, pinned with `exact:` in Package.swift; this proposes their updates, and any added later.
   - package-ecosystem: swift
     directory: /
     schedule:

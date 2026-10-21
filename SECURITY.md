@@ -35,9 +35,9 @@ In scope:
   sound output, shared folders and extra disks, memory balloon, suspend, runtime limit, disposable disk. A
   profile that leaves a channel open which the UI or README says is closed, or a setting that is not actually
   applied to the `VZVirtualMachineConfiguration`, is a vulnerability.
-- **Build and signing scripts and CI.** `Scripts/build-app.sh` entitlement handling (for example
+- **Build and signing scripts and CI.** `vmr build-app` (`Sources/DevTools/App`) entitlement handling (for example
   `get-task-allow` or unexpected entitlements ending up in a release build), the pinned analyzer downloads in
-  `Scripts/analyzers.sh`, and workflow permissions or injection issues in `.github/workflows`.
+  `vmr analyzers` (`Sources/DevTools/Analyzers`), and workflow permissions or injection issues in `.github/workflows`.
 
 Not in scope:
 

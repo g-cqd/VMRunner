@@ -1,6 +1,7 @@
 name: CI
 
-# Every job runs Scripts/check.sh (or build-app.sh) so CI and a local run execute the same steps.
+# Every job runs `swift run vmr ...` (the SwiftPM executable in Sources/vmr that replaced the former shell and Python
+# scripts), so CI and a local run execute the same steps.
 #
 # Runner notes:
 #  * `xcode-27` is GitHub's hosted macOS image with Xcode 27.0 (27A266a, Swift 6.4). Package.swift needs
@@ -10,8 +11,9 @@ name: CI
 #  * Hosted macOS runners are themselves virtual machines and cannot run nested virtual machines, and the
 #    Virtualization entitlement-gated code needs a display. So only the unit tests run in CI; they never
 #    start a VM. `Views`, `VMController`, `Provisioner` and `ConfigurationBuilder` are covered by hand on a real Mac.
-#  * swiftlint and shellcheck come from Homebrew at whatever version it serves (not pinned); swift-format is
-#    the one in the Xcode toolchain.
+#  * swiftlint comes from Homebrew at whatever version it serves (not pinned); swift-format is the one in the Xcode
+#    toolchain. The tooling depends on swift-subprocess and swift-argument-parser, both pinned with `exact:` in
+#    Package.swift and Package.resolved.
 
 on:
   push:
@@ -35,7 +37,7 @@ env:
 
 jobs:
   lint:
-    name: Lint (swift-format, SwiftLint, ShellCheck)
+    name: Lint (swift-format, SwiftLint)
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -47,9 +49,9 @@ jobs:
           swift --version
           swift --version 2>&1 | grep -q 'Swift version 6\.4'
       - name: Install linters
-        run: brew install swiftlint shellcheck
+        run: brew install swiftlint
       - name: Lint
-        run: Scripts/check.sh format swiftlint shellcheck
+        run: swift run vmr check format swiftlint
 
   build-test:
     name: Build and unit tests
@@ -63,6 +65,9 @@ jobs:
         run: |
           swift --version
           swift --version 2>&1 | grep -q 'Swift version 6\.4'
+      # The end-to-end tests of the tooling (DevToolsTests) run swift-format, SwiftLint, git and codesign.
+      - name: Install SwiftLint
+        run: brew install swiftlint
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
@@ -74,7 +79,7 @@ jobs:
           SWIFT_TEST_FLAGS: --xunit-output .build-ci/test-results.xml
         run: |
           mkdir -p .build-ci
-          Scripts/check.sh build test
+          swift run vmr check build test
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -92,10 +97,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Builds and ad-hoc signs only; it never launches the app or starts a VM. The script itself fails on
+      # Builds and ad-hoc signs only; it never launches the app or starts a VM. The command itself fails on
       # get-task-allow, unexpected entitlements, a bad signature or a missing hardened-runtime flag.
       - name: Build and verify
-        run: Scripts/build-app.sh release --hardened
+        run: swift run vmr build-app release --hardened
 
   sanitizers:
     name: Sanitizer (${{ matrix.step }})
@@ -118,7 +123,7 @@ jobs:
       - name: Tests under the sanitizer
         env:
           STEP: ${{ matrix.step }}
-        run: Scripts/check.sh "$STEP"
+        run: swift run vmr check "$STEP"
 
   coverage:
     name: Coverage gate
@@ -134,8 +139,8 @@ jobs:
           key: spm-cov-${{ runner.os }}-${{ runner.arch }}-xcode27.0-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
             spm-cov-${{ runner.os }}-${{ runner.arch }}-xcode27.0-
-      - name: Coverage (COVERAGE_MIN is a ratchet, see Scripts/check.sh)
-        run: Scripts/check.sh coverage
+      - name: Coverage (COVERAGE_MIN is a ratchet, see .vmr.json)
+        run: swift run vmr check coverage
       - name: Upload coverage summary
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -147,20 +152,21 @@ jobs:
 
   # arcleak, dolly and deadwood run through their published composite actions, pinned to the commit of the
   # release tag. The actions default `version` to their own ref, which is a SHA here, so `version` must be
-  # passed. Keep these SHAs and versions equal to Scripts/analyzers.lock (Scripts/analyzers.sh pins checks it).
+  # passed. Keep these SHAs and versions equal to Scripts/analyzers.lock (`vmr analyzers pins` checks it). The job
+  # runs on xcode-27 because `swift run vmr` needs Swift 6.4 (the pins check and the SARIF summary are Swift now).
   # `upload-sarif: 'false'` keeps the job at contents: read; set it to 'true' and grant `security-events: write`
   # on this job only if code scanning is enabled for the repository. The actions run `github/codeql-action/
   # upload-sarif@v4` internally (an unpinned reference inside their action.yml, which this workflow cannot pin).
   analyzers:
     name: Analyzers (arcleak, dolly, deadwood)
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Pins match Scripts/analyzers.lock
-        run: Scripts/analyzers.sh pins
+        run: swift run vmr analyzers pins
       - name: arcleak (retain cycles and leaks)
         uses: g-cqd/arcleak@8a357cd18c43a4bcc84d968f31f954c45242cd69 # v0.10.2
         with:
@@ -191,7 +197,7 @@ jobs:
           upload-sarif: 'false'
       - name: Findings
         if: ${{ !cancelled() }}
-        run: python3 -I Scripts/sarif-summary.py arcleak.sarif dolly.sarif deadwood.sarif
+        run: swift run vmr sarif arcleak.sarif dolly.sarif deadwood.sarif
       - name: Upload SARIF reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -216,9 +222,8 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          python3 -I -c '
-          import json, os, sys
-          bad = {name: job["result"] for name, job in json.loads(os.environ["NEEDS"]).items() if job["result"] != "success"}
-          if bad:
-              sys.exit(f"jobs not successful: {bad}")
-          '
+          bad="$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"' <<<"$NEEDS")"
+          if [ -n "$bad" ]; then
+            echo "jobs not successful: $bad" >&2
+            exit 1
+          fi
