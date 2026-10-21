@@ -23,7 +23,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
 
     @ObservationIgnored private var observation: NSKeyValueObservation?
     @ObservationIgnored private var activeBundle: VMBundle?
-    @ObservationIgnored private var runtimeLimit: Task<Void, Never>?
+    @ObservationIgnored private let runtimeLimit = RuntimeLimit(clock: ContinuousClock())
 
     var isActive: Bool { virtualMachine != nil }
 
@@ -143,20 +143,14 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     }
 
     private func startRuntimeLimit(minutes: Int) {
-        runtimeLimit?.cancel()
+        runtimeLimit.cancel()
         guard minutes > 0 else { return }
         deadline = .now.addingTimeInterval(Double(minutes) * 60)
-        runtimeLimit = Task { [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(minutes * 60))
-                self?.requestStop()
-                // Give the guest 30 s to shut down cleanly before pulling the plug.
-                try await Task.sleep(for: .seconds(30))
-            } catch {
-                return
-            }
-            await self?.forceStop()
-        }
+        runtimeLimit.start(
+            after: .seconds(minutes * 60),
+            requestStop: { [weak self] in self?.requestStop() },
+            forceStop: { [weak self] in await self?.forceStop() }
+        )
     }
 
     private func restore(_ vz: VZVirtualMachineConfiguration, from bundle: VMBundle) async throws {
@@ -249,8 +243,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     private func tearDown() {
         network?.stop()
         network = nil
-        runtimeLimit?.cancel()
-        runtimeLimit = nil
+        runtimeLimit.cancel()
         deadline = nil
         activeBundle?.discardEphemeral()
         activeBundle = nil
