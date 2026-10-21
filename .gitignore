@@ -1,10 +1,10 @@
-# SwiftPM and per-purpose scratch builds (Scripts/check.sh uses .build-asan, .build-cov, ...)
+# SwiftPM and per-purpose scratch builds (`vmr check` uses .build-asan, .build-cov, ...)
 .build/
 .build-*/
 .swiftpm/
 Packages/
 
-# App bundle produced by Scripts/build-app.sh
+# App bundle produced by `vmr build-app`
 build/
 
 # Xcode
@@ -20,7 +20,7 @@ xcuserdata/
 coverage/
 lcov.info
 
-# Downloaded and generated tooling (Scripts/analyzers.sh)
+# Downloaded and generated tooling (`vmr analyzers`)
 .tools/
 *.sarif
 

@@ -1,0 +1,8 @@
+{
+  "skipTestsWhenInstrumented": ["DevToolsTests"],
+  "coverage": {
+    "minimum": 55,
+    "testBundles": ["VMRunnerTests"],
+    "ignoreRegex": "Tests/|\\.build|/Views/|VMRunnerApp|VMController|Provisioner|ConfigurationBuilder"
+  }
+}

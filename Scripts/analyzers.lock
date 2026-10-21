@@ -1,4 +1,4 @@
-# Pinned releases of the g-cqd static analyzers VMRunner gates on (sourced by Scripts/analyzers.sh).
+# Pinned releases of the g-cqd static analyzers VMRunner gates on (read by `swift run vmr analyzers`).
 #
 # <TOOL>_VERSION                release tag without the leading "v"
 # <TOOL>_COMMIT                 full commit SHA the tag points at (provenance; also what the CI workflow pins)
@@ -8,8 +8,9 @@
 #
 # To bump: pick the new tag, resolve its commit (gh api repos/g-cqd/<tool>/git/ref/tags/v<version>, following
 # the annotated tag to the commit), download the macos-arm64 tarball, run shasum -a 256 on it, update all three
-# values here AND the matching "uses:" SHA and "version:" input in .github/workflows/ci.yml. Fingerprints in
-# the baselines can move between versions: regenerate them with Scripts/analyzers.sh baseline.
+# values here AND the matching "uses:" SHA and "version:" input in .github/workflows/ci.yml (`vmr analyzers pins` checks that
+# they agree). Fingerprints in
+# the baselines can move between versions: regenerate them with `swift run vmr analyzers baseline`.
 #
 # Releases: https://github.com/g-cqd/<tool>/releases
 

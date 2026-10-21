@@ -3,6 +3,7 @@ strict: true
 
 included:
   - Sources
+  - Plugins
   - Tests
 
 excluded:
@@ -109,7 +110,7 @@ custom_rules:
   no_print:
     name: "No print"
     regex: '^\s*print\('
-    message: "Use Log (os.Logger) so output is structured and redacted."
+    message: "Use Log (os.Logger) so output is structured and redacted; command-line tools write through Output."
     severity: error
   no_legacy_locks:
     name: "No NSLock / os_unfair_lock"
