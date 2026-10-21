@@ -68,7 +68,10 @@ extension HelpCatalog {
                     + "server.",
                 "• A **boot ISO** is small and downloads the packages during installation, so the VM needs a network.",
                 "• A **DVD** ISO is large but installs offline.",
-                "• **Local ISO** lets you use any arm64 installer you already have.",
+                "• **Other ISO** lets you install from any arm64 installer you already have. It must boot with UEFI and support "
+                    + "virtio disks and networking, which most current arm64 Linux distributions do. Other arm64 systems, "
+                    + "such as the BSDs, may work too, but that has not been tested here.",
+                "Windows is not supported: Apple's framework has no supported way to run it. See the Limits topic.",
             ],
             advanced: [
                 "Each download is checked against the checksum the project publishes next to the ISO. That proves the file arrived "

@@ -70,7 +70,7 @@ struct MediaSection: View {
     private var linuxControls: some View {
         Picker("Image", selection: $model.linuxSource) {
             ForEach(LinuxCatalog.images) { Text($0.title).tag(NewMachineModel.LinuxSource.catalog($0.id)) }
-            Text("Local ISO…").tag(NewMachineModel.LinuxSource.file)
+            Text("Other ISO (any arm64 UEFI installer)…").tag(NewMachineModel.LinuxSource.file)
         }
         if case .file = model.linuxSource {
             fileRow(placeholder: "Choose ISO…")
