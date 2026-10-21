@@ -47,7 +47,7 @@ struct VMRunnerApp: App {
         guard let config = library.machines.first(where: { $0.name == key || $0.id.uuidString == key }) else { return }
         library.selection = config.id
         // Give the window a moment to lay out so the guest display can match its size.
-        for _ in 0..<20 where library.displayHint == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        await poll(every: .milliseconds(100), attempts: 20, clock: ContinuousClock()) { library.displayHint != nil }
         library.startMachine(config.id)
     }
 }

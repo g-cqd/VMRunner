@@ -39,7 +39,10 @@ final class DisplayResizer {
     private var enabled = false
     private var lastViewSize = CGSize.zero
     private var lastApplied = CGSize.zero
-    private var pending: Task<Void, Never>?
+    /// Debounces live resize: the guest re-modesets on every call.
+    private lazy var debouncer = Debouncer<CGSize>(quietPeriod: .milliseconds(150), clock: ContinuousClock()) { [weak self] size in
+        self?.apply(size)
+    }
 
     func configure(machine: VZVirtualMachine, scale: Double, enabled: Bool) {
         let changed = self.scale != scale || self.enabled != enabled || self.machine !== machine
@@ -52,15 +55,14 @@ final class DisplayResizer {
     func viewResized(to size: CGSize) {
         lastViewSize = size
         guard enabled, size.width >= 64, size.height >= 64 else { return }
-        pending?.cancel()
-        // Debounce live resize: the guest re-modesets on every call.
-        pending = Task {
-            try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled, let display = machine?.graphicsDevices.first?.displays.first else { return }
-            let pixels = CGSize(width: CGFloat(Int(size.width * scale) & ~1), height: CGFloat(Int(size.height * scale) & ~1))
-            guard pixels != lastApplied, pixels != display.sizeInPixels else { return }
-            if (try? display.reconfigure(sizeInPixels: pixels)) != nil { lastApplied = pixels }
-        }
+        debouncer.submit(size)
+    }
+
+    private func apply(_ size: CGSize) {
+        guard let display = machine?.graphicsDevices.first?.displays.first else { return }
+        let pixels = CGSize(width: CGFloat(Int(size.width * scale) & ~1), height: CGFloat(Int(size.height * scale) & ~1))
+        guard pixels != lastApplied, pixels != display.sizeInPixels else { return }
+        if (try? display.reconfigure(sizeInPixels: pixels)) != nil { lastApplied = pixels }
     }
 }
 
