@@ -25,8 +25,9 @@ extension HelpCatalog {
             paragraphs: [
                 "• **Keep macOS restore images**: by default the 20+ GB restore image is deleted after a successful install. Turn "
                     + "this on to keep it.",
-                "• **Downloaded images**: shows how much space downloaded installers use, and lets you delete them. Machines are not "
-                    + "affected.",
+                "• **Downloaded images**: shows how much space downloaded installers use, and lets you delete them. A machine "
+                    + "made with this version keeps its own copy of its installer, so it is not affected. A machine made with an "
+                    + "older version may still use a downloaded file; choose its installer again if that file is deleted.",
                 "• **Default Mac model**: only used for the ipsw.me list, and has no effect on what you can install.",
                 "• **Keep input responsive**: stops macOS from slowing the app while a machine runs, at some cost in battery. On by "
                     + "default.",

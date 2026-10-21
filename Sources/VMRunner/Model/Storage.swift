@@ -61,12 +61,27 @@ struct VMBundle: Sendable {
     var machineIdentifier: URL { url.appending(path: "MachineIdentifier") }
     var efiVariables: URL { url.appending(path: "EFIVariables.fd") }
     var savedState: URL { url.appending(path: "SavedState.vzvmsave") }
+    /// The machine's own copy of the installer that setup downloaded.
+    var installer: URL { url.appending(path: Self.installerName) }
+    static let installerName = "Installer.iso"
 
     // Disposable copies used while an ephemeral machine runs.
     var ephemeralDisk: URL { url.appending(path: "Disk.ephemeral.img") }
     var ephemeralAuxiliaryStorage: URL { url.appending(path: "AuxiliaryStorage.ephemeral") }
     var ephemeralEFIVariables: URL { url.appending(path: "EFIVariables.ephemeral.fd") }
     var snapshots: URL { url.appending(path: "Snapshots", directoryHint: .isDirectory) }
+
+    /// The installer to attach for a configuration that stores `path`.
+    ///
+    /// A path that names some machine's own copy (`<uuid>.vm/Installer.iso`) means this bundle's copy when it has one: a
+    /// duplicate carries the source's configuration but its own clone of the file, and must not depend on the source.
+    /// Any other path is a file the user chose and is used as it is.
+    func installerFile(for path: String) -> URL {
+        let chosen = URL(filePath: path)
+        let namesABundleCopy = chosen.lastPathComponent == Self.installerName && chosen.deletingLastPathComponent().pathExtension == "vm"
+        guard namesABundleCopy, FileManager.default.fileExists(atPath: installer.path) else { return chosen }
+        return installer
+    }
 
     func activeDisk(ephemeral: Bool) -> URL { ephemeral ? ephemeralDisk : disk }
     func activeAuxiliaryStorage(ephemeral: Bool) -> URL { ephemeral ? ephemeralAuxiliaryStorage : auxiliaryStorage }

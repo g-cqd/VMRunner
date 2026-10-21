@@ -193,9 +193,10 @@ enum ConfigurationBuilder {
                 VZVirtioBlockDeviceConfiguration(
                     attachment: try attachment(URL(filePath: disk.path), readOnly: disk.readOnly)))
         }
-        if let iso = config.attachedInstallerPath {
-            guard FileManager.default.fileExists(atPath: iso) else { throw SetupError.missingFile(iso) }
-            let readOnly = try VZDiskImageStorageDeviceAttachment(url: URL(filePath: iso), readOnly: true)
+        if let path = config.attachedInstallerPath {
+            let iso = bundle.installerFile(for: path)
+            guard FileManager.default.fileExists(atPath: iso.path) else { throw SetupError.missingFile(iso.path) }
+            let readOnly = try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)
             devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
         }
         return devices

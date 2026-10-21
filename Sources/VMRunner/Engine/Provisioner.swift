@@ -31,22 +31,31 @@ enum Provisioner {
         var config = config
         let bundle = library.bundle(config.id)
 
-        if let iso = try await resolveMedia(config.source, job: job) {
-            config.installerISO = iso.path
-            config.installerAttached = true
-            // A download lands in the app's own cache; an image the user picked was approved when the machine was created.
-            if case .local = config.source {
-            } else {
-                library.approveHostPaths([HostPathGrant(.installer, iso.path, writable: false)], for: config.id)
-            }
-        }
+        let media = try await resolveMedia(config.source, job: job)
 
         try createBundleAndDisk(for: config, in: bundle, job: job)
+        if let media {
+            let kept = try installer(for: media, source: config.source, in: bundle)
+            config.installerISO = kept.path
+            config.installerAttached = true
+            // A download is cloned into the machine's own bundle; an image the user picked was approved when the machine was created.
+            if case .local = config.source {
+            } else {
+                library.approveHostPaths([HostPathGrant(.installer, kept.path, writable: false)], for: config.id)
+            }
+        }
         _ = try VZEFIVariableStore(creatingVariableStoreAt: bundle.efiVariables, options: [.allowOverwrite])
         try VZGenericMachineIdentifier().dataRepresentation.write(to: bundle.machineIdentifier)
 
         config.isProvisioned = true
         library.update(config)
+    }
+
+    /// The installer a machine attaches: a file the user chose stays where it is; a download is cloned into the machine's
+    /// bundle, so the shared cache is never what a machine boots from.
+    private static func installer(for media: URL, source: ImageSource?, in bundle: VMBundle) throws -> URL {
+        if case .local = source { return media }
+        return try ImageStore.keepInstaller(media, in: bundle)
     }
 
     // MARK: macOS

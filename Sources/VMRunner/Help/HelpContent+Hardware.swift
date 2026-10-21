@@ -116,6 +116,12 @@ extension HelpCatalog {
                 "While it is attached, the guest can read the whole file, so only attach images you trust it to read. The Isolated "
                     + "and Hardened profiles detach it; ticking the box again makes the profile read **Custom**.",
             ],
+            advanced: [
+                "A downloaded installer is checked once, then copied into the machine's own folder as a copy-on-write clone, which "
+                    + "shares disk space with the download. The machine boots from that copy, never from the shared download folder, "
+                    + "so a later download or a damaged or replaced file there cannot change what it boots from. An ISO you choose "
+                    + "yourself is used where it is."
+            ],
             related: [.linuxImages, .securityProfiles]
         ),
         .graphics: HelpEntry(

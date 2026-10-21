@@ -48,7 +48,9 @@ Common to both: CPU/memory, sparse disk (grow-only), extra disk images, disk cac
 audio in/out, NAT, filtered (user-mode) or no network, custom MAC, shared folders (virtiofs), suspend/resume, snapshots,
 duplicate, memory balloon / entropy / vsock devices.
 
-Downloads are resumable and verified: IPSW against ipsw.me's SHA-256, ISOs against the mirror's `.SHA256SUM`.
+Downloads are resumable and verified: IPSW against ipsw.me's SHA-256, ISOs against the mirror's `.SHA256SUM`. Downloads are
+filed in a shared cache by their checksum, and a Linux machine boots from its own copy-on-write clone of the verified
+installer, kept in its bundle, never from the cache.
 
 ### Display
 
