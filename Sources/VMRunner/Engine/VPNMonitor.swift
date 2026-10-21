@@ -128,7 +128,7 @@ final class VPNMonitor {
         let makeSnapshots = source
         task = Task { [weak self] in
             for await interfaces in makeSnapshots() {
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
                 self.state = VPNState.classify(interfaces)
             }
         }

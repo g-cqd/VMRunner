@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import TestKit
 import Testing
 
 @testable import VMRunner
@@ -117,16 +118,21 @@ struct VPNMonitorLifecycleTests {
 
     @Test func stopReturnsToUnknownAndIgnoresLaterSnapshots() async throws {
         let (stream, feed) = AsyncStream.makeStream(of: [InterfaceSnapshot].self)
+        let terminated = AsyncEventProbe<Void>()
+        feed.onTermination = { _ in terminated.record(()) }
         let monitor = VPNMonitor(source: { stream })
         var states = Observations { monitor.state }.makeAsyncIterator()
         _ = await states.next()
         monitor.start()
         feed.yield([unaddressed("utun4")])
         #expect(await states.next() == .active)
+
+        // A snapshot that is already waiting when `stop()` runs must not bring the state back.
+        feed.yield([unaddressed("utun5")])
         monitor.stop()
         #expect(await states.next() == .unknown)
-        feed.yield([unaddressed("utun4")])
-        for _ in 0..<50 { await Task.yield() }
+        _ = try await terminated.wait(forAtLeast: 1)
+        await Task.yield()  // the cancelled loop's resumption was queued on the main actor before this hop
         #expect(monitor.state == .unknown)
         feed.finish()
     }
