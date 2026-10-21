@@ -53,7 +53,7 @@ struct AnalyzersTests {
     @Test
     func aTamperedArchiveIsRefusedAndNeverExecuted() async throws {
         try await withTemporaryDirectory { base in
-            let fixture = try await AnalyzerFixture.make(in: base, tampered: [.arcleak])
+            let fixture = try await AnalyzerFixture.make(in: base, tampered: ["arcleak"])
             let run = try await fixture.vmr(["analyzers"])
             #expect(run.status == 1, "\(run.combined)")
             #expect(run.error.contains("arcleak 1.2.3: SHA-256 mismatch"), "\(run.error)")

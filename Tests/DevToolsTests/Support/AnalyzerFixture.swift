@@ -2,34 +2,43 @@ import Foundation
 
 @testable import DevTools
 
-/// A package root with a lock file and a LOCAL release: the arcleak, dolly and deadwood archives
-/// are tarballs of the `FakeAnalyzer` binary, served from a directory through `VMR_ANALYZERS_BASE_URL=file://...`.
+/// A package root with a lock file and a LOCAL release: the arcleak, dolly and deadwood archives are tarballs of the
+/// `FakeAnalyzer` binary and the SwiftLint archive is a flat zip of it, all served from a directory through
+/// `VMR_ANALYZERS_BASE_URL=file://...`.
 struct AnalyzerFixture {
     static let version = "1.2.3"
+    /// The analyzers and SwiftLint: every release the lock pins.
+    static let releases = AnalyzerTool.allCases.map(\.release) + [.swiftlint]
 
     let root: URL
     let release: URL
     let logFile: URL
 
     static func commit(of tool: AnalyzerTool) -> String {
+        commit(of: tool.release)
+    }
+
+    static func commit(of release: ReleaseSpec) -> String {
         let digit =
-            switch tool {
-            case .arcleak: "a"
-            case .dolly: "b"
-            case .deadwood: "c"
+            switch release.name {
+            case "arcleak": "a"
+            case "dolly": "b"
+            case "deadwood": "c"
+            default: "d"
             }
         return String(repeating: digit, count: 40)
     }
 
-    static func lockText(sha: (AnalyzerTool) -> String) -> String {
-        AnalyzerTool.allCases.map { tool in
-            let prefix = tool.rawValue.uppercased()
-            return "\(prefix)_VERSION=\(version)\n\(prefix)_COMMIT=\(commit(of: tool))\n\(prefix)_SHA256_MACOS_ARM64=\(sha(tool))\n"
+    static func lockText(sha: (ReleaseSpec) -> String) -> String {
+        releases.map { release in
+            let prefix = release.name.uppercased()
+            return "\(prefix)_VERSION=\(version)\n\(prefix)_COMMIT=\(commit(of: release))\n\(prefix)_SHA256_MACOS_ARM64=\(sha(release))\n"
         }.joined(separator: "\n")
     }
 
-    /// Builds the fixture below `base`. Archives named in `tampered` get an extra file after their digest was pinned.
-    static func make(in base: URL, tampered: Set<AnalyzerTool> = []) async throws -> Self {
+    /// Builds the fixture below `base`. Releases named in `tampered` get an extra file after their digest was pinned.
+    /// `lockText` replaces the lock the fixture would pin for its own releases.
+    static func make(in base: URL, tampered: Set<String> = [], lockText: String? = nil) async throws -> Self {
         let root = base.appending(path: "package", directoryHint: .isDirectory)
         let release = base.appending(path: "release", directoryHint: .isDirectory)
         let stage = base.appending(path: "stage", directoryHint: .isDirectory)
@@ -38,24 +47,25 @@ struct AnalyzerFixture {
         }
         let fake = try VMR.binary(named: "FakeAnalyzer")
 
-        var digests: [AnalyzerTool: String] = [:]
-        for tool in AnalyzerTool.allCases {
-            let pin = AnalyzerPin(release: tool.release, version: version, commit: commit(of: tool), sha256: "")
-            guard let directoryName = pin.directoryInArchive else { throw TestSetupError("\(tool.rawValue) has no archive directory") }
-            let directory = stage.appending(path: "\(tool.rawValue)/\(directoryName)", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: fake, to: directory.appending(path: tool.rawValue))
+        var digests: [String: String] = [:]
+        for spec in releases {
+            let name = spec.name
+            let pin = AnalyzerPin(release: spec, version: version, commit: commit(of: spec), sha256: "")
+            let parent = stage.appending(path: name, directoryHint: .isDirectory)
+            let content = pin.directoryInArchive.map { parent.appending(path: $0, directoryHint: .isDirectory) } ?? parent
+            try FileManager.default.createDirectory(at: content, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: fake, to: content.appending(path: name))
             let archive = release.appending(path: pin.archiveName)
-            try await pack(directory: directoryName, in: stage.appending(path: tool.rawValue), to: archive)
-            digests[tool] = try AnalyzerInstaller.sha256(ofFileAt: archive)
-            if tampered.contains(tool) {
-                try Data("not what was pinned".utf8).write(to: directory.appending(path: "extra"))
+            try await pack(pin, content: content, parent: parent, to: archive)
+            digests[name] = try AnalyzerInstaller.sha256(ofFileAt: archive)
+            if tampered.contains(name) {
+                try Data("not what was pinned".utf8).write(to: content.appending(path: "extra"))
                 try FileManager.default.removeItem(at: archive)
-                try await pack(directory: directoryName, in: stage.appending(path: tool.rawValue), to: archive)
+                try await pack(pin, content: content, parent: parent, to: archive)
             }
         }
 
-        try write(["Scripts/analyzers.lock": lockText { digests[$0] ?? "" }], to: root)
+        try write(["Scripts/analyzers.lock": lockText ?? Self.lockText { digests[$0.name] ?? "" }], to: root)
         return Self(root: root, release: release, logFile: base.appending(path: "analyzer.log"))
     }
 
@@ -76,12 +86,23 @@ struct AnalyzerFixture {
 
     /// What the fake recorded for `tool`, one `<tool> <arguments>` line per call, `--version` probes included.
     func loggedCalls(of tool: AnalyzerTool) -> [String] {
-        let log = URL(fileURLWithPath: "\(logFile.path).\(tool.rawValue)")
+        loggedCalls(of: tool.rawValue)
+    }
+
+    func loggedCalls(of name: String) -> [String] {
+        let log = URL(fileURLWithPath: "\(logFile.path).\(name)")
         return ((try? String(contentsOf: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
     }
 
-    private static func pack(directory: String, in parent: URL, to archive: URL) async throws {
-        let run = try await VMR.run("/usr/bin/tar", ["-czf", archive.path, "-C", parent.path, directory], in: parent)
-        guard run.status == 0 else { throw TestSetupError("tar failed: \(run.error)") }
+    /// A tarball of the release's directory, or a zip of the files at its root.
+    private static func pack(_ pin: AnalyzerPin, content: URL, parent: URL, to archive: URL) async throws {
+        let run: Invocation
+        switch pin.release.archive {
+        case .versionedTarball:
+            run = try await VMR.run("/usr/bin/tar", ["-czf", archive.path, "-C", parent.path, content.lastPathComponent], in: parent)
+        case .flatZip:
+            run = try await VMR.run("/usr/bin/zip", ["-q", "-r", archive.path, "."], in: content)
+        }
+        guard run.status == 0 else { throw TestSetupError("packing \(archive.lastPathComponent) failed: \(run.error)") }
     }
 }

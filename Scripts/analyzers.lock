@@ -1,15 +1,18 @@
-# Pinned releases of the static analyzers VMRunner gates on (read by `swift run vmr analyzers`).
+# Pinned releases of the tools the gate downloads: the three static analyzers and SwiftLint (read by `swift run vmr
+# analyzers` and by every gate step and hook that runs SwiftLint).
 #
-# <TOOL>_VERSION                release tag without the leading "v"
+# <TOOL>_VERSION                release tag without its prefix: "v" for the analyzers, none for SwiftLint
 # <TOOL>_COMMIT                 full commit SHA the tag points at (provenance)
-# <TOOL>_SHA256_MACOS_ARM64     SHA-256 of <tool>-<version>-macos-arm64.tar.gz, verified before anything is
-#                               executed. Not read from the release's own .sha256 file, so a tampered release
-#                               cannot vouch for itself.
+# <TOOL>_SHA256_MACOS_ARM64     SHA-256 of the release archive, verified before anything is executed. The archive is
+#                               <tool>-<version>-macos-arm64.tar.gz for an analyzer and portable_swiftlint.zip (a
+#                               universal binary) for SwiftLint. Not read from the release's own checksum file, so
+#                               a tampered release cannot vouch for itself.
 #
 # To bump: pick the new tag on the tool's release page, resolve its commit (the tag's ref through the GitHub API,
-# following the annotated tag to the commit), download the macos-arm64 tarball, run shasum -a 256 on it and update all
-# three values here. CI runs `swift run vmr check analyzers` against this file, so nothing else carries the versions.
-# Fingerprints in the baselines can move between versions: regenerate them with `swift run vmr analyzers baseline`.
+# following the annotated tag to the commit), download the archive, run shasum -a 256 on it and update all three values
+# here. CI runs `swift run vmr check` steps against this file, so nothing else carries the versions. Fingerprints in the
+# baselines can move between analyzer versions: regenerate them with `swift run vmr analyzers baseline`. A new SwiftLint
+# version can report new violations: fix them in the same change.
 #
 # Release archives are fetched from the address built in Sources/DevTools/Analyzers/ReleaseDownloader.swift.
 
@@ -24,3 +27,7 @@ DOLLY_SHA256_MACOS_ARM64=56b3885f71a68b79e0ff231ae861104d111b7b72aee5206ffff7663
 DEADWOOD_VERSION=0.10.1
 DEADWOOD_COMMIT=2c048101fda2bb02aa41214b2e761c51059b55cd
 DEADWOOD_SHA256_MACOS_ARM64=7f50297615ab85f9d73bef131ebca81f0fe4e70e46235dd315615e86bd5b34fc
+
+SWIFTLINT_VERSION=0.65.1
+SWIFTLINT_COMMIT=6aba03e3d8302b33f106e0f922210f35ca4b52cf
+SWIFTLINT_SHA256_MACOS_ARM64=c1e429b0599cf1b516f369a2d9ec04eaf0e436f3c12b637df8851fa52ff694d0

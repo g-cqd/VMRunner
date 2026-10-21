@@ -12,7 +12,7 @@ enum PreCommit {
         Output.out("pre-commit: swiftlint (\(staged.count) file(s))")
         let swiftFormat = try await ToolLocator.swiftFormat(environment: environment)
         async let format = capture(swiftFormat, ["lint", "--strict"] + staged, root: root)
-        async let lint = capture("swiftlint", ["lint", "--quiet", "--force-exclude"] + staged, root: root)
+        async let lint = lintWithSwiftLint(staged, root: root, environment: environment)
 
         var failed = false
         for (name, outcome) in [("swift-format", await format), ("swiftlint", await lint)] {
@@ -22,7 +22,6 @@ enum PreCommit {
                 failed = failed || !result.succeeded
             case .failure(let error):
                 Output.err("pre-commit: \(name): \(error)")
-                if name == "swiftlint" { Output.err("pre-commit: swiftlint not installed (brew install swiftlint)") }
                 failed = true
             }
         }
@@ -31,6 +30,18 @@ enum PreCommit {
             return 1
         }
         return 0
+    }
+
+    /// The pinned SwiftLint (installed on first use) over the staged files; a missing or refused install is a failure to report.
+    private static func lintWithSwiftLint(_ staged: [String], root: URL, environment: [String: String]) async -> Result<
+        CommandResult, any Error
+    > {
+        do {
+            let swiftlint = try await ToolLocator.swiftlint(root: root, environment: environment)
+            return await capture(swiftlint, ["lint", "--quiet", "--force-exclude"] + staged, root: root)
+        } catch {
+            return .failure(error)
+        }
     }
 
     private static func capture(_ executable: String, _ arguments: [String], root: URL) async -> Result<CommandResult, any Error> {

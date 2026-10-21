@@ -34,6 +34,18 @@ struct PureLogicTests {
     }
 
     @Test
+    func thisRepositorysLockPinsEveryReleaseWithACommitAndAChecksum() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let lock = try AnalyzerLock.load(root: root)
+        let hex = Set("0123456789abcdef")
+        for release in AnalyzerTool.allCases.map(\.release) + [.swiftlint] {
+            let pin = try lock.pin(for: release)
+            #expect(pin.commit.count == 40 && pin.commit.allSatisfy(hex.contains), "\(release.name) commit: \(pin.commit)")
+            #expect(pin.sha256.count == 64 && pin.sha256.allSatisfy(hex.contains), "\(release.name) checksum: \(pin.sha256)")
+        }
+    }
+
+    @Test
     func aReleaseSpecNamesItsArchiveItsLayoutAndItsAddress() throws {
         let arcleak = AnalyzerPin(release: AnalyzerTool.arcleak.release, version: "0.10.2", commit: "abc", sha256: "")
         #expect(arcleak.directoryInArchive == "arcleak-0.10.2-macos-arm64")

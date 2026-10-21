@@ -14,7 +14,8 @@ enum GateSteps {
 
     @Sendable
     static func swiftlint(_ context: StepContext) async throws {
-        try await context.run("swiftlint", ["lint", "--quiet"])
+        let tool = try await ToolLocator.swiftlint(root: context.root, environment: context.environment)
+        try await context.run(tool, ["lint", "--quiet"])
     }
 
     @Sendable

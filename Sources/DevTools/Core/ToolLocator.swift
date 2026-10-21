@@ -28,4 +28,15 @@ enum ToolLocator {
         guard result.succeeded, !path.isEmpty else { throw ToolError("'swift-format' not found in PATH or in the active toolchain") }
         return path
     }
+
+    /// `SWIFTLINT_BIN` when set, otherwise the SwiftLint release pinned in `Scripts/analyzers.lock`, downloaded and
+    /// verified on first use (never taken from `PATH`, so every checkout lints with the same version).
+    static func swiftlint(root: URL, environment: [String: String]) async throws -> String {
+        if let override = environment[ReleaseSpec.swiftlint.binaryOverrideVariable], !override.isEmpty {
+            return try resolve(override, searchPath: environment["PATH"]).path
+        }
+        let pin = try AnalyzerLock.load(root: root).pin(for: .swiftlint)
+        let installer = try AnalyzerInstaller(root: root, environment: environment)
+        return try await installer.install(pin).path
+    }
 }

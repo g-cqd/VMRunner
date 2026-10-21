@@ -186,6 +186,10 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
   `.deadwood-baseline.json` with `vmr analyzers baseline arcleak dolly deadwood`, so only new ones fail. Accept an intentional
   finding in source with `// @al:accept -- reason`,
   `// @dl:accept -- reason` or `// @dw:accept -- reason`.
+- **SwiftLint** is pinned in `Scripts/analyzers.lock` too: the `swiftlint` step and the pre-commit hook install the
+  portable release into `.tools/` on first use, with the same guarantees (the archive's SHA-256 is checked against the
+  lock before anything from it is unpacked or run, then the binary must report the pinned version). It is never taken
+  from `PATH`, so every checkout lints with one version; `SWIFTLINT_BIN` names a binary of your own instead.
 - **Documentation** (`vmr check docs`) enforces the documentation law of `docs/WHITE-PAPER.md` section 5 over `docs/` and
   this README: the white paper stays within 200 lines; ADRs, roadmap entries, diary files and research studies have the
   right names, unique numbers, front matter and headings; supersession, `blocked-by`, `decision` and `feeds` references

@@ -49,11 +49,12 @@ enum VMR {
         environment: [String: String] = [:],
         timeout: Duration = .seconds(420)
     ) async throws -> Invocation {
+        let swiftlint = try await PinnedSwiftLint.path()
         let spec = CommandSpec(
             executable: executable,
             arguments: arguments,
             workingDirectory: directory,
-            environment: cleanEnvironment(adding: environment),
+            environment: cleanEnvironment(adding: ["SWIFTLINT_BIN": swiftlint].merging(environment) { _, new in new }),
             inheritEnvironment: false,
             timeout: timeout
         )
@@ -66,6 +67,21 @@ enum VMR {
     @discardableResult
     static func vmr(_ arguments: [String], in directory: URL, environment: [String: String] = [:]) async throws -> Invocation {
         try await run(try binary(named: "vmr").path, arguments, in: directory, environment: environment)
+    }
+}
+
+/// The SwiftLint the fixture packages and repositories lint with. They carry no lock of their own, so every end-to-end
+/// run gets it as `SWIFTLINT_BIN`: the one in this process's environment, otherwise the release this checkout pins
+/// (downloaded and verified on first use, once per test process).
+enum PinnedSwiftLint {
+    private static let resolution = Task {
+        let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try await ToolLocator.swiftlint(root: checkout, environment: ProcessInfo.processInfo.environment)
+    }
+
+    static func path() async throws -> String {
+        try await resolution.value
     }
 }
 

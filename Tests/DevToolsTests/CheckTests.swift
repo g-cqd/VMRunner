@@ -108,10 +108,10 @@ struct CheckTests {
 
     @Test
     func theSwiftlintStepFailsClearlyWhenTheToolIsMissing() async throws {
-        // An empty PATH hides swiftlint (and swift): the step must fail with the former script's message, not crash.
-        let run = try await check(["swiftlint"], files: GateFixture.passing, environment: ["PATH": "/nonexistent"])
+        // An override that is not an executable: the step must fail with a clear message, not crash or fall back to PATH.
+        let run = try await check(["swiftlint"], files: GateFixture.passing, environment: ["SWIFTLINT_BIN": "/nonexistent/swiftlint"])
         #expect(run.status == 1)
-        #expect(run.error.contains("'swiftlint' not found in PATH"), "\(run.error)")
+        #expect(run.error.contains("/nonexistent/swiftlint is not an executable"), "\(run.error)")
         #expect(run.outputLines.contains { $0.hasPrefix("FAIL  swiftlint (") })
     }
 }

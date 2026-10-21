@@ -2,10 +2,10 @@
 
 ## Setup
 
-Requirements: an Apple silicon Mac on macOS 26 or later, Xcode 27 (Swift 6.4), and the lint tools:
+Requirements: an Apple silicon Mac on macOS 26 or later and Xcode 27 (Swift 6.4), which ships swift-format. SwiftLint
+needs no install: `vmr` downloads the release pinned in `Scripts/analyzers.lock` the first time a step or the hook needs it.
 
 ```sh
-brew install swiftlint                # swift-format ships with the Xcode toolchain
 swift run vmr hooks install           # pre-commit: format lint and SwiftLint on staged Swift files
 ```
 
@@ -31,10 +31,16 @@ in `.github/workflows/ci.yml`).
   (result, duration) to that file, plus test counts, coverage and analyzer findings when the steps ran. Nothing changes
   when it is unset.
 
-The three static analyzers (retain cycles, duplicate code, dead code) come from pinned, checksum-verified releases listed in
-`Scripts/analyzers.lock`; `swift run vmr analyzers` downloads them into the git-ignored `.tools/`, and CI runs the same
-`swift run vmr check analyzers`, so the lock is the only place the versions are written. See the
-"Quality gates" section of the README for what each one gates on.
+The three static analyzers (retain cycles, duplicate code, dead code) and SwiftLint come from pinned, checksum-verified
+releases listed in `Scripts/analyzers.lock`; `swift run vmr analyzers` downloads the analyzers, and the first
+`swift run vmr check swiftlint` (or the first commit with the hook) downloads SwiftLint, into the git-ignored `.tools/`.
+CI runs the same `swift run vmr check` steps, so the lock is the only place the versions are written. See the
+"Quality gates" section of the README for what each analyzer gates on.
+
+- **SwiftLint is never taken from `PATH`.** Every checkout lints with the pinned version, so a new SwiftLint release
+  cannot turn a green gate red by itself. To bump it, follow the lock file's header and fix what the new version
+  reports in the same change. `SWIFTLINT_BIN` (like `ARCLEAK_BIN`, `DOLLY_BIN` and `DEADWOOD_BIN`) names a binary of
+  your own instead; it is used as it is, without the checksum or version check.
 
 - **A new analyzer finding is a failure.** Fix it, or accept it deliberately: `// @al:accept -- reason`
   (arcleak), `// @dl:accept -- reason` (dolly), `// @dw:accept -- reason` (deadwood), always with a reason.
@@ -76,7 +82,8 @@ unexpected entitlement is present. Do not start virtual machines from automated 
 The scripts are Swift: `Sources/DevTools` (logic), `Sources/vmr` (the command line, `swift run vmr --help`) and
 `Plugins/` (the `swift package check | analyzers | build-app` wrappers). Their tests are `Tests/DevToolsTests`: end to
 end, they run the real `vmr` binary against fixture packages, a local fixture analyzer release and temporary git
-repositories. They need `swiftlint` on `PATH`, build real packages and run in about twenty seconds in parallel. Keep new
+repositories. They lint with the pinned SwiftLint (installed on first use, or the binary `SWIFTLINT_BIN` names), build real
+packages and run in about twenty seconds in parallel. Keep new
 tooling in Swift: no shell or Python files. The two dependencies (swift-subprocess, swift-argument-parser) are pinned with
 `exact:`; the app target and its tests must never link them.
 

@@ -76,7 +76,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: brew install swiftlint
       - run: swift run vmr check format swiftlint docs
 
   # One definition for the lanes that differ only in the command and the cache they use. `assert` requires evidence that
@@ -91,7 +90,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "Build and unit tests", run: "vmr check build test", cache: .build, swiftlint: true, assert: true, upload: .build-ci/ }
+          - { name: "Build and unit tests", run: "vmr check build test", cache: .build, assert: true, upload: .build-ci/ }
           - { name: "Coverage gate", run: "vmr check coverage", cache: .build-cov, upload: .build-cov/coverage-summary.json }
           - { name: "App bundle (hardened, signed, entitlements verified)", run: "vmr build-app release --hardened" }
           - { name: "Static analyzers", run: "vmr check analyzers" }
@@ -99,10 +98,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The tooling's end-to-end tests run swift-format, SwiftLint, git and codesign.
-      - name: Install SwiftLint
-        if: ${{ matrix.swiftlint }}
-        run: brew install swiftlint
+      # The tooling's end-to-end tests run swift-format, SwiftLint, git and codesign. SwiftLint is the release pinned in
+      # Scripts/analyzers.lock, which vmr downloads and verifies on first use: there is nothing to install here.
       - name: Restore build cache
         if: ${{ matrix.cache }}
         id: cache
