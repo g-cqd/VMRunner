@@ -9,9 +9,10 @@ extension GateSteps {
     @Sendable
     static func coverage(_ context: StepContext) async throws {
         let minimum = try context.config.resolvedCoverageMinimum(environment: context.environment)
-        try await context.run("swift", ["test", "--enable-code-coverage", "--scratch-path", scratch] + skipArguments(context))
+        try await context.run(
+            "swift", ["test", resolvedOnly, "--enable-code-coverage", "--scratch-path", scratch] + skipArguments(context))
 
-        let binPath = try await context.capture("swift", ["build", "--show-bin-path", "--scratch-path", scratch])
+        let binPath = try await context.capture("swift", ["build", resolvedOnly, "--show-bin-path", "--scratch-path", scratch])
         let products = URL(fileURLWithPath: binPath.split(whereSeparator: \.isNewline).last.map(String.init) ?? "")
         let profile = products.appending(path: "codecov/default.profdata")
         guard FileManager.default.fileExists(atPath: profile.path) else {

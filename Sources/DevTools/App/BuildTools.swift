@@ -5,10 +5,12 @@ import Foundation
 enum BuildTools {
     /// Runs `swift build <arguments>` with its output inherited, then asks it where the products went.
     static func build(_ arguments: [String]) async throws -> URL {
-        let build = try await ProcessRunner.run(CommandSpec(executable: "swift", arguments: ["build"] + arguments), output: .inherit)
+        let build = try await ProcessRunner.run(
+            CommandSpec(executable: "swift", arguments: ["build", GateSteps.resolvedOnly] + arguments), output: .inherit)
         guard build.succeeded else { throw ToolError("swift build failed", status: build.status) }
 
-        let path = try await ProcessRunner.run(CommandSpec(executable: "swift", arguments: ["build"] + arguments + ["--show-bin-path"]))
+        let path = try await ProcessRunner.run(
+            CommandSpec(executable: "swift", arguments: ["build", GateSteps.resolvedOnly] + arguments + ["--show-bin-path"]))
         guard path.succeeded, let line = path.standardOutput.split(whereSeparator: \.isNewline).last else {
             throw ToolError("swift build --show-bin-path failed: \(path.standardError)")
         }

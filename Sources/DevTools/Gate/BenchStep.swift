@@ -40,7 +40,7 @@ enum BenchRun {
         try await context.run(
             "env",
             [
-                "VMR_BENCH_OUTPUT=\(results.path)", "swift", "test", "-c", "release", "-Xswiftc", "-enable-testing",
+                "VMR_BENCH_OUTPUT=\(results.path)", "swift", "test", GateSteps.resolvedOnly, "-c", "release", "-Xswiftc", "-enable-testing",
                 "--scratch-path", scratch, "--no-parallel", "--filter", filter,
             ])
         guard FileManager.default.fileExists(atPath: results.path) else {

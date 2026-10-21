@@ -2,6 +2,10 @@ import Foundation
 
 /// The commands behind each gate step. A step fails by throwing; the first failing command ends it.
 enum GateSteps {
+    /// Every `swift build`, `swift test` and app build passes this: `Package.resolved` is the only source of versions, so
+    /// a run can never resolve a dependency to something the committed file does not name.
+    static let resolvedOnly = "--only-use-versions-from-resolved-file"
+
     @Sendable
     static func format(_ context: StepContext) async throws {
         let paths = context.config.resolvedLintPaths(root: context.root)
@@ -20,14 +24,14 @@ enum GateSteps {
 
     @Sendable
     static func build(_ context: StepContext) async throws {
-        try await context.run("swift", ["build"])
+        try await context.run("swift", ["build", resolvedOnly])
     }
 
     /// `SWIFT_TEST_FLAGS` adds flags to the plain test run (CI uses it for `--xunit-output`).
     @Sendable
     static func test(_ context: StepContext) async throws {
         let extra = (context.environment["SWIFT_TEST_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
-        try await context.run("swift", ["test"] + extra)
+        try await context.run("swift", ["test", resolvedOnly] + extra)
     }
 
     @Sendable
@@ -61,14 +65,15 @@ enum GateSteps {
         linkerArguments: [String] = []
     ) -> @Sendable (StepContext) async throws -> Void {
         { context in
-            let arguments = ["test", "--sanitize=\(name)", "--scratch-path", scratch] + skipArguments(context) + linkerArguments
+            let arguments =
+                ["test", resolvedOnly, "--sanitize=\(name)", "--scratch-path", scratch] + skipArguments(context) + linkerArguments
             try await context.run("swift", arguments)
         }
     }
 
     @Sendable
     static func release(_ context: StepContext) async throws {
-        try await context.run("swift", ["build", "-c", "release", "--scratch-path", ".build-release"])
+        try await context.run("swift", ["build", resolvedOnly, "-c", "release", "--scratch-path", ".build-release"])
     }
 
     /// `--skip` arguments for the runs that must not include the tooling's own end-to-end suites.

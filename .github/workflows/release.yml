@@ -1,8 +1,9 @@
 name: Release
 
 # Pushing a tag `vX.Y.Z` builds the hardened release app, checks that the tag equals the version in the bundle's
-# Info.plist (CFBundleShortVersionString in Resources/Info.plist), zips it, attests the zip and publishes a
-# GitHub release with generated notes. See CONTRIBUTING.md, "Releasing".
+# Info.plist (CFBundleShortVersionString in Resources/Info.plist), zips it, attests the zip (only while the repository is
+# public) and publishes a GitHub release with generated notes. It also refuses a commit CI has not passed on and a
+# repository that still carries a placeholder owner or bundle identifier. See CONTRIBUTING.md, "Releasing".
 #
 # NOT wired yet: Developer ID signing and notarization. The app is signed ad-hoc (`vmr build-app`), so a downloaded
 # zip is quarantined by Gatekeeper and must be opened with a right click or `xattr -d com.apple.quarantine`. It is
@@ -34,6 +35,10 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      actions: read # list the CI runs of the tagged commit
+    outputs:
+      # The zip's digest travels as a job output, apart from the artifact that carries the zip.
+      zip-sha256: ${{ steps.zip.outputs.sha256 }}
     env:
       TAG: ${{ github.ref_name }}
     steps:
@@ -51,14 +56,24 @@ jobs:
             echo "::error::tag '$TAG' is not on main: release from a commit that went through CI on main"
             exit 1
           fi
+      - name: CI succeeded on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          passed="$(gh run list --commit "$GITHUB_SHA" --workflow CI --status success --json databaseId --jq length)"
+          if [ "${passed:-0}" -lt 1 ]; then
+            echo "::error::no successful CI run on $GITHUB_SHA: wait for CI on main, then tag that commit"
+            exit 1
+          fi
       - name: No placeholder left (CODEOWNERS owner, bundle identifier)
-        run: swift run vmr check publication
+        run: swift run --only-use-versions-from-resolved-file vmr check publication
       - name: Toolchain
         run: |
           swift --version
           swift --version 2>&1 | grep -q 'Swift version 6\.4'
       - name: Build and verify (release, hardened, signature and entitlement checks)
-        run: swift run vmr build-app release --hardened
+        run: swift run --only-use-versions-from-resolved-file vmr build-app release --hardened
       - name: Tag equals the bundle version
         run: |
           version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/VMRunner.app/Contents/Info.plist)"
@@ -67,17 +82,19 @@ jobs:
             exit 1
           fi
           echo "version ${version}"
-      - name: Zip and checksum
+      - name: Zip and record its digest
+        id: zip
         run: |
           mkdir dist
           ditto -c -k --keepParent build/VMRunner.app "dist/VMRunner-${TAG}.zip"
-          (cd dist && shasum -a 256 "VMRunner-${TAG}.zip" > "VMRunner-${TAG}.zip.sha256")
-          cat "dist/VMRunner-${TAG}.zip.sha256"
-      - name: Upload the release files
+          digest="$(shasum -a 256 "dist/VMRunner-${TAG}.zip" | cut -d' ' -f1)"
+          echo "$digest  VMRunner-${TAG}.zip"
+          echo "sha256=${digest}" >> "$GITHUB_OUTPUT"
+      - name: Upload the zip
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-files
-          path: dist/
+          path: dist/VMRunner-${{ env.TAG }}.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -94,15 +111,23 @@ jobs:
       TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      EXPECTED_SHA256: ${{ needs.build.outputs.zip-sha256 }}
     steps:
       - name: Download the release files
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-files
           path: dist
-      - name: Verify the checksum after the artifact hop
+      # The digest comes from the build job's output, not from a file in the artifact it vouches for.
+      - name: Verify the zip against the build job's digest
         working-directory: dist
-        run: sha256sum --check --strict "VMRunner-${TAG}.zip.sha256"
+        run: |
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::the build job reported no SHA-256"; exit 1; }
+          echo "${EXPECTED_SHA256}  VMRunner-${TAG}.zip" > "VMRunner-${TAG}.zip.sha256"
+          sha256sum --check --strict "VMRunner-${TAG}.zip.sha256"
+      - name: Say that the attestation is skipped
+        if: ${{ github.event.repository.private != false }}
+        run: echo "::notice::the zip is not attested: attestations need a public repository (or GitHub Enterprise Cloud)"
       - name: Attest the zip
         if: ${{ github.event.repository.private == false }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
