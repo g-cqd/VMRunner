@@ -27,6 +27,11 @@ in `.github/workflows/ci.yml`).
 - **`docs`** checks `docs/` and `README.md` against the documentation law (`docs/WHITE-PAPER.md` section 5): file
   names, numbering, front matter, headings, supersession, `blocked-by`, `decision` and `feeds` references, and relative
   links. It prints `path:line: message` for each violation; fix the document, not the checker.
+- **Nested packages.** `packages` in `.vmr.json` lists packages of their own, directories with a `Package.swift` and a
+  committed `Package.resolved`. After the root package, the `build` and `test` steps build and test each of them with
+  `--package-path` into its own `.build-packages/<path>` scratch directory, so its dependencies stay out of the root's
+  graph and its build products out of the root's `.build`. No other step looks at them; `SWIFT_TEST_FLAGS` applies to the
+  root's test run only.
 - **Job summary.** With `GITHUB_STEP_SUMMARY` set (GitHub Actions does), `vmr check` appends a table of the steps
   (result, duration) to that file, plus test counts, coverage and analyzer findings when the steps ran. Nothing changes
   when it is unset.

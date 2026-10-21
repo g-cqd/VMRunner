@@ -25,13 +25,20 @@ enum GateSteps {
     @Sendable
     static func build(_ context: StepContext) async throws {
         try await context.run("swift", ["build", resolvedOnly])
+        for package in try context.config.resolvedPackages(root: context.root) {
+            try await context.run("swift", ["build", resolvedOnly] + package.selection)
+        }
     }
 
-    /// `SWIFT_TEST_FLAGS` adds flags to the plain test run (CI uses it for `--xunit-output`).
+    /// `SWIFT_TEST_FLAGS` adds flags to the plain test run of the root package (CI uses it for `--xunit-output`, which a
+    /// second run into the same file would overwrite), not to the runs of the nested packages.
     @Sendable
     static func test(_ context: StepContext) async throws {
         let extra = (context.environment["SWIFT_TEST_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
         try await context.run("swift", ["test", resolvedOnly] + extra)
+        for package in try context.config.resolvedPackages(root: context.root) {
+            try await context.run("swift", ["test", resolvedOnly] + package.selection)
+        }
     }
 
     @Sendable

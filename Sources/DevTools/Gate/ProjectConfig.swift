@@ -7,6 +7,7 @@ import Foundation
 /// {
 ///   "lintPaths": ["Sources", "Plugins", "Tests"],
 ///   "skipTestsWhenInstrumented": ["DevToolsTests"],
+///   "packages": ["Packages/Containers"],
 ///   "coverage": { "minimum": 55, "testBundles": ["VMRunnerTests"], "ignoreRegex": "Tests/|\\.build|/Views/" }
 /// }
 /// ```
@@ -29,6 +30,9 @@ struct ProjectConfig: Decodable, Equatable {
     /// Test targets left out of the sanitizer and coverage runs (`swift test --skip`): suites that drive nested
     /// builds gain nothing from instrumentation and would distort the coverage figure.
     var skipTestsWhenInstrumented: [String]?
+    /// Packages of their own inside the repository (directories holding a `Package.swift`) that the `build` and `test`
+    /// steps build and test as well, each into its own scratch directory. Nothing else of the gate looks at them.
+    var packages: [String]?
     var coverage: Coverage?
 
     static func load(root: URL) throws -> Self {
@@ -47,6 +51,11 @@ struct ProjectConfig: Decodable, Equatable {
         return Self.defaultLintDirectories.filter { directory in
             (try? root.appending(path: directory).resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         }
+    }
+
+    /// The configured nested packages, checked against `root`.
+    func resolvedPackages(root: URL) throws -> [NestedPackage] {
+        try NestedPackage.resolve(packages ?? [], root: root)
     }
 
     /// `COVERAGE_MIN` from the environment wins over the file, which wins over the default.
