@@ -185,7 +185,8 @@ paths, coverage bundles, the coverage floor, test targets left out of sanitizer 
   `swift test` skips them. See ADR-0022.
 - **Analyzers** are the pinned, checksum-verified releases listed in `Scripts/analyzers.lock`, run by
   `vmr analyzers` (binaries land in the git-ignored `.tools/`; the SHA-256 of each archive is checked against the
-  lock, not against the release's own checksum file, before anything is unpacked or run):
+  lock, not against the release's own checksum file, before anything is unpacked or run; an installed binary is reused
+  only while its digest matches the stamp the verified install wrote, and never when git tracks files under `.tools/`):
   `arcleak` (retain cycles, anchor leaks, premature releases; any finding fails), `dolly` (duplicate code; exact
   clones fail, near and structural clones are advisory) and `deadwood` (unused and dead code, production mode; any
   finding fails). Configuration: `.arcleak.json`, `.dolly.json`, `.deadwood.json`. Existing findings can be

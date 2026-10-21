@@ -72,6 +72,66 @@ struct SwiftLintPinTests {
     }
 
     @Test
+    func aScriptPlantedInTheToolsDirectoryIsReplacedNotRun() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            try fixture.plantScript(named: "swiftlint")
+            let run = try await check(fixture)
+            #expect(run.status == 0, "\(run.combined)")
+            #expect(run.output.contains("installing swiftlint 1.2.3 from file://"), "no stamp: the verified release is installed")
+            #expect(fixture.plantedRuns == 0, "the planted script must never execute")
+            #expect(fixture.loggedCalls(of: "swiftlint") == ["swiftlint --version", "swiftlint lint --quiet"])
+        }
+    }
+
+    @Test
+    func aBinaryChangedAfterTheInstallIsReinstalledFromTheVerifiedArchive() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            let first = try await check(fixture)
+            #expect(first.status == 0, "\(first.combined)")
+            try fixture.plantScript(named: "swiftlint")
+
+            let second = try await check(fixture)
+            #expect(second.status == 0, "\(second.combined)")
+            #expect(second.output.contains("installing swiftlint 1.2.3 from file://"), "\(second.output)")
+            #expect(fixture.plantedRuns == 0)
+        }
+    }
+
+    @Test
+    func aCommittedBinaryWithAMatchingStampIsRefused() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            let first = try await check(fixture)
+            #expect(first.status == 0, "\(first.combined)")
+            try fixture.plantScript(named: "swiftlint")
+            try fixture.forgeStamp(for: .swiftlint)
+            try await fixture.trackTools()
+
+            let run = try await check(fixture)
+            #expect(run.status == 1, "\(run.combined)")
+            #expect(run.error.contains("git tracks files under"), "\(run.error)")
+            #expect(fixture.plantedRuns == 0, "a tracked binary must not run even when its stamp agrees")
+        }
+    }
+
+    @Test(arguments: [("1", true), ("", false)])
+    func anOverrideUnderCIIsWarnedAbout(ci: String, warns: Bool) async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            let own = base.appending(path: "own", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: own, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: VMR.binary(named: "FakeAnalyzer"), to: own.appending(path: "swiftlint"))
+            let environment = ["SWIFTLINT_BIN": own.appending(path: "swiftlint").path, "CI": ci]
+
+            let run = try await check(fixture, environment: environment)
+            #expect(run.status == 0, "\(run.combined)")
+            #expect(run.error.contains("WARNING: CI is set and SWIFTLINT_BIN=") == warns, "\(run.error)")
+        }
+    }
+
+    @Test
     func aBinaryOverrideReplacesThePinnedDownload() async throws {
         try await withTemporaryDirectory { base in
             let fixture = try await AnalyzerFixture.make(in: base)

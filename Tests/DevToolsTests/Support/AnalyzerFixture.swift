@@ -94,6 +94,45 @@ struct AnalyzerFixture {
         return ((try? String(contentsOf: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
     }
 
+    // MARK: A release a commit carries
+
+    /// Where the planted scripts record that they ran.
+    var plantedLog: URL { logFile.deletingLastPathComponent().appending(path: "planted.log") }
+
+    /// How many times a planted script ran.
+    var plantedRuns: Int {
+        ((try? String(contentsOf: plantedLog, encoding: .utf8)) ?? "").split(separator: "\n").count
+    }
+
+    func toolDirectory(_ name: String) -> URL {
+        root.appending(path: ".tools/\(name)-\(Self.version)", directoryHint: .isDirectory)
+    }
+
+    /// Writes `.tools/<name>-<version>/<name>`: an executable script that logs and exits 0, as a pull request could commit.
+    @discardableResult
+    func plantScript(named name: String) throws -> URL {
+        let binary = toolDirectory(name).appending(path: name)
+        try write([".tools/\(name)-\(Self.version)/\(name)": "#!/bin/sh\necho ran >> '\(plantedLog.path)'\nexit 0\n"], to: root)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+        return binary
+    }
+
+    /// Rewrites the install stamp so it vouches for whatever binary is there now: what a commit that carries both can do.
+    func forgeStamp(for release: ReleaseSpec) throws {
+        let pin = try AnalyzerLock.load(root: root).pin(for: release)
+        let binary = toolDirectory(release.name).appending(path: release.name)
+        let stamp = AnalyzerInstaller.stamp(for: pin, binarySHA256: try AnalyzerInstaller.sha256(ofFileAt: binary))
+        try write([".tools/\(release.name)-\(Self.version)/\(AnalyzerInstaller.stampName)": stamp], to: root)
+    }
+
+    /// Makes git track everything under `.tools/` the way `git add -f` does.
+    func trackTools() async throws {
+        for command in [["init", "-q", "-b", "main"], ["add", "-f", ".tools"]] {
+            let run = try await VMR.run("git", command, in: root)
+            guard run.status == 0 else { throw TestSetupError("git \(command.joined(separator: " ")) failed: \(run.combined)") }
+        }
+    }
+
     /// A tarball of the release's directory, or a zip of the files at its root.
     private static func pack(_ pin: AnalyzerPin, content: URL, parent: URL, to archive: URL) async throws {
         let run: Invocation

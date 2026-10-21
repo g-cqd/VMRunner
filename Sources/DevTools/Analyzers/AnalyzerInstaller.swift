@@ -5,6 +5,11 @@ import Foundation
 ///
 /// The archive's SHA-256 is checked against the value pinned in the lock file, not against a checksum shipped with
 /// the release, and nothing from the archive is listed, unpacked or executed before that check passes.
+///
+/// Nothing in the checkout is trusted on its own: a pull request can commit a file under `.tools/` with `git add -f`.
+/// An installed release is reused only when git tracks nothing under the tools directory and the stamp written after
+/// the verified install still names the lock's archive digest and the binary's own digest. Anything else is
+/// reinstalled from the verified archive.
 struct AnalyzerInstaller: Sendable {
     let toolsDirectory: URL
     let location: ReleaseLocation
@@ -19,11 +24,12 @@ struct AnalyzerInstaller: Sendable {
         installDirectory(for: pin).appending(path: pin.release.name)
     }
 
-    /// Returns the installed binary, downloading and verifying the release first when it is missing.
+    /// Returns the installed binary, downloading and verifying the release first when it is missing, unstamped or changed.
     func install(_ pin: AnalyzerPin) async throws -> URL {
         let name = pin.release.name
         let destination = binary(for: pin)
-        if FileManager.default.isExecutableFile(atPath: destination.path) { return destination }
+        try await refuseTrackedTools()
+        if try Self.isVerified(pin, binary: destination, in: installDirectory(for: pin)) { return destination }
         guard Platform.isMacOSArm64 else {
             throw ToolError(
                 "the pinned \(name) release is macOS arm64 only; set \(pin.release.binaryOverrideVariable) to a binary you trust")
@@ -59,10 +65,47 @@ struct AnalyzerInstaller: Sendable {
         guard reported == pin.version else {
             throw ToolError("\(name) binary reports '\(reported)', expected '\(pin.version)'")
         }
+        let stamp = Self.stamp(for: pin, binarySHA256: try Self.sha256(ofFileAt: unpacked))
+        try stamp.write(to: release.appending(path: Self.stampName), atomically: true, encoding: .utf8)
 
         try? fileManager.removeItem(at: installDirectory(for: pin))
         try fileManager.moveItem(at: release, to: installDirectory(for: pin))
         return destination
+    }
+
+    // MARK: Trust in what is already on disk
+
+    static let stampName = ".vmr-verified"
+
+    /// What a verified install records: the lock's archive digest and the digest of the binary taken out of it.
+    static func stamp(for pin: AnalyzerPin, binarySHA256: String) -> String {
+        "archive-sha256=\(pin.sha256)\nbinary-sha256=\(binarySHA256)\n"
+    }
+
+    /// Whether the binary on disk is the one a verified install of this pin produced: it is executable, the stamp
+    /// names the lock's current archive digest, and the binary hashes to the digest the stamp recorded.
+    static func isVerified(_ pin: AnalyzerPin, binary: URL, in directory: URL) throws -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: binary.path),
+            let recorded = try? String(contentsOf: directory.appending(path: stampName), encoding: .utf8)
+        else { return false }
+        return recorded == stamp(for: pin, binarySHA256: try sha256(ofFileAt: binary))
+    }
+
+    /// Refuses a tools directory that git tracks anything in: a committed file is a pull request's, not a download this
+    /// tool verified. Skipped when git is missing or the directory is in no repository (`--error-unmatch` exits 0 for a
+    /// tracked path and 1 for an untracked one; any other outcome is "git cannot tell").
+    func refuseTrackedTools() async throws {
+        guard (try? FileManager.default.attributesOfItem(atPath: toolsDirectory.path)) != nil else { return }
+        // A relative pathspec from the parent: it holds when a temporary directory is reached through a symlink.
+        let spec = CommandSpec(
+            executable: "git",
+            arguments: ["ls-files", "--error-unmatch", "--", toolsDirectory.lastPathComponent],
+            workingDirectory: toolsDirectory.deletingLastPathComponent()
+        )
+        guard let result = try? await ProcessRunner.run(spec), result.status == 0 else { return }
+        throw ToolError(
+            "git tracks files under \(toolsDirectory.path): a tool a commit carries is not one this tool verified. "
+                + "Remove them from the index (git rm -r --cached) and from the tree; vmr downloads the pinned release itself")
     }
 
     /// The hex SHA-256 of a file, hashed in chunks so a large archive is never held in memory.

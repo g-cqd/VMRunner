@@ -40,7 +40,15 @@ CI runs the same `swift run vmr check` steps, so the lock is the only place the 
 - **SwiftLint is never taken from `PATH`.** Every checkout lints with the pinned version, so a new SwiftLint release
   cannot turn a green gate red by itself. To bump it, follow the lock file's header and fix what the new version
   reports in the same change. `SWIFTLINT_BIN` (like `ARCLEAK_BIN`, `DOLLY_BIN` and `DEADWOOD_BIN`) names a binary of
-  your own instead; it is used as it is, without the checksum or version check.
+  your own instead; it is used as it is, without the checksum or version check (when the `CI` variable is set, `vmr` prints a
+  `WARNING` line naming the override, so one slipped into a workflow shows in its log).
+- **Nothing in the checkout is trusted as a tool.** `.gitignore` does not stop `git add -f`, so a pull request can commit
+  an executable under `.tools/`. After a verified install `vmr` writes `.vmr-verified` beside the binary (the lock's
+  archive digest and the binary's own digest); every resolve hashes the binary and, on a mismatch or a missing stamp,
+  reinstalls from the verified archive. It also refuses outright when git tracks any file under `.tools/` (skipped only
+  when git is missing or the directory is in no repository). The tools stay in the package directory because the
+  SwiftPM plugin sandbox may write nowhere else; the stamp is a local integrity check, and the tracked-file refusal is
+  what keeps a committed binary and a committed stamp from vouching for each other.
 
 - **A new analyzer finding is a failure.** Fix it, or accept it deliberately: `// @al:accept -- reason`
   (arcleak), `// @dl:accept -- reason` (dolly), `// @dw:accept -- reason` (deadwood), always with a reason.

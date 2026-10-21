@@ -29,10 +29,20 @@ enum ToolLocator {
         return path
     }
 
+    /// A `<TOOL>_BIN` override is run without the pin's checksum or version check. On CI (the `CI` variable is set) that
+    /// is a supply-chain hole a workflow change can open, so say so loudly on standard error.
+    static func noteOverride(variable: String, path: String, environment: [String: String]) {
+        guard let ci = environment["CI"], !ci.isEmpty else { return }
+        Output.err(
+            "WARNING: CI is set and \(variable)=\(path) replaces the pinned, checksum-verified release: "
+                + "that binary is run without any check")
+    }
+
     /// `SWIFTLINT_BIN` when set, otherwise the SwiftLint release pinned in `Scripts/analyzers.lock`, downloaded and
     /// verified on first use (never taken from `PATH`, so every checkout lints with the same version).
     static func swiftlint(root: URL, environment: [String: String]) async throws -> String {
         if let override = environment[ReleaseSpec.swiftlint.binaryOverrideVariable], !override.isEmpty {
+            noteOverride(variable: ReleaseSpec.swiftlint.binaryOverrideVariable, path: override, environment: environment)
             return try resolve(override, searchPath: environment["PATH"]).path
         }
         let pin = try AnalyzerLock.load(root: root).pin(for: .swiftlint)

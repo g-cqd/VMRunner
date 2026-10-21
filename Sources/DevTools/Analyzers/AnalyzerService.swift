@@ -103,6 +103,7 @@ struct AnalyzerService: Sendable {
     private func resolve(_ tool: AnalyzerTool, lock: AnalyzerLock) async throws -> Resolved {
         if let override = environment[tool.release.binaryOverrideVariable], !override.isEmpty {
             guard FileManager.default.isExecutableFile(atPath: override) else { throw ToolError("\(override) is not an executable") }
+            ToolLocator.noteOverride(variable: tool.release.binaryOverrideVariable, path: override, environment: environment)
             return Resolved(binary: URL(fileURLWithPath: override), version: nil)
         }
         let pin = try lock.pin(for: tool)

@@ -152,6 +152,54 @@ struct AnalyzersTests {
     }
 
     @Test
+    func aScriptPlantedInTheToolsDirectoryIsReplacedNotRun() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            try fixture.plantScript(named: "arcleak")
+            let run = try await fixture.vmr(["analyzers", "arcleak"])
+            #expect(run.status == 0, "\(run.combined)")
+            #expect(run.output.contains("installing arcleak 1.2.3 from file://"), "\(run.output)")
+            #expect(fixture.plantedRuns == 0, "the planted script must never execute")
+            #expect(fixture.loggedCalls(of: .arcleak).first == "arcleak --version")
+        }
+    }
+
+    @Test
+    func aCommittedBinaryWithAMatchingStampIsRefused() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            let first = try await fixture.vmr(["analyzers", "install", "arcleak"])
+            #expect(first.status == 0, "\(first.combined)")
+            try fixture.plantScript(named: "arcleak")
+            try fixture.forgeStamp(for: AnalyzerTool.arcleak.release)
+            try await fixture.trackTools()
+
+            let run = try await fixture.vmr(["analyzers", "arcleak"])
+            #expect(run.status == 1, "\(run.combined)")
+            #expect(run.error.contains("git tracks files under"), "\(run.error)")
+            #expect(run.output.contains("FAIL  arcleak: not installed"))
+            #expect(fixture.plantedRuns == 0)
+        }
+    }
+
+    @Test
+    func anOverrideUnderCIIsWarnedAbout() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            let own = base.appending(path: "own", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: own, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: VMR.binary(named: "FakeAnalyzer"), to: own.appending(path: "dolly"))
+            let environment = ["DOLLY_BIN": own.appending(path: "dolly").path]
+
+            let quiet = try await fixture.vmr(["analyzers", "dolly"], environment: environment)
+            #expect(!quiet.error.contains("WARNING"), "\(quiet.error)")
+            let loud = try await fixture.vmr(["analyzers", "dolly"], environment: environment.merging(["CI": "true"]) { _, new in new })
+            #expect(loud.status == 0, "\(loud.combined)")
+            #expect(loud.error.contains("WARNING: CI is set and DOLLY_BIN="), "\(loud.error)")
+        }
+    }
+
+    @Test
     func theAnalyzersGateStepUsesTheSameRunner() async throws {
         try await withTemporaryDirectory { base in
             let fixture = try await AnalyzerFixture.make(in: base)
