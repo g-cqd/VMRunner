@@ -24,7 +24,7 @@ final class LatencyActivity {
     static let options: ProcessInfo.ActivityOptions = [.userInitiatedAllowingIdleSystemSleep, .latencyCritical]
 
     /// Whether the setting is on in `defaults`: on until the user turns it off.
-    static func isSettingOn(in defaults: UserDefaults = .standard) -> Bool {
+    static func isSettingOn(in defaults: UserDefaults = PreferencesDomain.defaults) -> Bool {
         defaults.object(forKey: settingKey) as? Bool ?? true
     }
 

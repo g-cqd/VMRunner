@@ -31,7 +31,7 @@ final class NewMachineModel {
 
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = PreferencesDomain.defaults) {
         self.defaults = defaults
         linuxSource = LinuxCatalog.images.first.map { .catalog($0.id) } ?? .file
         let stored = defaults.string(forKey: Self.deviceDefaultsKey) ?? ""

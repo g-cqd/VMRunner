@@ -123,7 +123,7 @@ enum Provisioner {
     /// A restore image is 20+ GB and only needed once: cloning an installed machine is cheaper than reinstalling.
     /// Files the user picked themselves are never touched.
     private static func discardCachedRestoreImage(_ url: URL) {
-        let keep = UserDefaults.standard.object(forKey: "keepsRestoreImages") as? Bool ?? false
+        let keep = PreferencesDomain.defaults.object(forKey: "keepsRestoreImages") as? Bool ?? false
         guard !keep, AppPaths.isInside(url, AppPaths.images) else { return }
         try? FileManager.default.removeItem(at: url)
     }
