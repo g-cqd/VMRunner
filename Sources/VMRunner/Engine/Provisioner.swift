@@ -101,6 +101,8 @@ enum Provisioner {
         installConfig.ephemeral = false
         // The installer works from a local image; a user-mode stack here would have nobody to start and stop it.
         if installConfig.networkMode == .filtered { installConfig.networkMode = .none }
+        // The installer reads nothing from this Mac: a host-information share would only give it a folder nobody writes.
+        installConfig.hostInfo = HostInfoSharing()
         let vz = try ConfigurationBuilder.build(installConfig, bundle: bundle).configuration
         let machine = VZVirtualMachine(configuration: vz)
         let installer = VZMacOSInstaller(virtualMachine: machine, restoringFromImageAt: ipsw)

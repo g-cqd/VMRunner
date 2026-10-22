@@ -53,6 +53,10 @@ struct HostInfoSharingTests {
         #expect(!machine(sharing: false).exposures.contains(where: isHostInfoLine))
     }
 
+    @Test func thePowerSwitchSaysItAlsoSharesLowPowerMode() {
+        #expect(HostInfoSharing(power: true).names == ["power source and Low Power Mode"])
+    }
+
     @Test func theHelpSaysHowToReadItAndWhoTurnsItOff() {
         let entry = HelpTopic.hostInformation.entry
         let text = (entry.paragraphs + entry.advanced).joined(separator: " ")

@@ -15,8 +15,8 @@ struct HostInfoSharing: Codable, Hashable, Sendable {
     /// What is shared, in words, for the exposure summary.
     var names: [String] {
         [
-            (battery, "battery level"), (power, "power source"), (thermal, "thermal state"), (networkPath, "network path"),
-            (timeZone, "time zone"),
+            (battery, "battery level"), (power, "power source and Low Power Mode"), (thermal, "thermal state"),
+            (networkPath, "network path"), (timeZone, "time zone"),
         ]
         .filter { $0.0 }.map { $0.1 }
     }
