@@ -45,18 +45,22 @@ extension HelpCatalog {
             summary: "The file that installs macOS into a new virtual machine.",
             paragraphs: [
                 "Choose where it comes from:",
-                "• **Latest supported**: the newest macOS this Mac can run, downloaded straight from Apple.",
-                "• **ipsw.me**: a list of every macOS build Apple still signs. Pick an older version if you need one.",
-                "• **Local .ipsw**: a file you already downloaded.",
-                "A restore image is 20–27 GB. The download can be cancelled and resumes where it stopped. It is checked against a "
-                    + "SHA-256 "
-                    + "checksum before use. After a successful install it is deleted to save space (change this in Settings).",
+                "• **Latest supported**: the newest macOS this Mac can run, downloaded straight from Apple. It is checked against "
+                    + "the SHA-256 that ipsw.me lists for the same build. If ipsw.me cannot be reached or does not list the build, "
+                    + "it is used without a checksum check.",
+                "• **ipsw.me**: a list of every macOS build Apple still signs. Pick an older version if you need one. The download "
+                    + "is checked against the SHA-256 that ipsw.me lists; a build listed without a valid checksum is left out.",
+                "• **Local .ipsw**: a file you already downloaded. It is used as it is, with no checksum check.",
+                "A restore image is 20–27 GB. The download can be cancelled and resumes where it stopped. A downloaded file that "
+                    + "is already in the download folder is checked against its checksum again before it is reused, when it has one. "
+                    + "After a successful install it is deleted to save space (change this in Settings).",
             ],
             advanced: [
                 "Restore images are universal (`UniversalMac_*`), so the Mac model you type for ipsw.me does not change the list. "
                     + "A restore image downloads only over HTTPS from Apple's update server (updates.cdn-apple.com); ipsw.me is asked "
                     + "only for the list, and a build whose file is anywhere else is left out. The checksum comes from ipsw.me, "
-                    + "so it detects corruption, and the installer itself verifies Apple's signature. A download that grows past a size "
+                    + "so it detects corruption but not a substituted file served together with a matching checksum; the installer "
+                    + "itself verifies Apple's signature. A download that grows past a size "
                     + "limit (48 GB) is stopped and its partial file deleted. A cancelled download is resumed only from partial data "
                     + "saved for the same address; any other is discarded."
             ],

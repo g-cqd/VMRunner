@@ -1,5 +1,6 @@
 import Foundation
 import Virtualization
+import os
 
 /// Turns a freshly created `VMConfig` into a bootable machine: fetch media, lay out the bundle, install.
 enum Provisioner {
@@ -128,6 +129,17 @@ enum Provisioner {
 
     // MARK: Media
 
+    /// The SHA-256 ipsw.me lists for the build Apple's catalog named, or nil if ipsw.me cannot be reached or does not list it.
+    /// The download then goes ahead without a checksum, as the help says; the installer verifies Apple's signatures.
+    @MainActor
+    private static func catalogChecksum(for image: VZMacOSRestoreImage) async -> Checksum? {
+        guard let firmwares = try? await IPSWCatalog.firmwares(for: IPSWCatalog.hostModelIdentifier) else {
+            Log.network.notice("Could not read the ipsw.me checksum of the latest macOS; downloading without one")
+            return nil
+        }
+        return IPSWCatalog.checksum(forBuild: image.buildVersion, file: image.url, in: firmwares)
+    }
+
     /// Resolves an `ImageSource` to a local file, downloading if needed.
     @MainActor
     private static func resolveMedia(_ source: ImageSource?, job: SetupJob) async throws -> URL? {
@@ -141,8 +153,9 @@ enum Provisioner {
             job.title = "Looking up the latest supported macOS"
             job.fraction = nil
             let latest = try await VZMacOSRestoreImage.latestSupported
+            let checksum = await catalogChecksum(for: latest)
             return try await ImageStore.fetch(
-                latest.url, checksum: nil, maximumBytes: ImageStore.restoreImageMaximumBytes, job: job)
+                latest.url, checksum: checksum, maximumBytes: ImageStore.restoreImageMaximumBytes, job: job)
         case .linuxCatalog(let id):
             guard let entry = LinuxCatalog.images.first(where: { $0.id == id }) else {
                 throw SetupError.missingFile("catalog entry \(id)")

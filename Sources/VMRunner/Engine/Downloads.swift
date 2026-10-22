@@ -15,6 +15,8 @@ enum SetupError: LocalizedError {
     case missingFile(String)
     /// A cached or attached file is a link or another kind of entry where a regular file must be.
     case notARegularFile(String)
+    /// A checksum that is not SHA-256 cannot vouch for a file.
+    case weakChecksum(String)
     /// The OpenPGP signature that should vouch for `file` is missing, malformed or wrong; `reason` completes "because ...".
     case signatureRejected(file: String, reason: String)
     case rosettaUnavailable
@@ -38,6 +40,8 @@ enum SetupError: LocalizedError {
             reason
         case .missingFile(let path):
             "File not found: \(path)"
+        case .weakChecksum(let name):
+            "Refusing \(name): its checksum is not a SHA-256, and a weaker one cannot vouch for a download."
         case .notARegularFile(let name):
             "Refusing \(name): it is a link or another kind of entry, not a regular file."
         case .signatureRejected(let file, let reason):
@@ -152,12 +156,28 @@ enum Network {
     /// The size cap of a small document unless the caller asks for less.
     static let smallLimit = 4 << 20
 
+    /// The session configuration of every request the app makes for catalogs and downloads: nothing is cached on disk, no
+    /// cookies are kept or sent, no credentials are stored, and TLS is 1.2 or later.
+    static func makeConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.tlsMinimumSupportedProtocolVersion = .TLSv12
+        return configuration
+    }
+
     /// Fetches a small document (catalog JSON, a directory listing) with a hard size cap.
     @concurrent
-    static func fetchSmall(_ url: URL, limit: Int = smallLimit) async throws -> Data {
+    static func fetchSmall(_ url: URL, limit: Int = smallLimit, configuration: URLSessionConfiguration = makeConfiguration()) async throws
+        -> Data
+    {
         _ = try DownloadPolicy.validateMetadata(url)
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-        let (bytes, response) = try await URLSession.shared.bytes(for: request, delegate: RedirectPolicy(metadata: true))
+        let session = URLSession(configuration: configuration)
+        defer { session.finishTasksAndInvalidate() }
+        let (bytes, response) = try await session.bytes(for: request, delegate: RedirectPolicy(metadata: true))
         if let final = response.url { _ = try DownloadPolicy.validateMetadata(final) }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SetupError.badResponse(url, http.statusCode)
@@ -185,6 +205,7 @@ enum Checksums {
     }
 
     static func verify(_ url: URL, against checksum: Checksum) async throws {
+        guard checksum.algorithm == .sha256 else { throw SetupError.weakChecksum(url.lastPathComponent) }
         let actual = try await hexDigest(of: url, algorithm: checksum.algorithm)
         guard actual.caseInsensitiveCompare(checksum.value) == .orderedSame else {
             throw SetupError.checksumMismatch(file: url.lastPathComponent, expected: checksum.value, actual: actual)
@@ -308,15 +329,10 @@ final class FileDownloader: NSObject, URLSessionDownloadDelegate, Sendable {
         resumeFile = workDirectory.appending(path: "\(resumeKey).resume")
     }
 
-    /// The session configuration of a download: no cache, no cookies, TLS 1.2 or later.
+    /// The session configuration of a download: the app's cookieless, cacheless one, which waits for connectivity.
     static func makeConfiguration() -> URLSessionConfiguration {
-        let configuration = URLSessionConfiguration.default
-        configuration.urlCache = nil
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpCookieStorage = nil
-        configuration.httpShouldSetCookies = false
+        let configuration = Network.makeConfiguration()
         configuration.waitsForConnectivity = true
-        configuration.tlsMinimumSupportedProtocolVersion = .TLSv12
         return configuration
     }
 
@@ -559,6 +575,8 @@ enum ImageStore {
     ) async throws -> URL {
         _ = try DownloadPolicy.validate(remote)
         let name = try DownloadPolicy.cacheFileName(for: remote)
+        // Refuse before downloading what cannot be verified afterwards.
+        if let checksum, checksum.algorithm != .sha256 { throw SetupError.weakChecksum(name) }
         let directory = cacheDirectory(for: remote, checksum: checksum, in: imagesDirectory)
         let destination = directory.appending(path: name)
         try AppPaths.createPrivateDirectory(directory)

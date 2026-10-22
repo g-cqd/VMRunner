@@ -61,6 +61,12 @@ enum IPSWCatalog {
     }
 
     /// The signed, guest-capable builds whose file is on Apple's update server and has a SHA-256; any other entry is dropped.
+    /// The SHA-256 ipsw.me lists for build `build`, if the file it lists has the name of `file`, the one Apple's own catalog
+    /// named. Apple's catalog says where the file is; ipsw.me only supplies a second opinion on its hash.
+    static func checksum(forBuild build: String, file: URL, in firmwares: [IPSWFirmware]) -> Checksum? {
+        firmwares.first { $0.buildid == build && $0.url.lastPathComponent == file.lastPathComponent }?.checksum
+    }
+
     static func decode(_ data: Data) throws -> [IPSWFirmware] {
         try JSONDecoder().decode(Response.self, from: data).firmwares.filter { $0.signed && $0.isGuestCapable && $0.isDownloadable }
     }

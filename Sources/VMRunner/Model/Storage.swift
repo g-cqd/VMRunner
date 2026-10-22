@@ -17,9 +17,39 @@ enum AppPaths {
         return path.count >= root.count && path.starts(with: root)
     }
 
-    /// Creates `url` and any missing parents, readable only by the current user.
+    /// Why an existing directory cannot hold the app's data.
+    struct UnsafeDirectory: LocalizedError {
+        let path: String
+        let reason: String
+
+        var errorDescription: String? { "Refusing to use \(path): \(reason)." }
+    }
+
+    /// Checks that `url` is a real directory, not a link, owned by the current user and not writable by anyone else.
+    /// - Returns: false if nothing is at `url`.
+    /// - Throws: `UnsafeDirectory` for anything else.
+    static func verifyPrivateDirectory(_ url: URL) throws -> Bool {
+        // `attributesOfItem` describes a link itself and does not follow it.
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else { return false }
+        guard attributes[.type] as? FileAttributeType == .typeDirectory else {
+            throw UnsafeDirectory(path: url.path, reason: "it is a link or a file, not a folder")
+        }
+        guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
+            throw UnsafeDirectory(path: url.path, reason: "it belongs to another user")
+        }
+        let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
+        guard permissions & 0o022 == 0 else {
+            throw UnsafeDirectory(path: url.path, reason: "other users can write to it")
+        }
+        return true
+    }
+
+    /// Creates `url` and any missing parents, readable only by the current user. A folder that is already there must pass
+    /// `verifyPrivateDirectory`: a link or another user's folder planted at an app path would redirect everything the app
+    /// stores there.
     static func createPrivateDirectory(_ url: URL) throws {
         let fileManager = FileManager.default
+        if try verifyPrivateDirectory(url) { return }
         var missing: [URL] = []
         var cursor = url
         while !fileManager.fileExists(atPath: cursor.path), cursor.path != "/" {

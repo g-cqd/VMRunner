@@ -40,8 +40,9 @@ that safe code cannot reach, and is never added for a gain that was not measured
 - **Everything from outside is untrusted**: network frames, server metadata, file names, image contents, guest output.
   Parsers bound their reads, reject ambiguity, and never trust a length they have not checked.
 - **Ambiguity denies.** A host spelled in a way a resolver might read differently from the policy is refused, not guessed.
-- **Downloads** are https only, from named hosts, without redirects, size-capped, and checked against a checksum before
-  they are used.
+- **Downloads** are https only, from exactly named hosts, followed through a redirect only to another such host,
+  size-capped, filed in the cache by checksum, and checked against the checksum the source publishes (and a pinned
+  vendor signature where there is one) before they are used. A file the user picks is used as it is.
 
 ## 4. Security posture
 
