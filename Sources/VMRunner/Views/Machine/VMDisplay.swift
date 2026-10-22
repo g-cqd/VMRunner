@@ -31,17 +31,15 @@ struct VMDisplay: NSViewRepresentable {
         // with what was written last, because the framework switches the property off on a view when another view of the
         // same display switches it on (full screen swaps the view for a new one).
         if view.capturesSystemKeys != settings.capturesSystemKeys { view.capturesSystemKeys = settings.capturesSystemKeys }
-        // macOS guests honour the configured pixel density, so the framework's resizing is right for them.
-        // For Linux it would hand over Retina-scaled pixels and shrink text, so resize at `scale` ourselves.
-        let frameworkResizes = settings.followsWindow && settings.guest == .macOS
+        let frameworkResizes = settings.resizer == .framework
         if view.automaticallyReconfiguresDisplay != frameworkResizes {
             DisplayDiagnostics.note(
                 "view.automaticallyReconfiguresDisplay was \(view.automaticallyReconfiguresDisplay), now \(frameworkResizes)")
             view.automaticallyReconfiguresDisplay = frameworkResizes
         }
         resizer.configure(
-            machine: machine, scale: settings.scale, enabled: settings.followsWindow && settings.guest == .linux,
-            holdFor: settings.firmwareHoldRemaining)
+            machine: machine, scale: settings.scale, enabled: settings.resizer == .app,
+            holdFor: settings.firmwareHoldRemaining(at: .now))
     }
 }
 

@@ -19,10 +19,27 @@ final class MachineModel {
         /// When the firmware of this run started; `nil` for a run restored from saved state, which is past its firmware.
         var firmwareStartedAt: ContinuousClock.Instant?
 
-        /// How much of `DisplayFollower.firmwareHold` is left now: a view made later in the run (full screen swaps it) has none.
-        var firmwareHoldRemaining: Duration {
+        /// Who changes the guest's display size while the machine runs.
+        enum Resizer: Equatable {
+            /// The display keeps the size it started with.
+            case nobody
+            /// The machine view: macOS guests honour the configured pixel density, so the framework's resizing is right for them.
+            case framework
+            /// `DisplayFollower`: for Linux the framework would hand over Retina-scaled pixels and shrink text, so the app
+            /// resizes at `scale` pixels per point itself.
+            case app
+        }
+
+        var resizer: Resizer {
+            guard followsWindow else { return .nobody }
+            return guest == .macOS ? .framework : .app
+        }
+
+        /// How much of `DisplayFollower.firmwareHold` is left at `now`: a view made later in the run (full screen swaps it) has
+        /// none, and neither has a macOS guest or one restored from saved state.
+        func firmwareHoldRemaining(at now: ContinuousClock.Instant) -> Duration {
             guard guest == .linux, let firmwareStartedAt else { return .zero }
-            return max(.zero, DisplayFollower.firmwareHold - firmwareStartedAt.duration(to: .now))
+            return max(.zero, DisplayFollower.firmwareHold - firmwareStartedAt.duration(to: now))
         }
     }
 

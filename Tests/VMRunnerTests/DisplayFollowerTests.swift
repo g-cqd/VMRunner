@@ -326,6 +326,55 @@ struct DisplayFollowerTests {
     }
 }
 
+struct DisplayResizerChoiceTests {
+    private func settings(
+        _ guest: GuestOS, follows: Bool = true, scale: Double = 1, firmwareStartedAt: ContinuousClock.Instant? = nil
+    ) -> MachineModel.DisplaySettings {
+        MachineModel.DisplaySettings(
+            capturesSystemKeys: true, followsWindow: follows, guest: guest, scale: scale, firmwareStartedAt: firmwareStartedAt)
+    }
+
+    @Test func theFrameworkResizesMacOSAndTheAppResizesLinux() {
+        #expect(settings(.macOS).resizer == .framework)
+        #expect(settings(.linux).resizer == .app)
+    }
+
+    @Test(arguments: [GuestOS.macOS, .linux])
+    func nobodyResizesWhenTheGuestDoesNotFollowTheWindow(guest: GuestOS) {
+        #expect(settings(guest, follows: false).resizer == .nobody)
+    }
+
+    @Test func aLinuxGuestIsHeldForTheFirmwareOnlyDuringTheFirstSecondsOfAColdBoot() {
+        let start = ContinuousClock.now
+        let cold = settings(.linux, firmwareStartedAt: start)
+        #expect(cold.firmwareHoldRemaining(at: start) == DisplayFollower.firmwareHold)
+        #expect(cold.firmwareHoldRemaining(at: start.advanced(by: .seconds(3))) == DisplayFollower.firmwareHold - .seconds(3))
+        #expect(cold.firmwareHoldRemaining(at: start.advanced(by: DisplayFollower.firmwareHold)) == .zero)
+        #expect(cold.firmwareHoldRemaining(at: start.advanced(by: .seconds(600))) == .zero, "the view full screen makes later is not held")
+    }
+
+    @Test func aRestoredMachineAndAMacOSGuestAreNeverHeld() {
+        let start = ContinuousClock.now
+        #expect(settings(.linux, firmwareStartedAt: nil).firmwareHoldRemaining(at: start) == .zero)
+        #expect(settings(.macOS, firmwareStartedAt: start).firmwareHoldRemaining(at: start) == .zero)
+    }
+
+    @Test(arguments: [(72, 1.0), (144, 2.0), (326, 326.0 / 72)])
+    func macOSAsksForPixelsPerPointFromItsDensity(pixelsPerInch: Int, scale: Double) {
+        var config = VMConfig.new(name: "m", guest: .macOS)
+        config.pixelsPerInch = pixelsPerInch
+        #expect(config.displayScale == scale)
+    }
+
+    @Test(arguments: [(1, 1.0), (2, 2.0), (0, 1.0)])
+    func linuxAsksForItsPixelsPerPointAndNeverLessThanOne(pixelsPerPoint: Int, scale: Double) {
+        var config = VMConfig.new(name: "l", guest: .linux)
+        config.pixelsPerInch = 300
+        config.pixelsPerPoint = pixelsPerPoint
+        #expect(config.displayScale == scale, "the density setting belongs to macOS")
+    }
+}
+
 struct DisplayDiagnosticsTests {
     @Test func tracingIsOffUnlessTheLaunchArgumentIsPresent() {
         #expect(!DisplayDiagnostics.isRequested(in: ["/Applications/VMRunner.app/Contents/MacOS/VMRunner"]))
