@@ -138,13 +138,22 @@ struct SymbolicLinkTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let (link, target) = try linkedFile(in: directory)
 
-        await #expect(throws: SetupError.self) {
-            try await ImageStore.validCachedFile(at: link, checksum: sha256("not the installer"), job: SetupJob())
-        }
-        await #expect(throws: SetupError.self) {
-            try await ImageStore.validCachedFile(at: link, checksum: nil, job: SetupJob())
-        }
+        #expect(await refusesCachedFile(at: link, checksum: sha256("not the installer")))
+        #expect(await refusesCachedFile(at: link, checksum: nil))
         #expect(try contents(of: target) == "not the installer", "a refused link must not be followed and deleted")
+    }
+
+    /// Whether the cache refuses the file with a setup error. Written as a plain function: two `#expect(throws:)`
+    /// closures over an async call in one test crash the release optimizer ("While splitting coroutine").
+    private func refusesCachedFile(at url: URL, checksum: Checksum?) async -> Bool {
+        do {
+            _ = try await ImageStore.validCachedFile(at: url, checksum: checksum, job: SetupJob())
+            return false
+        } catch is SetupError {
+            return true
+        } catch {
+            return false
+        }
     }
 
     @Test func fetchRefusesALinkAtTheDestination() async throws {
