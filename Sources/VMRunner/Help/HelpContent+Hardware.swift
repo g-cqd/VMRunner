@@ -50,13 +50,14 @@ extension HelpCatalog {
             summary: "The size of the virtual disk. It can grow but never shrink.",
             paragraphs: [
                 "The disk is a sparse file, so a large size costs nothing until the guest fills it.",
+                "A new macOS machine starts at \(EditorLimits.newMacDiskGiB.lowerBound) GiB: an install into 16 GiB failed and one "
+                    + "into 40 GiB worked; sizes between were not tried.",
                 "You can **grow** it (in steps of \(EditorLimits.diskStepGiB) GiB, up to \(EditorLimits.maxDiskGiB) GiB) but not "
                     + "shrink it. "
                     + "After growing, the guest still has to be told to use the new space.",
                 "• **Linux**: grow the partition and filesystem (for example `growpart` then `resize2fs` or `xfs_growfs`).",
                 "• **macOS**: use Disk Utility, or `diskutil apfs resizeContainer`.",
                 "Growing a disk discards a suspended state.",
-                "A new macOS machine needs at least \(EditorLimits.newMacDiskGiB.lowerBound) GiB: an install into 16 GiB failed.",
             ],
             advanced: [
                 "The disk is a raw image (`Disk.img`). Raw sparse files stay small on APFS but don't return space when the guest "

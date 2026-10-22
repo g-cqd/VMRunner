@@ -115,7 +115,7 @@ private final class WindowObservingView: NSView {
 }
 
 extension NSWindow {
-    /// Stops AppKit saving this window's frame and restoring it at the next launch.
+    /// Stops AppKit saving this window's frame and restoring it at the next launch, and the widths of its split views.
     func stopSavingFrameAndState() {
         _ = setFrameAutosaveName("")
         isRestorable = false
