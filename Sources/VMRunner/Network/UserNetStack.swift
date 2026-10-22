@@ -22,7 +22,8 @@ import os
 //   UserNetLoop    one dedicated thread owning the core, the bridge and the guest socket. All stack state is touched
 //                  from that thread only; commands (policy, stop, path change, resolver answers) arrive through a
 //                  mutex-guarded inbox plus a kqueue wakeup. Readers of stats and VPN state use Mutex-guarded copies.
-//   UserNetStack   the public handle: lifecycle, policy updates, event streams, and the VZFileHandle factory.
+//   UserNetStack   the public handle: lifecycle, policy updates, and event streams. The app adds the VZFileHandle factory
+//                  (Engine/UserNetStack+Virtualization.swift).
 //
 // WHAT IS COVERED. IPv4 only. The guest is told (DHCP) that the gateway 198.18.0.1 is its router and DNS server. ARP
 // for the gateway; TCP (relayed, with window flow control, MSS, FIN/RST/half-close, idle timeouts and retransmission);
@@ -104,8 +105,8 @@ private final class ExitSignal: Sendable {
 /// A running (or ready to run) user-mode network for one guest. See the design note at the top of this file.
 ///
 /// All methods are safe to call from any thread. Create with ``make(config:policy:resolver:pathChanges:)`` (or the
-/// Virtualization.framework factory in `UserNetStack+Virtualization.swift`), call ``start()``, and ``stop()`` when the
-/// virtual machine ends.
+/// Virtualization.framework factory the app adds in `Engine/UserNetStack+Virtualization.swift`), call ``start()``, and ``stop()``
+/// when the virtual machine ends.
 final class UserNetStack: Sendable {
     private enum Lifecycle {
         case ready, running, stopped
