@@ -97,6 +97,21 @@ cleaned up, always:
   purpose.
 - Never delete a branch or worktree that holds work that is not on `main` or that nobody has looked at.
 
+## Agents and models
+
+Work delegated to agents follows one convention:
+
+- **opus orchestrates.** It decomposes work, writes the task cards, sequences them and judges what comes back. It does not
+  write code.
+- **haiku does atomic tasks**: one implementation step, one probe, one mechanical change. A task card for haiku is complete
+  and unambiguous: the files, the exact change, the command that proves it, the expected output, and what it must not touch.
+  A haiku task is small enough to finish in one sitting; if it is not, it is split.
+- **sonnet checks and reviews.** A sonnet reviewer reads every task card before it is dispatched (can it be misread? is
+  every path and command real? is the acceptance command runnable?) and reads every result before it is merged (does the
+  diff do what the card says and nothing else? are the tests meaningful?).
+- The integrator merges only reviewed work, runs the gate on the merged tree, and removes the worktree
+  (see "Worktrees and cleanup").
+
 ## Code rules
 
 The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml`, `.swift-format`):
