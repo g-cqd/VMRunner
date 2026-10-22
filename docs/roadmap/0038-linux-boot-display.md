@@ -80,7 +80,7 @@ size change discards a saved state was wrong and is corrected in place.
    remembered, and the guest still follows the window after boot. **Done**, except the single documented exceptions of ADR-0034
    (a saved state restores at its remembered size; a fixed size with following switched off is kept).
 2. The owner confirms on one Linux guest (the installer, the boot loader menu, the first console) that text is legible at a
-   Retina display and at an external display, and the numbers (scanout size, window points) are in the diary. **Open**.
+   Retina display and at an external display, and the numbers (scanout size, window points) are in the diary. **Partly**: one Linux guest on one display, see "Verified on a real guest".
 3. The help says what is guest-side (boot loader mode, console font) with the exact settings, and what is not possible
    (acceleration before the guest's driver loads). **Done** (topic "Small text at boot (Linux)").
 
@@ -149,3 +149,24 @@ A `refused` line (error level) is the framework rejecting the request; it is ret
 change means nothing was asked: the first ten seconds of a cold boot, a view under 64 points, "Resize guest display with
 window" off, a macOS guest (the framework resizes it and the follower does not take part), or the display already had the size
 (`--display-diagnostics` shows which).
+
+## Verified on a real guest (2026-10-22)
+
+Run by an agent the owner authorised for the session, under the conditions of CONTRIBUTING "Real-guest runs": the release app
+(`vmr build-app`), `VMRUNNER_DATA_DIR` on a scratch folder, one Linux machine (2 CPUs, 2048 MiB, NAT) made by the real
+`NewMachineModel` and `Provisioner` from Alpine 3.24.2 `alpine-virt` for aarch64 (the newest release that has a signature; the
+SHA-256 matched and the signature verified against the key with fingerprint 0482 D840 22F5 2DF1 C4E7 CD43 293A CD09 07D9 495A), on
+a macOS 26.7 host. Only the app's own window was captured and driven.
+
+| Step | What was seen |
+|---|---|
+| Start size | `Starting display 1280×936 px for a window of 1396×1022 pt; host screen scale 2.0, guest pixels per point 1; source window, width cap applied`; on the same machine at scale 1.0 and a 1186×948 pt view, `1186×948 px … width cap in force, not needed` |
+| Firmware | no firmware text was on screen long enough to read (the start is a black screen for about 7 seconds) |
+| GRUB menu | **Tiny and slow, on both runs.** The line `GNU GRUB version 2.14` is about 25 pixels wide in a 1186-pixel view, for 21 characters of an 8-pixel font: a scale of about 0.15, so GRUB drew on a framebuffer of roughly 8000 pixels wide (the estimate is good to about 15 %), far above the 1186×948 scanout the app gave it. Its redraws were as slow as a framebuffer that size suggests: three key presses took more than 20 seconds to show. This is hypothesis 4 of this roadmap, shown by measurement: the firmware offers modes much larger than the scanout and the boot loader takes the largest. The app cannot change it (the scanout is the only size it sets). The guest-side remedy is the one the help names (`GRUB_GFXMODE`, or `set gfxmode=…` at the GRUB prompt); it was **not** tried on this guest |
+| First Linux console | **Legible.** At 1186×948 px in a 1186×948 pt view the 8-pixel glyphs are 8 points (16 device pixels on a Retina display), and the picture fills the view. In the run on the 2× display the guest was asked for 1396×1022 px 10.2 s after the start (the window's size), answered after 0.80 s, and the console was 174 columns |
+| Guest answers | every request got `guest responded` (9 of 9 in the session; none `did not respond`, none `refused`), after 0.35 s for a smaller size and 0.80 s for a larger one |
+| Following, and the console | see roadmap 0039: the console does not follow a resize after it started |
+
+What stays unverified: the firmware text itself, an Ubuntu guest, a macOS guest, an external display, the effect of
+`GRUB_GFXMODE`, and the boot at 2× pixels per point. "Done when" 2 stays open: legibility of the first console is confirmed at
+1× on one display; the boot loader is not legible and nothing in the app can make it so.

@@ -5,7 +5,7 @@ feeds: [roadmap 0037]
 ---
 # Input latency: audit, instruments, and the owner's measurement protocol
 
-**Status: audited and instrumented; nothing measured.** No virtual machine or app was started to write this (agents never
+**Status: audited and instrumented; first figures on a real guest are in roadmap 0037 (2026-10-22), the rest is not measured.** No virtual machine or app was started to write this (agents never
 start them). Everything below is read from the code and the documentation, or is a plan for a measurement the owner runs.
 Line numbers are those of base commit `ba74604`, before the changes of this study. The owner runs the bundled release app
 (`swift run vmr build-app`), not `swift run`, which demotes the debug-build hypothesis (see the table).

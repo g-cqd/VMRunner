@@ -5,7 +5,7 @@ feeds: [roadmap 0040, ADR-0041]
 ---
 # The states of a machine: what existed, what was racy, and what replaces it
 
-**Status: audited from the code and pinned by tests; no guest was started.** Every claim marked *test* was reproduced
+**Status: audited from the code and pinned by tests; a first real-guest run (2026-10-22) is in roadmap 0040.** Every claim marked *test* was reproduced
 with a fake framework machine and a test clock against the controller as it was before the rules (the commit that added
 the seam recorded 17 expectations as known issues, each failing on the old logic), and now passes. Claims about what
 Virtualization.framework does are from its documentation and SDK headers; claims about what it does in a transitional

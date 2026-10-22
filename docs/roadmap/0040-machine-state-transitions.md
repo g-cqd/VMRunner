@@ -65,7 +65,7 @@ after a cancel) stays in the library's job table and no longer overlaps a new jo
    and a test that every way a run can end leaves nothing held and the machine startable again.
 4. The owner confirms on a real guest: start, stop, force stop (also during a start and during a pause), guest shutdown
    (also a guest that ignores the power button), pause and resume, suspend and restore, disposable discard, quit while
-   running and while suspending, repeated rapid clicks; the transitions seen are in the diary. *Open.* Look for: the Paused
+   running and while suspending, repeated rapid clicks; the transitions seen are in the diary. *Partly done on a Linux guest, see "Verified on a real guest"; the guest that handles a power request and the cases listed there remain.* Look for: the Paused
    layer and the Resume button after Pause; the "Pausing…", "Shutting down…" and "Stopping…" badges; Shut Down greyed while
    paused; a force stop during a start ending with the settings form back and no stray
    `com.apple.Virtualization.VirtualMachine` process; a second window opened from the Dock leaving a running disposable
@@ -84,3 +84,22 @@ after a cancel) stays in the library's job table and no longer overlaps a new jo
   waiting to be written.
 - The latency activity (roadmap 0037) is held when the controller receives a prepared machine and ended where the machine is
   let go, so it is released on every path that releases the machine; the tests check it after every ending.
+
+## Verified on a real guest (2026-10-22)
+
+Same session and machine as roadmap 0038 (Alpine 3.24.2, Linux, scratch data folder, release app; the buttons were pressed and
+read through the accessibility interface of the app's own process, and its window captured). Button state below is read from the
+toolbar, not guessed.
+
+| Transition | Observed |
+|---|---|
+| Pause | the button became **Resume**, the toolbar showed "Paused", **Shut Down went disabled**, Suspend and Force Stop stayed enabled; the picture was dimmed with a "Paused" layer and a Resume button over it; the sidebar dot turned orange. Three presses at once: one pause, no alert |
+| Resume | back to Pause with everything enabled; three presses at once: one resume, no alert |
+| Shut Down, guest that ignores it | Alpine never stopped. The toolbar and the layer over the display said "Shutting down…" (the layer carries a Force Stop button, the sidebar dot turned yellow) for as long as the request stood (20 s; seven minutes with three more requests on the same boot; the same again on a second boot); Shut Down stayed enabled to ask again |
+| Shut Down, guest that handles it | **not obtained.** In Alpine's kernel the ACPI Power Button input device exists (`ACPI: button: Power Button [PWRB]`, `/dev/input/event2`), but a reader on it and `acpi_listen` (after installing `acpid`) saw no byte after the app's requests, so this guest never reacts to the framework's request whatever userspace does. The app calls `requestStop()` (code), and the framework returns no error; why no event arrives was not found (a kernel without the generic event device is the first suspect). The other way a guest ends on its own, `poweroff` typed in the guest, was tried: the app returned to Start within 2 s and the framework's helper process was gone |
+| Force Stop | from running, from paused, from "Shutting down…" and 0.4 s after pressing Start: each time the buttons went through the stopping step (Pause, Suspend and Shut Down disabled, Force Stop enabled) to Start alone, the settings form returned, and no `com.apple.Virtualization.VirtualMachine` process of the run was left |
+| Suspend | 2 s; `SavedState.vzvmsave` of 96 473 088 bytes, mode 0600, no temporary file left; Start restored it in about 1 s at the remembered size (`source saved state … remembered size used`); a marker written in the guest before the suspend was still there, and the screen showed the pre-suspend text; the image was removed by the restore. Three presses on Suspend at once: one image, no alert |
+| Quit while running | Quit in the menu showed "1 virtual machine is still running." Cancel left the app and the machine as they were; Quit Anyway ended the process in under one second, the `total` latency line was written (so the quit path ran) and no framework helper was left. Ending the app with SIGTERM also left no helper |
+
+No defect was found in the state machine on this guest, so no code changed for 0040. Not tried: quit while suspending, a disposable
+machine, a second window, Pause while "Shutting down…", macOS guests.

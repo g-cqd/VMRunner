@@ -79,7 +79,7 @@ them as in "Reading the always-on lines" below.
 2. No failure is silent: a refused reconfiguration is logged and the bookkeeping is corrected so the next resize retries. **Done**.
 3. The owner confirms on a macOS guest and a Linux guest: drag-resize, maximise, full screen in and out, and an external
    display; the picture stays aligned, scaled to the window and centred, with no stale or corrupted area. The sizes at each step
-   (window points, scanout pixels) are in the diary. **Open.**
+   (window points, scanout pixels) are in the diary. **Partly**: a Linux guest on one display, windowed; a defect found and fixed; macOS, full screen and an external display remain (see "Verified on a real guest").
 
 ## Owner confirmation
 
@@ -143,3 +143,48 @@ A `refused` line (error level) is the framework rejecting the request; it is ret
 change means nothing was asked: the first ten seconds of a cold boot, a view under 64 points, "Resize guest display with
 window" off, a macOS guest (the framework resizes it and the follower does not take part), or the display already had the size
 (`--display-diagnostics` shows which).
+
+## Verified on a real guest (2026-10-22)
+
+Same session and machine as roadmap 0038 (Alpine 3.24.2, Linux, NAT; release app, scratch data folder, only the app's window
+captured and driven through the accessibility interface). No macOS guest and no full screen were tried: a macOS restore image is
+a download of many gigabytes, and entering full screen would have taken over the owner's screen during a call.
+
+**Defect found and fixed (hypothesis 1, the view and its container).** After the first layout the framework's view never
+followed its container again. Pre-fix log, after the window went from 1396×1022 pt to 1100×700 pt:
+`layout: container 786×648 pt, machine view 1396×1022 pt`. The guest had answered the 786×648 px request, so the framework scaled that
+picture to the oversized view (a scale of 1022/648 = 1.577, text 12.6 pt per character instead of 8) and the window showed its
+centre: cropped on the right (the `[ ok ]` column was gone), the top rows under the translucent toolbar, the picture offset by 78 pt.
+That is the owner's "does not realign, rescale or recentre, and corrupts". Cause: the view switches off
+`translatesAutoresizingMaskIntoConstraints` itself (printed by a probe), so the container's autoresizing mask did nothing once
+SwiftUI sized the container with constraints; a probe with a container sized by constraints left the view at 0×0. The four edges are
+now pinned. `DisplayContainerTests` sizes a container the way SwiftUI does and fails five of five sizes on the old code. After the
+fix, every `frame:` line reads `container W×H pt, machine view W×H pt` with equal sizes (786×648, 1100×648, 1186×948, 1686×1148,
+2246×1556).
+
+**What the guest does with a resize (not a defect of the app).** The Linux text console keeps the framebuffer it made when the
+system started: in the guest `fb0` stayed 1184×948 (`virtual_size`, console 59 rows × 148 columns) while the display was asked for
+1096×648, 1686×1148 and 2246×1556, and the DRM connector listed 1096×648 as its preferred mode. Rebinding the console
+(`echo 0 > …/vtcon1/bind`, then `1`) did not change it. Consequences, all seen on screen with the setting "Resize guest display
+with window" on: a smaller display shows the top-left of the console at 1:1, cropped; a larger one shows the console scaled and
+offset; the picture is never wrong with the setting off (screenshots at 1186×948, 1500×1000 and 980×640 pt: whole, centred,
+letterboxed, scaled to the window, legible at every size). The help and the editor now say so. A guest whose display server
+changes the mode (a desktop) was not available and is not claimed to follow; that is untested.
+
+**Decision left to the owner.** For a console-only guest (an installer, a server) the setting should be off, because following
+the window cannot work. Making it the default for new Linux machines is one line (`VMConfig.new`), but it reverses ADR-0034 item 5
+for desktop guests, which could not be tested here, so it is not done. Existing machines keep their stored setting.
+
+| Step | Window (pt) | Asked / answered | Picture |
+|---|---|---|---|
+| start | 1500×1000, view 1186×948 | nothing to ask | whole, 1:1 |
+| drag smaller | 1100×700, view 786×648 | 786×648 px, 0.36 s | cropped (guest console, see above); with the setting off: whole, centred, scaled |
+| sidebar hidden | view 1100×648 | 1100×648 px, 0.36 s | cropped |
+| larger | 2000×1200, view 1686×1148 | 1686×1148 px, 0.80 s | scaled and offset (guest console) |
+| zoom (Window menu) | 2560×1608, view 2246×1556 | 2246×1556 px, 0.80 s | scaled and offset (guest console) |
+
+Launching the app was not reliable in the session: `open -n -a` opened a window on 3 of 7 tries (the four failures came late, after
+several quits), and running the bundle's binary directly on 3 of 4 (the failure had a different preferences folder set). A process
+without a window had no `Starting display` line and no windows in the accessibility tree; the cause was not found and is not known
+to be in the app. The machine view also does not take the keyboard by itself: after a start, a click
+in the view is needed before typing reaches the guest (a follow-up, not changed).
