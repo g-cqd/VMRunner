@@ -5,7 +5,7 @@ import Foundation
 struct VMRCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "vmr",
-        abstract: "The VMRunner developer tools: quality gate, static analyzers, app bundling, sandbox spike, git hooks.",
+        abstract: "The VMRunner developer tools: quality gate, static analyzers, app bundling, sandbox helper, git hooks.",
         discussion: """
             These commands replace the former shell and Python scripts. Run them with `swift run vmr <command>`, or \
             through the SwiftPM plugins: `swift package check`, `swift package analyzers`, `swift package build-app`.
@@ -15,7 +15,7 @@ struct VMRCommand: AsyncParsableCommand {
             AnalyzersCommand.self,
             BenchCommand.self,
             BuildAppCommand.self,
-            SandboxSpikeCommand.self,
+            SandboxCommand.self,
             ContainerSignCommand.self,
             SarifCommand.self,
             HooksCommand.self,

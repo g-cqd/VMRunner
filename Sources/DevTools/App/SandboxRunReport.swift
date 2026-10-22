@@ -2,7 +2,7 @@ import Foundation
 import VMHelperKit
 
 /// One launch of the helper under an engine, with what was seen of it.
-struct SpikePhase {
+struct SandboxPhase {
     enum Mode: String {
         case probe
         case dryRun = "dry-run"
@@ -37,15 +37,15 @@ struct SpikePhase {
     func verdict(of check: String) -> HelperEvent.Verdict? { probeResults.first { $0.check == check }?.verdict }
 }
 
-/// The plain-text report of a spike run.
-enum SpikeReport {
+/// The plain-text report of a sandbox run.
+enum SandboxReport {
     static let denialLimit = 25
 
-    static func lines(engine: SandboxEngine, level: SandboxLevel, descriptorPath: String, helperPath: String, phases: [SpikePhase])
+    static func lines(engine: SandboxEngine, level: SandboxLevel, descriptorPath: String, helperPath: String, phases: [SandboxPhase])
         -> [String]
     {
         var lines = [
-            "sandbox spike report",
+            "sandbox helper report",
             "  engine:     \(engine.rawValue)",
             "  level:      \(level.rawValue)",
             "  descriptor: \(descriptorPath)",
@@ -78,13 +78,13 @@ enum SpikeReport {
 
     // MARK: Summary lines
 
-    static func boots(_ start: SpikePhase?) -> String {
+    static func boots(_ start: SandboxPhase?) -> String {
         guard let start else { return "not run (starting a virtual machine needs --boot, which only the owner passes)" }
         if let running = start.event(.running) { return "yes: the framework reported the machine running after \(seconds(running.time))" }
         return "no: \(failure(of: start))"
     }
 
-    static func bootTime(_ start: SpikePhase?) -> String {
+    static func bootTime(_ start: SandboxPhase?) -> String {
         guard let start, let running = start.event(.running) else { return "not measured" }
         var text = "\(seconds(running.time - (start.event(.booting)?.time ?? 0))) from booting to running"
         text += " (\(seconds(running.time)) from the helper's start)"
@@ -98,20 +98,20 @@ enum SpikeReport {
         return text
     }
 
-    static func validates(_ dryRun: SpikePhase?) -> String {
+    static func validates(_ dryRun: SandboxPhase?) -> String {
         guard let dryRun else { return "not run" }
         if dryRun.event(.validated) != nil { return "the configuration validated" }
         return "failed: \(failure(of: dryRun))"
     }
 
-    static func networking(_ probe: SpikePhase?) -> String {
+    static func networking(_ probe: SandboxPhase?) -> String {
         guard let probe, !probe.probeResults.isEmpty else { return "not probed" }
         let refused = ProbeCheck.userModeStack.filter { probe.verdict(of: $0) != .allowed }
         if refused.isEmpty { return "works: a socket pair, and TCP, UDP and ICMP echo sockets all went through" }
         return "refused: \(refused.joined(separator: "; "))"
     }
 
-    static func resolution(_ probe: SpikePhase?) -> String {
+    static func resolution(_ probe: SandboxPhase?) -> String {
         guard let probe, !probe.probeResults.isEmpty else { return "not probed" }
         let check = ProbeCheck.resolve(ProbeCheck.remoteHost)
         guard let result = probe.probeResults.first(where: { $0.check == check }) else { return "not probed" }
@@ -120,7 +120,7 @@ enum SpikeReport {
             : "fails (\(ProbeCheck.remoteHost): \(result.message ?? "no message")); compare with --engine none, which has no sandbox"
     }
 
-    static func denialTotal(_ phases: [SpikePhase]) -> String {
+    static func denialTotal(_ phases: [SandboxPhase]) -> String {
         let known = phases.compactMap(\.denials)
         guard !known.isEmpty else { return "not collected" }
         let total = known.joined().reduce(0) { $0 + $1.count }
@@ -129,7 +129,7 @@ enum SpikeReport {
 
     // MARK: Per-phase detail
 
-    static func detail(of phase: SpikePhase) -> String {
+    static func detail(of phase: SandboxPhase) -> String {
         let meaning = HelperFailure.meaning(ofStatus: phase.status)
         var text = "\(phase.mode.rawValue): exit status \(phase.status) (\(meaning)), \(seconds(phase.seconds))"
         if phase.timedOut { text += ", killed at the launcher's time limit" }
@@ -137,13 +137,13 @@ enum SpikeReport {
     }
 
     /// The probe's refused and inconclusive operations: what the sandbox denied, as the helper itself saw it.
-    static func refused(in phase: SpikePhase) -> [String] {
+    static func refused(in phase: SandboxPhase) -> [String] {
         phase.probeResults.filter { $0.verdict != .allowed }.map {
             "  \($0.verdict == .refused ? "refused" : "unknown"):  \($0.check ?? "?") (\($0.message ?? ""))"
         }
     }
 
-    static func denials(of phase: SpikePhase) -> [String] {
+    static func denials(of phase: SandboxPhase) -> [String] {
         guard let denials = phase.denials else { return ["  log: not collected (the helper reported no pid, or `log show` failed)"] }
         guard !denials.isEmpty else { return ["  log: no sandbox denial logged"] }
         var lines = denials.prefix(denialLimit).map { "  log: \($0.count)x \($0.operation) \($0.target)" }
@@ -151,7 +151,7 @@ enum SpikeReport {
         return lines
     }
 
-    private static func failure(of phase: SpikePhase) -> String {
+    private static func failure(of phase: SandboxPhase) -> String {
         if let error = phase.event(.error)?.message { return error }
         if phase.timedOut { return "the helper did not finish before the launcher's time limit" }
         return "no error event; \(HelperFailure.meaning(ofStatus: phase.status))"

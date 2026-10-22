@@ -9,16 +9,16 @@ decision: ADR-0016
 Study: `docs/research/sandboxing-2026-10.md`. Both engines (App Sandbox and Seatbelt) are wanted, one per workload helper; they cannot be stacked (tested). First prototype: a headless helper for one workload, signed with the virtualization
 entitlement only, receiving descriptors over XPC; measure boot time and sandbox denials.
 
-## Done: the spike, without a machine
+## Done: the helper and its probes, without a machine
 
 - `VMHelper` (`Sources/VMHelper`) and `VMHelperKit` (`Sources/VMHelperKit`): a headless helper that reads a JSON descriptor,
   reports line-delimited JSON events and exits with a `sysexits.h` status; `--dry-run` validates the configuration,
   `--probe` tries what a helper needs, `--start` boots. The descriptor arrives by path or on standard input, not yet over XPC.
-- `vmr sandbox-spike run|profile`: launches the helper under App Sandbox (a bundle signed with the descriptor's paths as
+- `vmr sandbox run|profile`: launches the helper under App Sandbox (a bundle signed with the descriptor's paths as
   temporary-exception entitlements), under a generated Seatbelt profile with `sandbox-exec`, or unsandboxed as the control,
   and reports denials, boot time and whether user-mode networking and name resolution work inside the sandbox.
 - Run for real, without a machine: every engine and level validated both test configurations; the probe shows which
-  operations each refuses. Results and what they mean for the engine and level model: the study's "Spike results".
+  operations each refuses. Results and what they mean for the engine and level model: the study's "Probe results".
 
 ## Blocked on the owner: one boot run
 

@@ -39,8 +39,8 @@ let package = Package(
             path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(name: "VMRunnerTests", dependencies: ["VMRunner", "TestKit"], path: "Tests/VMRunnerTests", swiftSettings: hardening),
 
-        // The headless helper of the sandbox spike (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
-        // engine chosen by `vmr sandbox-spike`. It links the system frameworks and VMHelperKit only, never the app.
+        // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
+        // engine chosen by `vmr sandbox`. It links the system frameworks and VMHelperKit only, never the app.
         // VMHelperKit holds the descriptor, the events and the Seatbelt profile generator; DevTools links it too, so the
         // launcher and the helper agree on them.
         .target(name: "VMHelperKit", path: "Sources/VMHelperKit", swiftSettings: hardening),

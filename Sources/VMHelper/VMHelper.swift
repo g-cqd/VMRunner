@@ -2,7 +2,7 @@ import Foundation
 import VMHelperKit
 import Virtualization
 
-/// The headless helper of the sandbox spike: boots one Linux guest from a JSON descriptor and reports over standard output.
+/// The headless helper of the sandbox helper: boots one Linux guest from a JSON descriptor and reports over standard output.
 ///
 ///     VMHelper --dry-run [--descriptor PATH|-]            build and validate the configuration, start nothing
 ///     VMHelper --probe   [--descriptor PATH|-]            try the operations a helper needs, inside the sandbox it runs in

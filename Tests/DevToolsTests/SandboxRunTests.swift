@@ -4,9 +4,9 @@ import VMHelperKit
 
 @testable import DevTools
 
-/// The pieces of `vmr sandbox-spike` that need no helper and no sandbox: entitlements, log parsing, launch commands and
+/// The pieces of `vmr sandbox` that need no helper and no sandbox: entitlements, log parsing, launch commands and
 /// the report, then the command itself on descriptors it must refuse or render.
-struct SandboxSpikeTests {
+struct SandboxRunTests {
     private func descriptor(network: HelperDescriptor.Network = .none, disk: String = "/private/vm/disk.img") -> HelperDescriptor {
         HelperDescriptor(
             name: "t", boot: .init(kind: .efi, variableStore: "/private/vm/efi.nvram"), disks: [.init(path: disk)],
@@ -96,11 +96,11 @@ struct SandboxSpikeTests {
 
     @Test
     func eachEngineLaunchesTheHelperItsOwnWay() {
-        let plain = SpikeLaunch.make(engine: .none, helper: "/b/plain/VMHelper", profile: nil)
+        let plain = SandboxLaunch.make(engine: .none, helper: "/b/plain/VMHelper", profile: nil)
         #expect(plain.executable == "/b/plain/VMHelper" && plain.leadingArguments.isEmpty)
-        let bundle = SpikeLaunch.make(engine: .appSandbox, helper: "/b/VMHelper.app/Contents/MacOS/VMHelper", profile: nil)
+        let bundle = SandboxLaunch.make(engine: .appSandbox, helper: "/b/VMHelper.app/Contents/MacOS/VMHelper", profile: nil)
         #expect(bundle.executable == "/b/VMHelper.app/Contents/MacOS/VMHelper")
-        let seatbelt = SpikeLaunch.make(engine: .seatbelt, helper: "/b/plain/VMHelper", profile: "/b/p.sb")
+        let seatbelt = SandboxLaunch.make(engine: .seatbelt, helper: "/b/plain/VMHelper", profile: "/b/p.sb")
         #expect(seatbelt.executable == "/usr/bin/sandbox-exec")
         #expect(seatbelt.leadingArguments == ["-f", "/b/p.sb", "/b/plain/VMHelper"])
         #expect(seatbelt.helperPath == "/b/plain/VMHelper")
@@ -108,7 +108,7 @@ struct SandboxSpikeTests {
 
     @Test
     func theHelperIsGivenItsModeItsDescriptorAndOnlyWhenBootingItsRunTime() {
-        let launch = SpikeLaunch.make(engine: .seatbelt, helper: "/h", profile: "/p.sb")
+        let launch = SandboxLaunch.make(engine: .seatbelt, helper: "/h", profile: "/p.sb")
         let probe = launch.command(mode: .probe, descriptorPath: "/d.json", runSeconds: 9, timeout: .seconds(5))
         #expect(probe.arguments == ["-f", "/p.sb", "/h", "--probe", "--descriptor", "/d.json"])
         #expect(probe.timeout == .seconds(5))
@@ -133,13 +133,13 @@ struct SandboxSpikeTests {
     }
 
     private func phase(
-        _ mode: SpikePhase.Mode, status: Int32 = 0, events: [HelperEvent] = [], console: SpikePhase.Console? = nil,
+        _ mode: SandboxPhase.Mode, status: Int32 = 0, events: [HelperEvent] = [], console: SandboxPhase.Console? = nil,
         denials: [SandboxDenial]? = []
-    ) -> SpikePhase {
-        SpikePhase(mode: mode, status: status, timedOut: false, events: events, console: console, denials: denials, seconds: 1.5)
+    ) -> SandboxPhase {
+        SandboxPhase(mode: mode, status: status, timedOut: false, events: events, console: console, denials: denials, seconds: 1.5)
     }
 
-    private func probe(refusing refused: Set<String>, resolve: HelperEvent.Verdict = .allowed) -> SpikePhase {
+    private func probe(refusing refused: Set<String>, resolve: HelperEvent.Verdict = .allowed) -> SandboxPhase {
         var events = ProbeCheck.userModeStack.map {
             event(.probe, at: 0.1, message: "m", check: $0, verdict: refused.contains($0) ? .refused : .allowed)
         }
@@ -149,41 +149,41 @@ struct SandboxSpikeTests {
 
     @Test
     func networkingWorksOnlyWhenEveryOperationOfAUserModeStackWentThrough() {
-        #expect(SpikeReport.networking(probe(refusing: [])).hasPrefix("works"))
-        let refused = SpikeReport.networking(probe(refusing: [ProbeCheck.tcpConnect, ProbeCheck.icmpConnect]))
+        #expect(SandboxReport.networking(probe(refusing: [])).hasPrefix("works"))
+        let refused = SandboxReport.networking(probe(refusing: [ProbeCheck.tcpConnect, ProbeCheck.icmpConnect]))
         #expect(refused == "refused: \(ProbeCheck.tcpConnect); \(ProbeCheck.icmpConnect)")
-        #expect(SpikeReport.networking(nil) == "not probed")
-        #expect(SpikeReport.networking(phase(.probe)) == "not probed")
+        #expect(SandboxReport.networking(nil) == "not probed")
+        #expect(SandboxReport.networking(phase(.probe)) == "not probed")
     }
 
     @Test
     func nameResolutionReportsTheResolverMessageWhenItFails() {
-        #expect(SpikeReport.resolution(probe(refusing: [])).hasPrefix("works"))
-        let failed = SpikeReport.resolution(probe(refusing: [], resolve: .refused))
+        #expect(SandboxReport.resolution(probe(refusing: [])).hasPrefix("works"))
+        let failed = SandboxReport.resolution(probe(refusing: [], resolve: .refused))
         #expect(failed.hasPrefix("fails (example.com: gai failed)"))
     }
 
     @Test
     func bootingIsOnlyClaimedWhenTheHelperReportedRunning() {
-        #expect(SpikeReport.boots(nil).hasPrefix("not run"))
+        #expect(SandboxReport.boots(nil).hasPrefix("not run"))
         let booted = phase(
             .start, events: [event(.booting, at: 0.2), event(.running, at: 1.7)], console: .init(lines: 40, firstLineAfterBooting: 0.9))
-        #expect(SpikeReport.boots(booted) == "yes: the framework reported the machine running after 1.700 s")
-        #expect(SpikeReport.bootTime(booted).hasPrefix("1.500 s from booting to running"))
-        #expect(SpikeReport.bootTime(booted).contains("first console line came 0.900 s after booting (40 lines)"))
+        #expect(SandboxReport.boots(booted) == "yes: the framework reported the machine running after 1.700 s")
+        #expect(SandboxReport.bootTime(booted).hasPrefix("1.500 s from booting to running"))
+        #expect(SandboxReport.bootTime(booted).contains("first console line came 0.900 s after booting (40 lines)"))
         let failed = phase(
             .start, status: 70, events: [event(.booting, at: 0.2), event(.error, at: 0.4, message: "the machine failed to start: boom")])
-        #expect(SpikeReport.boots(failed) == "no: the machine failed to start: boom")
-        #expect(SpikeReport.bootTime(failed) == "not measured")
+        #expect(SandboxReport.boots(failed) == "no: the machine failed to start: boom")
+        #expect(SandboxReport.bootTime(failed) == "not measured")
         #expect(
-            SpikeReport.bootTime(phase(.start, events: [event(.running, at: 1)], console: .init(lines: 0, firstLineAfterBooting: nil)))
+            SandboxReport.bootTime(phase(.start, events: [event(.running, at: 1)], console: .init(lines: 0, firstLineAfterBooting: nil)))
                 .contains("wrote nothing"))
     }
 
     @Test
     func theReportListsDenialsRefusedProbesAndAnAbortWithoutAnyEvent() {
         let denial = SandboxDenial(operation: "network-outbound", target: "remote:*:9", count: 3)
-        let lines = SpikeReport.lines(
+        let lines = SandboxReport.lines(
             engine: .seatbelt, level: .strict, descriptorPath: "/d.json", helperPath: "/h",
             phases: [probe(refusing: [ProbeCheck.tcpConnect]).withDenials([denial]), phase(.dryRun, status: 134, denials: nil)])
         #expect(lines.contains("sandbox denials:      3 logged (details below)"))
@@ -206,7 +206,7 @@ struct SandboxSpikeTests {
             ("login:", origin + .seconds(3)),
             (try event(.running, at: 0.4).line(), origin + .seconds(2)),
         ]
-        let (events, console) = SandboxSpike.separate(recorded)
+        let (events, console) = SandboxRun.separate(recorded)
         #expect(events.map(\.event) == [.booting, .running])
         #expect(console.lines == 3)
         #expect(console.firstLineAfterBooting == 0.5)
@@ -214,22 +214,22 @@ struct SandboxSpikeTests {
 
     // MARK: Command
 
-    private func spike(_ arguments: [String], descriptor: String) async throws -> Invocation {
+    private func runSandbox(_ arguments: [String], descriptor: String) async throws -> Invocation {
         try await withTemporaryDirectory { directory in
             try write(["Package.swift": "// swift-tools-version: 6.0\n", "d.json": descriptor], to: directory)
-            return try await VMR.vmr(["sandbox-spike"] + arguments + ["--descriptor", "d.json", "--root", directory.path], in: directory)
+            return try await VMR.vmr(["sandbox"] + arguments + ["--descriptor", "d.json", "--root", directory.path], in: directory)
         }
     }
 
     private func json(disk: String) -> String {
         let disk = disk.replacing("\\", with: "\\\\").replacing("\"", with: "\\\"").replacing("\n", with: "\\n")
-        let boot = #"{"kind":"efi","variableStore":"/tmp/vmr-spike-efi"}"#
+        let boot = #"{"kind":"efi","variableStore":"/tmp/vmr-sandbox-efi"}"#
         return #"{"version":1,"name":"t","boot":\#(boot),"disks":[{"path":"\#(disk)"}],"network":"fileHandle"}"#
     }
 
     @Test
     func theProfileCommandPrintsTheGeneratedProfileForADescriptor() async throws {
-        let run = try await spike(
+        let run = try await runSandbox(
             ["profile", "--level", "standard", "--helper", "/private/tmp/h/VMHelper"],
             descriptor: json(disk: "/private/tmp/My Disk (2).img"))
         #expect(run.status == 0, "\(run.combined)")
@@ -243,7 +243,7 @@ struct SandboxSpikeTests {
 
     @Test
     func theStrictProfileHasNoNetworkRules() async throws {
-        let run = try await spike(
+        let run = try await runSandbox(
             ["profile", "--level", "strict", "--helper", "/private/tmp/h/VMHelper"], descriptor: json(disk: "/private/tmp/d.img"))
         #expect(run.status == 0, "\(run.combined)")
         #expect(!run.output.contains("network-"), "\(run.output)")
@@ -252,7 +252,7 @@ struct SandboxSpikeTests {
     @Test(arguments: ["/tmp/a\"b", "/tmp/a\nb", "/tmp/a\\b", "/tmp/../etc/passwd", "relative.img"])
     func aHostilePathInTheDescriptorIsRefusedBeforeAnythingIsBuilt(path: String) async throws {
         for arguments in [["profile"], ["run", "--engine", "seatbelt"]] {
-            let run = try await spike(arguments, descriptor: json(disk: path))
+            let run = try await runSandbox(arguments, descriptor: json(disk: path))
             #expect(run.status == 65, "\(arguments) \(run.combined)")
             #expect(run.error.hasPrefix("error: "), "\(run.error)")
             #expect(!run.output.contains("(allow"), "no profile text is printed for a refused descriptor")
@@ -261,17 +261,17 @@ struct SandboxSpikeTests {
 
     @Test
     func anUnknownEngineOrLevelIsAUsageError() async throws {
-        let engine = try await spike(["run", "--engine", "chroot"], descriptor: json(disk: "/tmp/d.img"))
+        let engine = try await runSandbox(["run", "--engine", "chroot"], descriptor: json(disk: "/tmp/d.img"))
         #expect(engine.status != 0)
         #expect(engine.error.contains("'chroot' is not one of none, app-sandbox, seatbelt"), "\(engine.error)")
-        let level = try await spike(["profile", "--level", "lax"], descriptor: json(disk: "/tmp/d.img"))
+        let level = try await runSandbox(["profile", "--level", "lax"], descriptor: json(disk: "/tmp/d.img"))
         #expect(level.status != 0)
         #expect(level.error.contains("'lax' is not one of standard, strict"), "\(level.error)")
     }
 }
 
-extension SpikePhase {
-    fileprivate func withDenials(_ denials: [SandboxDenial]) -> SpikePhase {
-        SpikePhase(mode: mode, status: status, timedOut: timedOut, events: events, console: console, denials: denials, seconds: seconds)
+extension SandboxPhase {
+    fileprivate func withDenials(_ denials: [SandboxDenial]) -> SandboxPhase {
+        SandboxPhase(mode: mode, status: status, timedOut: timedOut, events: events, console: console, denials: denials, seconds: seconds)
     }
 }

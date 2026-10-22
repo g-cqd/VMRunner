@@ -10,12 +10,12 @@ private func parseChoice<Value: RawRepresentable & CaseIterable>(_ text: String)
     return value
 }
 
-struct SandboxSpikeCommand: AsyncParsableCommand {
+struct SandboxCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "sandbox-spike",
+        commandName: "sandbox",
         abstract: "Run the headless helper under App Sandbox or a Seatbelt profile and report what the sandbox refused.",
         discussion: """
-            The spike of roadmap 0025: docs/research/sandboxing-2026-10.md says what it measures and how to read it. \
+            The sandbox helper run of roadmap 0025: docs/research/sandboxing-2026-10.md says what it measures and how to read it. \
             Nothing here starts a virtual machine unless `run` gets --boot, which only the repository owner passes.
             """,
         subcommands: [Run.self, Profile.self]
@@ -59,7 +59,7 @@ struct SandboxSpikeCommand: AsyncParsableCommand {
         var boot = false
 
         @Option(name: .long, help: ArgumentHelp("With --boot: seconds the machine runs before the helper stops it.", valueName: "seconds"))
-        var runSeconds = SandboxSpike.defaultRunSeconds
+        var runSeconds = SandboxRun.defaultRunSeconds
 
         @Option(
             name: .long, help: ArgumentHelp("The helper's build configuration: debug or release.", valueName: "configuration"),
@@ -76,13 +76,13 @@ struct SandboxSpikeCommand: AsyncParsableCommand {
         func run() async throws {
             try await perform {
                 let root = try project.packageRoot()
-                var options = SandboxSpike.Options(
+                var options = SandboxRun.Options(
                     engine: engine, level: level, descriptor: URL(fileURLWithPath: descriptor, relativeTo: project.workingDirectory()))
                 options.boot = boot
                 options.runSeconds = runSeconds
                 options.configuration = configuration
                 options.prebuilt = helper.map { URL(fileURLWithPath: $0, relativeTo: project.workingDirectory()).standardizedFileURL }
-                return try await SandboxSpike(root: root, options: options).run()
+                return try await SandboxRun(root: root, options: options).run()
             }
         }
     }
@@ -92,7 +92,7 @@ struct SandboxSpikeCommand: AsyncParsableCommand {
             abstract: "Print the Seatbelt profile generated for a descriptor.",
             discussion: """
                 The profile `run --engine seatbelt` writes, without building or launching anything. The helper path in it is \
-                where `run` puts the signed helper, build/sandbox-spike/plain/VMHelper, unless --helper names another.
+                where `run` puts the signed helper, build/sandbox/plain/VMHelper, unless --helper names another.
                 """
         )
 
@@ -112,8 +112,8 @@ struct SandboxSpikeCommand: AsyncParsableCommand {
         func run() async throws {
             try await perform {
                 let root = try project.packageRoot()
-                let loaded = try SandboxSpike.load(descriptor: URL(fileURLWithPath: descriptor, relativeTo: project.workingDirectory()))
-                let grants = try SandboxSpike.grants(for: loaded, level: level)
+                let loaded = try SandboxRun.load(descriptor: URL(fileURLWithPath: descriptor, relativeTo: project.workingDirectory()))
+                let grants = try SandboxRun.grants(for: loaded, level: level)
                 let helperPath =
                     helper ?? HelperBundler(root: root, configuration: .release, prebuilt: nil).plainHelperURL.path
                 do {

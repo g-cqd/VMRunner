@@ -4,7 +4,7 @@ import VMHelperKit
 
 /// How the helper is launched under an engine: the program to run, the arguments that come before the helper's own, and the
 /// helper binary that ends up running.
-struct SpikeLaunch: Equatable {
+struct SandboxLaunch: Equatable {
     let executable: String
     let leadingArguments: [String]
     let helperPath: String
@@ -20,7 +20,7 @@ struct SpikeLaunch: Equatable {
         }
     }
 
-    func command(mode: SpikePhase.Mode, descriptorPath: String, runSeconds: Int, timeout: Duration) -> CommandSpec {
+    func command(mode: SandboxPhase.Mode, descriptorPath: String, runSeconds: Int, timeout: Duration) -> CommandSpec {
         var arguments = leadingArguments + [mode.flag, "--descriptor", descriptorPath]
         if mode == .start { arguments += ["--run-seconds", "\(runSeconds)"] }
         return CommandSpec(executable: executable, arguments: arguments, timeout: timeout)
@@ -34,16 +34,16 @@ extension ToolError {
     }
 }
 
-/// `vmr sandbox-spike run`: launches the helper under one engine, once to probe, once to validate and, when asked, once to
+/// `vmr sandbox run`: launches the helper under one engine, once to probe, once to validate and, when asked, once to
 /// boot, then reads each launch's sandbox denials from the unified log and prints a report.
-struct SandboxSpike {
+struct SandboxRun {
     struct Options {
         var engine: SandboxEngine
         var level: SandboxLevel
         var descriptor: URL
         /// Start the virtual machine. Only the owner does; agents and CI never do.
         var boot = false
-        var runSeconds = SandboxSpike.defaultRunSeconds
+        var runSeconds = SandboxRun.defaultRunSeconds
         var configuration = AppBundler.Configuration.release
         var prebuilt: URL?
     }
@@ -67,12 +67,12 @@ struct SandboxSpike {
         let launch = try await prepare(grants: grants)
         Output.out("")
 
-        var phases: [SpikePhase] = []
-        let modes: [SpikePhase.Mode] = options.boot ? [.probe, .dryRun, .start] : [.probe, .dryRun]
+        var phases: [SandboxPhase] = []
+        let modes: [SandboxPhase.Mode] = options.boot ? [.probe, .dryRun, .start] : [.probe, .dryRun]
         for mode in modes {
             phases.append(try await runPhase(mode, launch: launch, descriptorPath: loaded.path))
         }
-        for line in SpikeReport.lines(
+        for line in SandboxReport.lines(
             engine: options.engine, level: options.level, descriptorPath: loaded.path, helperPath: launch.helperPath, phases: phases)
         {
             Output.out(line)
@@ -102,7 +102,7 @@ struct SandboxSpike {
 
     // MARK: Preparing the engine
 
-    private func prepare(grants: SandboxGrants) async throws -> SpikeLaunch {
+    private func prepare(grants: SandboxGrants) async throws -> SandboxLaunch {
         let binary = try await bundler.binary()
         switch options.engine {
         case .none:
@@ -128,14 +128,14 @@ struct SandboxSpike {
 
     // MARK: Phases
 
-    private func runPhase(_ mode: SpikePhase.Mode, launch: SpikeLaunch, descriptorPath: String) async throws -> SpikePhase {
+    private func runPhase(_ mode: SandboxPhase.Mode, launch: SandboxLaunch, descriptorPath: String) async throws -> SandboxPhase {
         let timeout = mode == .start ? Self.phaseTimeout + .seconds(options.runSeconds) : Self.phaseTimeout
         let spec = launch.command(mode: mode, descriptorPath: descriptorPath, runSeconds: options.runSeconds, timeout: timeout)
         Output.out("running \(mode.rawValue) under \(options.engine.rawValue)/\(options.level.rawValue)")
 
         let began = ContinuousClock.now
         var events: [HelperEvent] = []
-        var console: SpikePhase.Console?
+        var console: SandboxPhase.Console?
         let result: CommandResult
         if mode == .start {
             // The guest's console and the helper's events arrive together; the console lines are the ones that are not events.
@@ -147,15 +147,15 @@ struct SandboxSpike {
             events = HelperEvent.parse(lines: result.standardOutput)
         }
         let seconds = (ContinuousClock.now - began).inSeconds
-        return SpikePhase(
+        return SandboxPhase(
             mode: mode, status: result.status, timedOut: result.timedOut, events: events, console: console,
             denials: await denials(pid: events.first?.pid, since: began), seconds: seconds)
     }
 
     /// Splits recorded lines into the helper's events and a summary of everything else, which is the guest's console.
-    static func separate(_ recorded: [(text: String, at: ContinuousClock.Instant)]) -> ([HelperEvent], SpikePhase.Console) {
+    static func separate(_ recorded: [(text: String, at: ContinuousClock.Instant)]) -> ([HelperEvent], SandboxPhase.Console) {
         var events: [HelperEvent] = []
-        var console = SpikePhase.Console(lines: 0, firstLineAfterBooting: nil)
+        var console = SandboxPhase.Console(lines: 0, firstLineAfterBooting: nil)
         var booting: ContinuousClock.Instant?
         for (text, at) in recorded {
             if let event = HelperEvent.parse(lines: text).first {

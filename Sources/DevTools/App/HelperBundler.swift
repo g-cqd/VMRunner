@@ -1,10 +1,10 @@
 import Foundation
 import VMHelperKit
 
-/// Builds the sandbox spike's helper and signs it ad hoc for an engine, then reads the entitlements back from the signed
+/// Builds the sandbox helper's helper and signs it ad hoc for an engine, then reads the entitlements back from the signed
 /// result, as `AppBundler` does for the app.
 ///
-/// Two artifacts come out under `build/sandbox-spike/`: the plain helper signed with the virtualization entitlement only
+/// Two artifacts come out under `build/sandbox/`: the plain helper signed with the virtualization entitlement only
 /// (engines `none` and `seatbelt`), and `VMHelper.app`, a bundle signed with `app-sandbox`, `virtualization` and the grants
 /// of one descriptor (engine `app-sandbox`).
 struct HelperBundler {
@@ -15,7 +15,7 @@ struct HelperBundler {
     /// A helper binary built already, used instead of building one.
     let prebuilt: URL?
 
-    var workDirectory: URL { root.appending(path: "build/sandbox-spike", directoryHint: .isDirectory) }
+    var workDirectory: URL { root.appending(path: "build/sandbox", directoryHint: .isDirectory) }
     private var plainEntitlementsURL: URL { root.appending(path: "Resources/\(Self.productName).entitlements") }
     private var appSandboxEntitlementsURL: URL { root.appending(path: "Resources/\(Self.productName).appsandbox.entitlements") }
     private var infoPlistURL: URL { root.appending(path: "Resources/\(Self.productName).Info.plist") }

@@ -64,7 +64,7 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         case none
         /// The framework's NAT attachment; its per-machine service does the networking, not the helper.
         case nat
-        /// A virtio card on one end of a datagram socket pair; the helper holds the other end. The spike runs no stack on
+        /// A virtio card on one end of a datagram socket pair; the helper holds the other end. The helper runs no stack on
         /// it, so the guest sees a link that goes nowhere; it exists to show that the attachment works inside a sandbox.
         case fileHandle
     }

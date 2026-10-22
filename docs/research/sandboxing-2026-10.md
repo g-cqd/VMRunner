@@ -163,7 +163,7 @@ Debugging: Console filtered on subsystem `com.apple.sandbox.reporting`; the unif
 - Helper sandboxes can break when macOS changes its allowed Mach lookups. Keep a regression test that boots a workload at
   each level.
 
-## Spike results (2026-10-22)
+## Probe results (2026-10-22)
 
 The prototype of the plan above was built and run without starting a machine: everything below was run on the host named
 at the top (an Apple M3, macOS 26.7.1, SDK macOS 27) with `--probe` and `--dry-run`. **Whether a guest boots inside
@@ -179,9 +179,9 @@ either engine is not known yet**; the owner's run, described below, decides it.
   (`booting`, `running`, `stopped`, `error`, `validated`, `probe`), the guest's serial console to standard error. Exit
   statuses are the `sysexits.h` values: 0, 64 usage, 65 bad descriptor, 66 file missing or hidden, 69 configuration
   rejected, 70 start failed.
-- `vmr sandbox-spike run --engine none|seatbelt|app-sandbox --level standard|strict --descriptor FILE [--boot]` builds and
+- `vmr sandbox run --engine none|seatbelt|app-sandbox --level standard|strict --descriptor FILE [--boot]` builds and
   signs the helper for the engine, launches it, reads the denials of its pid from the unified log, and prints the report.
-  `vmr sandbox-spike profile` prints the generated Seatbelt profile. The signing code is in `Sources/DevTools/App`, next to
+  `vmr sandbox profile` prints the generated Seatbelt profile. The signing code is in `Sources/DevTools/App`, next to
   `AppBundler`, with the entitlements in `Resources/VMHelper*.entitlements` and the bundle's `Resources/VMHelper.Info.plist`.
 - The app target gained no dependency, and `swift run vmr check` is green. The helper copies the minimum of the app's
   `ConfigurationBuilder` (Linux, EFI or kernel boot, disks, an ISO, entropy, NAT, a file-handle NIC). The app's user-mode
@@ -206,8 +206,8 @@ either engine is not known yet**; the owner's run, described below, decides it.
   is signed again for each descriptor (ad hoc, milliseconds), and that the exception entitlement is unavailable to a Mac App
   Store build, which the app already is not. Running the helper creates
   `~/Library/Containers/com.example.VMRunner.VMHelper`.
-- `seatbelt`: the plain helper under `sandbox-exec -f build/sandbox-spike/seatbelt-<level>.sb`. The generated profile
-  (`vmr sandbox-spike profile` prints it) is `(deny default)`, `(import "dyld-support.sb")`, the helper's `process-exec`,
+- `seatbelt`: the plain helper under `sandbox-exec -f build/sandbox/seatbelt-<level>.sb`. The generated profile
+  (`vmr sandbox profile` prints it) is `(deny default)`, `(import "dyld-support.sb")`, the helper's `process-exec`,
   system reads, nine `sysctl-read` names, four Mach lookups, one shared-memory name, a `file-read-metadata` rule for each
   directory above a granted file, and for each granted file a `literal` rule plus the `file-issue-extension` rules meant to
   let the framework hand the file to the per-machine service. The standard level with a hosted network adds outbound sockets
@@ -268,7 +268,7 @@ What the denials and the refusals mean:
 ### What this means for the model in ADR-0016
 
 - **Engines.** `none`, `appSandbox` and `seatbelt` hold up as three renderings of one set of grants (files to read, files to
-  write, host sockets or not), derived once from the workload. That is how the spike is built, and both engines accepted the
+  write, host sockets or not), derived once from the workload. That is how the helper is built, and both engines accepted the
   same configurations.
 - **Levels.** `standard` and `strict` are meaningful as "may the helper open host sockets"; nothing else was needed to tell
   them apart. `custom` was not exercised.
@@ -279,8 +279,7 @@ What the denials and the refusals mean:
 - **A regression test cannot rely on the log.** The "boot a workload at each level" test in the risks above must read the
   helper's events and probe verdicts.
 - **A virtual machine inside a Seatbelt helper is still unverified**, as is every Mach service the framework looks up when a
-  machine starts. The profile lists `com.apple.Virtualization.VirtualMachine` as a guess. ADR-0016 is not changed by this
-  spike.
+  machine starts. The profile lists `com.apple.Virtualization.VirtualMachine` as a guess. ADR-0016 is not changed by these probes.
 
 ### The owner's boot run
 
@@ -289,14 +288,14 @@ arm64 Linux installer ISO (the smallest one the app offers is enough) and about 
 use scratch copies.
 
 ```sh
-mkdir -p ~/spike && cd ~/spike
+mkdir -p ~/sandbox-run && cd ~/sandbox-run
 truncate -s 8g disk.img                      # an empty raw disk, sparse on APFS
 cp /path/to/linux-arm64.iso linux.iso        # any arm64 installer ISO that boots under UEFI
 cat > d.json <<'JSON'
-{ "version": 1, "name": "spike", "cpuCount": 2, "memoryMiB": 2048,
-  "boot": { "kind": "efi", "variableStore": "/Users/YOU/spike/efi.nvram" },
-  "disks": [ { "path": "/Users/YOU/spike/disk.img" } ],
-  "installerISO": "/Users/YOU/spike/linux.iso", "network": "fileHandle" }
+{ "version": 1, "name": "sandbox-run", "cpuCount": 2, "memoryMiB": 2048,
+  "boot": { "kind": "efi", "variableStore": "/Users/YOU/sandbox-run/efi.nvram" },
+  "disks": [ { "path": "/Users/YOU/sandbox-run/disk.img" } ],
+  "installerISO": "/Users/YOU/sandbox-run/linux.iso", "network": "fileHandle" }
 JSON
 sed 's/"fileHandle"/"nat"/' d.json > d-nat.json
 ```
@@ -304,11 +303,11 @@ sed 's/"fileHandle"/"nat"/' d.json > d-nat.json
 Paths must be absolute. Then, from the repository root (the first command builds the helper, which takes a few minutes):
 
 ```sh
-swift run vmr sandbox-spike run --engine none        --descriptor ~/spike/d.json --boot --run-seconds 40
-swift run vmr sandbox-spike run --engine seatbelt    --descriptor ~/spike/d.json --boot --run-seconds 40
-swift run vmr sandbox-spike run --engine app-sandbox --descriptor ~/spike/d.json --boot --run-seconds 40
-swift run vmr sandbox-spike run --engine seatbelt    --descriptor ~/spike/d-nat.json --boot --run-seconds 40
-swift run vmr sandbox-spike run --engine app-sandbox --descriptor ~/spike/d-nat.json --boot --run-seconds 40
+swift run vmr sandbox run --engine none        --descriptor ~/sandbox-run/d.json --boot --run-seconds 40
+swift run vmr sandbox run --engine seatbelt    --descriptor ~/sandbox-run/d.json --boot --run-seconds 40
+swift run vmr sandbox run --engine app-sandbox --descriptor ~/sandbox-run/d.json --boot --run-seconds 40
+swift run vmr sandbox run --engine seatbelt    --descriptor ~/sandbox-run/d-nat.json --boot --run-seconds 40
+swift run vmr sandbox run --engine app-sandbox --descriptor ~/sandbox-run/d-nat.json --boot --run-seconds 40
 ```
 
 Each run probes, validates, then starts the machine, lets it run for `--run-seconds`, and stops it; it takes about a minute
@@ -329,8 +328,8 @@ the machine running.
 Report, for each of the five runs, the whole text the command printed, and whether a window or a prompt appeared. If the
 machine did not start, the report already names the failing step (`no: the machine failed to start: ...`) and lists the
 sandbox denials, whose Mach-lookup names are what the profile is missing. Also report `ls ~/Library/Containers | grep
-VMHelper` and whether `~/spike/efi.nvram` exists afterwards. To clean up:
-`rm -rf build/sandbox-spike ~/spike ~/Library/Containers/com.example.VMRunner.VMHelper`.
+VMHelper` and whether `~/sandbox-run/efi.nvram` exists afterwards. To clean up:
+`rm -rf build/sandbox ~/sandbox-run ~/Library/Containers/com.example.VMRunner.VMHelper`.
 
 Reading the result: five times `yes` means both engines carry a headless machine, and the roadmap entry can move on to the
 settings model. A failure under `seatbelt` only means the profile misses a Mach service or a file rule, which the denials

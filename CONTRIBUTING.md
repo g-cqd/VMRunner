@@ -142,7 +142,7 @@ tooling in Swift: no shell or Python files. The tooling's two dependencies (swif
 compares them with `Package.swift`. Every build and test `vmr` starts, and every `swift` command in the workflows, passes
 `--only-use-versions-from-resolved-file`: versions come from the committed `Package.resolved` alone, so after a
 dependency change run `swift package resolve` and commit the file. The same goes for `VMHelperKit` and `VMHelper`, the
-headless helper of the sandbox spike (roadmap 0025): `swift run vmr sandbox-spike run` launches it under App Sandbox or a
+headless helper of the sandbox helper (roadmap 0025): `swift run vmr sandbox run` launches it under App Sandbox or a
 Seatbelt profile. Without `--boot` it only probes and validates; `--boot` starts a virtual machine and is for the owner.
 
 The container runner (roadmap 0024) lives in a package of its own, `Packages/Containers`, with its own committed
