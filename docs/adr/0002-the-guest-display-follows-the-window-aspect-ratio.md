@@ -22,7 +22,9 @@ the MAC address between runs made restore fail with "invalid argument".
 
 ## Consequences
 
-The last display size is remembered per machine, and changing it discards a saved state, which the UI says.
+The last display size is remembered per machine, and a suspended machine restores at that size. Changing the size settings
+does not discard a saved state; they apply once it is discarded (corrected 2026-10-22: this text said a change discards the
+state; ADR-0034 records what the code does and why).
 
 ## What this does not decide
 
