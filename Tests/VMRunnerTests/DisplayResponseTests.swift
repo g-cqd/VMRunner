@@ -107,6 +107,7 @@ struct DisplayResponseTests {
         try await clock.waitForSleepers(atLeast: 2)  // the first response clock and the quiet period
         clock.advance(by: quiet)
         try await waitForRequests(2)
+        try await clock.waitForSleepers(atLeast: 1)  // the second request's response clock, which the first one's no longer is
         clock.advance(by: .seconds(1))
         #expect(outcomes.isEmpty, "the first request is superseded, and the second has not had its two seconds")
 
