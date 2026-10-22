@@ -30,7 +30,7 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     case graphics, resolution, pixelDensity, resizeWithWindow, pixelsPerPoint, linuxBootText, pointingDevice, captureKeys
     case inputResponsiveness, audio
     // Network and sharing
-    case networkMode, macAddress, sharedFolders, clipboard, rosetta
+    case networkMode, macAddress, sharedFolders, clipboard, rosetta, hostInformation
     case networkPolicy, policyRules, policyLimits, guestVpn, killSwitch
     // Security
     case securityProfiles, disposable, secureBoot, exposureSummary, devices, memoryBalloon, entropy, vsock, serialConsole

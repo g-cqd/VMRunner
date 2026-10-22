@@ -25,7 +25,7 @@ enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
             "Keeps the network, but cuts host channels: no clipboard, microphone, Rosetta, nested virtualization, or vsock; "
                 + "shared folders become read-only."
         case .isolated:
-            "Contained, plus no network, no shared folders, extra disks or attached installer, no sound, "
+            "Contained, plus no network, no shared folders, extra disks, attached installer or host information, no sound, "
                 + "and Secure Boot on Linux when the host runs macOS 27 or later and the image can boot with it."
         case .hardened:
             "Isolated, plus a disposable disk (changes are discarded on stop), no suspend files, no memory balloon, "
@@ -124,6 +124,7 @@ extension VMConfig {
         config.sharedFolders = []
         config.extraDisks = []
         config.installerAttached = false
+        config.hostInfo = HostInfoSharing()
         config.secureBoot = secureBootAvailability(hostSupports: hostSupportsSecureBoot) == .available
         guard profile == .hardened else { return config }
 
@@ -165,6 +166,7 @@ extension VMConfig {
         var recovery: Bool
         var autoLogin: Bool
         var remoteLogin: Bool
+        var hostInfo: HostInfoSharing
     }
 
     var posture: Posture {
@@ -191,7 +193,8 @@ extension VMConfig {
             secureBoot: linux && secureBoot,
             recovery: guest == .macOS && bootIntoRecovery,
             autoLogin: provisioned && provisioning.logsInAutomatically,
-            remoteLogin: provisioned && provisioning.enablesRemoteLogin
+            remoteLogin: provisioned && provisioning.enablesRemoteLogin,
+            hostInfo: hostInfo
         )
     }
 }
@@ -235,6 +238,10 @@ extension VMConfig {
             items.append(Exposure(level: .medium, text: "The guest can read the installer image \(installer) (attached read-only)."))
         }
         if guest == .linux, sharesClipboard { items.append(Exposure(level: .medium, text: "Clipboard is shared with the host.")) }
+        if !hostInfo.isEmpty {
+            let shared = hostInfo.names.joined(separator: ", ")
+            items.append(Exposure(level: .low, text: "The guest can read this Mac's \(shared) (read-only share)."))
+        }
         if audioInput { items.append(Exposure(level: .medium, text: "The guest can record from the microphone.")) }
         if audioOutput { items.append(Exposure(level: .low, text: "The guest can play sound.")) }
         if guest == .linux, rosetta {

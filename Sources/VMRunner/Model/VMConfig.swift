@@ -153,6 +153,8 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var sharedFolders: [SharedFolder] = []
     var sharesClipboard = true
     var rosetta = false
+    /// Facts about this Mac the guest can read from a read-only share; nothing by default.
+    var hostInfo = HostInfoSharing()
 
     // Devices
     var memoryBalloon = true

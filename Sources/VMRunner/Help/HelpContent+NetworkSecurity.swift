@@ -83,6 +83,37 @@ extension HelpCatalog {
             ],
             related: [.guestSystems]
         ),
+        .hostInformation: HelpEntry(
+            area: .network,
+            title: "Host information",
+            summary: "Lets the guest read chosen facts about your Mac, such as its battery level or time zone. Off by default.",
+            paragraphs: [
+                "Some software in a guest behaves better when it knows about the Mac it runs on: a laptop on battery, a Mac "
+                    + "that is running hot, a metered connection, or the local time zone. Turn on only what the guest needs: each "
+                    + "fact is one more thing the guest learns about your Mac.",
+                "• **Battery level**: the charge in percent (`none` on a Mac without a battery).",
+                "• **Power source and Low Power Mode**: whether the Mac runs on its adapter or its battery, and whether Low "
+                    + "Power Mode is on.",
+                "• **Thermal state**: nominal, fair, serious or critical, as macOS reports it.",
+                "• **Network path**: whether the Mac is online, over Wi-Fi, Ethernet or cellular, and whether the connection "
+                    + "is metered or in Low Data Mode. No addresses or network names are shared.",
+                "• **Time zone**: the Mac's time zone, such as `Europe/Paris`.",
+                "The guest reads them as small text files in a read-only shared folder; nothing has to be installed in the "
+                    + "guest. VMRunner writes them when the machine starts, every minute, and when your Mac's network changes.",
+                "• **Linux**: `sudo mkdir -p /mnt/host && sudo mount -t virtiofs vmrunner-host /mnt/host`.",
+                "• **macOS**: `mkdir ~/host && mount_virtiofs vmrunner-host ~/host`.",
+                "The Isolated and Hardened profiles turn all of them off. Changes apply the next time the machine starts.",
+            ],
+            advanced: [
+                "One file per fact, one `key=value` per line: `battery` (`percent=`), `power` (`source=ac`, `battery` or "
+                    + "`unknown`, `lowPowerMode=0` or `1`), `thermal` (`state=`), `network` (`status=`, `interface=`, "
+                    + "`expensive=`, `constrained=`) and `timezone` (`identifier=`). A fact that is off has no file. The "
+                    + "folder is `HostInfo` in the machine's folder, emptied at every start.",
+                "The guest cannot write to the share. Reading it is still a channel from your Mac into the guest, so "
+                    + "\"What this machine can reach\" lists it.",
+            ],
+            related: [.sharedFolders, .exposureSummary, .securityProfiles]
+        ),
         .securityProfiles: HelpEntry(
             area: .security,
             title: "Security profiles",
@@ -93,7 +124,8 @@ extension HelpCatalog {
                 "• **Contained**: keeps the network but closes the side doors: no clipboard, microphone, Rosetta, nested "
                     + "virtualization, or vsock, "
                     + "and shared folders become read-only.",
-                "• **Isolated**: Contained, and also no network, no shared folders, extra disks or attached installer image, and no "
+                "• **Isolated**: Contained, and also no network, no shared folders, extra disks, attached installer image or host "
+                    + "information, and no "
                     + "sound. Linux gets Secure Boot if your Mac supports it and the machine's image can boot with it (Alpine "
                     + "cannot, so its Secure Boot stays off).",
                 "• **Hardened**: Isolated, and also disposable (changes are discarded), no suspend, no memory balloon, no automatic "

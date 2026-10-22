@@ -68,6 +68,7 @@ struct SecurityTests {
         config.sharedFolders = [SharedFolder(path: "/tmp/a")]
         config.extraDisks = [ExtraDisk(path: "/tmp/d.img")]
         config.rosetta = true
+        config.hostInfo.battery = true
 
         let hardened = config.applying(.hardened)
 
@@ -78,6 +79,7 @@ struct SecurityTests {
         #expect(hardened.secureBoot == HostCapabilities.secureBoot, "only enabled where the host can enforce it")
         #expect(hardened.maxRuntimeMinutes > 0)
         #expect(hardened.entropyDevice, "entropy must stay on or the guest has no randomness")
+        #expect(hardened.hostInfo.isEmpty, "no fact about the Mac reaches a hardened guest")
     }
 
     @Test(arguments: [SecurityProfile.isolated, .hardened])
