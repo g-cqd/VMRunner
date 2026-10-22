@@ -183,3 +183,37 @@ struct PGPClearSignedTests {
         }
     }
 }
+
+/// The armor CRC-24 against a bit-at-a-time reference, over inputs from a fixed seed.
+struct CRC24Tests {
+    /// RFC 4880 section 6.1 (initial value 0xB704CE, polynomial 0x1864CFB), one bit at a time.
+    private static func referenceCRC24(_ bytes: [UInt8]) -> UInt32 {
+        let polynomial: UInt32 = 0x186_4CFB
+        let remainder = bytes.reduce(UInt32(0xB7_04CE)) { register, byte in
+            (0..<8).reduce(register ^ UInt32(byte) << 16) { value, _ in
+                let shifted = value << 1
+                return shifted & 0x100_0000 == 0 ? shifted : shifted ^ polynomial
+            }
+        }
+        return remainder & 0xFF_FFFF
+    }
+
+    @Test func theReferenceGivesTheStandardCheckValue() {
+        #expect(Self.referenceCRC24(Array("123456789".utf8)) == 0x21_CF02)
+    }
+
+    @Test func matchesTheReferenceOnRandomInputs() {
+        var generator = SplitMix64(seed: 0x5EED)
+        for _ in 0..<2_000 {
+            let count = Int.random(in: 0...600, using: &generator)
+            let bytes = (0..<count).map { _ in UInt8.random(in: .min ... .max, using: &generator) }
+            #expect(PGP.Armor.crc24(bytes) == Self.referenceCRC24(bytes), "\(count) bytes")
+        }
+    }
+
+    @Test func matchesTheReferenceOnEveryOneByteInput() {
+        for byte in UInt8.min...UInt8.max {
+            #expect(PGP.Armor.crc24([byte]) == Self.referenceCRC24([byte]))
+        }
+    }
+}
