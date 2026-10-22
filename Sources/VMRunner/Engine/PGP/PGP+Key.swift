@@ -15,12 +15,15 @@ extension PGP {
         /// The 20-byte version 4 fingerprint of the integers and the creation time.
         let fingerprint: [UInt8]
 
-        /// - Throws: `Failure.invalidKey` for a modulus under 2048 or over 8192 bits, one that is even, an exponent that is even or
-        ///   below 3, or an integer with a leading zero byte.
+        /// The only public exponent accepted, 65537: every vendor key uses it, and a small exponent such as 3 is what makes
+        /// forged PKCS#1 v1.5 signatures practical against a verifier that is lax about padding.
+        static let publicExponent: [UInt8] = [0x01, 0x00, 0x01]
+
+        /// - Throws: `Failure.invalidKey` for a modulus under 2048 or over 8192 bits, one that is even or has a leading zero
+        ///   byte, or any exponent but 65537.
         init(modulus: [UInt8], exponent: [UInt8], created: UInt32) throws(Failure) {
             guard (256...1024).contains(modulus.count), modulus.first != 0, modulus.last.map({ $0 & 1 == 1 }) == true,
-                let first = exponent.first, first != 0, exponent.last.map({ $0 & 1 == 1 }) == true, exponent != [1],
-                exponent.count <= modulus.count
+                exponent == Self.publicExponent
             else { throw .invalidKey }
             self.modulus = modulus
             self.exponent = exponent

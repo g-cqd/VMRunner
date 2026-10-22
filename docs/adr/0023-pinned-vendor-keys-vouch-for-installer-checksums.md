@@ -28,7 +28,8 @@ rule (ADR-0001: a new dependency needs an ADR, and the SDK already holds what a 
 2. **A small verifier of our own.** It reads only version 4 RSA signatures of type binary or text with SHA-256, SHA-384 or
    SHA-512. It refuses every other version, algorithm, hash (MD5, SHA-1 and RIPEMD-160 included), signature type, trailing
    byte, partial or overflowing length, critical subpacket it does not know, creation time in the future and expired
-   signature, and a file with more than one signature. It trusts only the hashed subpacket area: the signer is identified by
+   signature, and a file with more than one signature. It accepts only RSA keys of 2048 to 8192 bits with the public
+   exponent 65537, so a small exponent never weakens the padding check. It trusts only the hashed subpacket area: the signer is identified by
    the issuer fingerprint there, which must be a pinned key, and never by the unsigned key ID. The public-key operation is
    Security.framework's `SecKeyVerifySignature` over a digest CryptoKit computed, so a large installer is hashed in chunks.
 3. **Pinned keys are constants in the source.** A key is pinned only after its fingerprint, recomputed from the constants,

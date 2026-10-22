@@ -130,22 +130,56 @@ struct PGPClearSignedTests {
         #expect(utf8String(message.canonicalText) == "a\r\n")
     }
 
-    @Test(arguments: [
-        ("a line starting with a dash that is not escaped", "# Fedora-Server-dvd-aarch64-44-1.7.iso:", "-x dvd:"),
-        ("no Hash header", "Hash: SHA256\n", ""),
-        ("an unknown header", "Hash: SHA256\n", "Comment: x\n"),
-        ("text after the signature", "-----END PGP SIGNATURE-----\n", "-----END PGP SIGNATURE-----\nforged\n"),
-        ("no signature block", "-----BEGIN PGP SIGNATURE-----", "-----BEGIN PGP SIGNATUR-----"),
-        ("no end line", "-----END PGP SIGNATURE-----\n", ""),
-    ])
-    func refusesAMalformedMessage(_ name: String, _ original: String, _ replacement: String) {
-        let damaged = SignedVendorFiles.fedoraChecksum.replacing(original, with: replacement)
-        #expect(throws: PGP.Failure.self, "\(name)") { try PGP.Armor.decodeClearSigned(Array(damaged.utf8)) }
+    /// A message damaged in one place and the failure that place must produce, branch by branch.
+    struct Damage: Sendable {
+        var name: String
+        var apply: @Sendable (String) -> String
+        var expected: PGP.Failure
+    }
+
+    private static let damages: [Damage] = [
+        Damage(
+            name: "a line starting with a dash that is not escaped",
+            apply: { $0.replacing("# Fedora-Server-dvd-aarch64-44-1.7.iso:", with: "-x dvd:") },
+            expected: .malformedArmor("an unescaped line starting with a dash")),
+        Damage(
+            name: "no Hash header", apply: { $0.replacing("Hash: SHA256\n", with: "") }, expected: .malformedArmor("no Hash header")),
+        Damage(
+            name: "an unknown header", apply: { $0.replacing("Hash: SHA256\n", with: "Comment: x\n") },
+            expected: .malformedArmor("unknown header in the message")),
+        Damage(
+            name: "text after the signature",
+            apply: { $0.replacing("-----END PGP SIGNATURE-----\n", with: "-----END PGP SIGNATURE-----\nforged\n") },
+            expected: .malformedArmor("text after the signature")),
+        Damage(
+            name: "no signature block at all",
+            apply: { text in String(text[..<(text.range(of: "-----BEGIN PGP SIGNATURE-----")?.lowerBound ?? text.endIndex)]) },
+            expected: .malformedArmor("no signature block")),
+        Damage(
+            // The misspelt line is not a boundary, so it is read as text, and the dash-escape guard is the one that refuses it.
+            name: "a misspelt signature boundary",
+            apply: { $0.replacing("-----BEGIN PGP SIGNATURE-----", with: "-----BEGIN PGP SIGNATUR-----") },
+            expected: .malformedArmor("an unescaped line starting with a dash")),
+        Damage(
+            name: "no end line", apply: { $0.replacing("-----END PGP SIGNATURE-----\n", with: "") },
+            expected: .malformedArmor("the block has no end line")),
+        Damage(
+            name: "no cleartext header", apply: { $0.replacing("-----BEGIN PGP SIGNED MESSAGE-----", with: "") },
+            expected: .malformedArmor("no cleartext signature header")),
+    ]
+
+    @Test(arguments: damages)
+    func refusesAMalformedMessage(damage: Damage) {
+        let damaged = damage.apply(SignedVendorFiles.fedoraChecksum)
+        #expect(throws: damage.expected, "\(damage.name)") { try PGP.Armor.decodeClearSigned(Array(damaged.utf8)) }
     }
 
     @Test func refusesATextLineThatLooksLikeAnotherMessageHeader() {
         let injected = SignedVendorFiles.fedoraChecksum.replacing(
             "# Fedora-Server-dvd", with: "-----BEGIN PGP SIGNED MESSAGE-----\n# Fedora-Server-dvd")
-        #expect(throws: PGP.Failure.self) { try PGP.Armor.decodeClearSigned(Array(injected.utf8)) }
+        // The injected header line starts with a dash that is not escaped, which is what refuses it.
+        #expect(throws: PGP.Failure.malformedArmor("an unescaped line starting with a dash")) {
+            try PGP.Armor.decodeClearSigned(Array(injected.utf8))
+        }
     }
 }

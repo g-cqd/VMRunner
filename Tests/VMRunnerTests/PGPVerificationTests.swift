@@ -324,6 +324,9 @@ struct PGPPinnedKeyTests {
         (PGP.PinnedKeys.alpineCopa, "0482D84022F52DF1C4E7CD43293ACD0907D9495A"),
     ]
 
+    // The fingerprint check proves the constants are the key the vendor published, but it is the golden tests (`PGPGoldenTests`)
+    // that are the independent check of the pinned moduli: each verifies a signature the vendor really made against the
+    // constant, which only the true modulus can do.
     @Test(arguments: published)
     func eachPinnedKeyHashesToTheFingerprintItsVendorPublishes(pinned: PGP.PinnedKey, published: String) throws {
         #expect(pinned.fingerprint == published)
@@ -370,10 +373,15 @@ struct PGPPinnedKeyTests {
         var exponent: [UInt8]
     }
 
+    @Test func aKeyWithTheStandardExponentIsAccepted() throws {
+        let modulus = try #require(PGP.bytes(hex: PGP.PinnedKeys.debianCD.modulus))
+        #expect(try PGP.RSAPublicKey(modulus: modulus, exponent: [1, 0, 1], created: 0).exponent == [1, 0, 1])
+    }
+
     @Test func aKeyOutsideWhatTheVerifierSupportsIsRefused() throws {
         let modulus = try #require(PGP.bytes(hex: PGP.PinnedKeys.debianCD.modulus))
         let last = try #require(modulus.last)
-        let exponent: [UInt8] = [1, 0, 1]
+        let exponent = PGP.RSAPublicKey.publicExponent
         let cases: [(String, KeyIntegers)] = [
             ("a 1024-bit modulus", KeyIntegers(modulus: Array(modulus.prefix(128)), exponent: exponent)),
             ("an even modulus", KeyIntegers(modulus: modulus.dropLast() + [last & 0xFE], exponent: exponent)),
@@ -381,6 +389,11 @@ struct PGPPinnedKeyTests {
             ("an exponent of one", KeyIntegers(modulus: modulus, exponent: [1])),
             ("an even exponent", KeyIntegers(modulus: modulus, exponent: [1, 0, 0])),
             ("no exponent", KeyIntegers(modulus: modulus, exponent: [])),
+            ("an exponent of three", KeyIntegers(modulus: modulus, exponent: [3])),
+            ("an exponent of seventeen", KeyIntegers(modulus: modulus, exponent: [0x11])),
+            ("an exponent of 65539", KeyIntegers(modulus: modulus, exponent: [1, 0, 3])),
+            ("an exponent with a leading zero", KeyIntegers(modulus: modulus, exponent: [0, 1, 0, 1])),
+            ("an exponent as large as the modulus", KeyIntegers(modulus: modulus, exponent: modulus)),
         ]
         for (name, integers) in cases {
             #expect(throws: PGP.Failure.invalidKey, "\(name)") {

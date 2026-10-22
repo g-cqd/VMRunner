@@ -166,7 +166,8 @@ struct SignedProviderFailClosedTests {
             try await LinuxProvider.fedoraServerNetinst(release: 44).resolve(
                 now: pgpGoldenNow, fetch: fedoraMirror(checksum: unsigned).fetch)
         } throws: { error in
-            rejection(error)?.file == "Fedora-Server-44-1.7-aarch64-CHECKSUM"
+            let found = rejection(error)
+            return found?.file == "Fedora-Server-44-1.7-aarch64-CHECKSUM" && found?.reason.contains("no cleartext signature header") == true
         }
     }
 
@@ -196,7 +197,9 @@ struct SignedProviderFailClosedTests {
         await #expect {
             try await LinuxProvider.fedoraServerNetinst(release: 44).resolve(now: pgpGoldenNow, fetch: fedoraMirror(checksum: forged).fetch)
         } throws: { error in
-            rejection(error) != nil
+            // Text after the signature block is not covered by it, so the whole message is refused.
+            let found = rejection(error)
+            return found?.file == "Fedora-Server-44-1.7-aarch64-CHECKSUM" && found?.reason.contains("text after the signature") == true
         }
     }
 

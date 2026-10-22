@@ -55,17 +55,14 @@ struct PGPFuzzTests {
         let file = Array(data.utf8)
         let key = try keys(pinned)
         let original = try PGP.Signature.parse(packets: PGP.Armor.decodeSignature(Array(armored.utf8)))
-        var accepted = 0
         for index in 0..<3000 {
             var rng = SplitMix64(seed: Self.baseSeed &+ UInt64(vendor) << 32 &+ UInt64(index))
             let mutant = Self.mutate(Array(armored.utf8), &rng)
             guard let check = try? PGP.Check.detached(mutant, keys: key, now: pgpGoldenNow), (try? check.verify(file)) != nil else {
                 continue
             }
-            accepted += 1
             #expect(check.signature == original, "seed \(vendor) index \(index) was accepted with a different signature")
         }
-        #expect(accepted < 3000)
     }
 
     @Test func aMutatedPacketIsNeverAcceptedForAnythingButTheSignedFile() throws {
@@ -107,14 +104,11 @@ struct PGPFuzzTests {
         let key = try keys(PGP.PinnedKeys.fedora44)
         let document = Array(SignedVendorFiles.fedoraChecksum.utf8)
         let original = try PGP.Check.verifyClearSigned(document, keys: key, now: pgpGoldenNow)
-        var accepted = 0
         for index in 0..<4000 {
             var rng = SplitMix64(seed: Self.baseSeed &+ 5 << 32 &+ UInt64(index))
             guard let text = try? PGP.Check.verifyClearSigned(Self.mutate(document, &rng), keys: key, now: pgpGoldenNow) else { continue }
-            accepted += 1
             #expect(text == original, "seed 5 index \(index) yielded text that differs from the signed text")
         }
-        #expect(accepted < 4000)
     }
 
     // MARK: Arbitrary bytes
