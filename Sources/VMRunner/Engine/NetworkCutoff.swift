@@ -2,6 +2,7 @@ import NetPolicy
 import Network
 import Observation
 import Virtualization
+import os
 
 /// The kill switch of one run (roadmap 0010): it follows the Mac's network path and disconnects the guest's network card
 /// while the machine's rules say so (`VMConfig.networkCutoffReason(on:)`), then connects it again.
@@ -50,8 +51,21 @@ final class NetworkCutoff {
         let next = config.networkCutoffReason(on: path)
         guard next != reason else { return }
         let changesConnection = (next == nil) != (reason == nil)
+        if let line = Self.logLine(from: reason, to: next) { Log.machine.notice("\(line, privacy: .public)") }
         reason = next
         if changesConnection { connect?(next == nil) }
+    }
+
+    /// What the log says when the reason changes from `old` to `new`: a cut with its reason, a reconnection with the
+    /// reason that ended, or a cut that stays for another reason. It names the rule only: no address, interface or network
+    /// name, so it is public.
+    static func logLine(from old: NetworkCutoffReason?, to new: NetworkCutoffReason?) -> String? {
+        switch (old, new) {
+        case (nil, let cut?): "Kill switch: cutting the network card (\(cut))"
+        case (let ended?, nil): "Kill switch: reconnecting the network card (\(ended) no longer holds)"
+        case (let was?, let now?) where was != now: "Kill switch: the network card stays cut (\(was), now \(now))"
+        default: nil
+        }
     }
 }
 

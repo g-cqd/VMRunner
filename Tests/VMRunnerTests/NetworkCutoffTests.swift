@@ -131,6 +131,18 @@ struct NetworkCutoffWatchTests {
         feed.finish()
     }
 
+    @Test func eachCutAndReconnectionIsLoggedWithItsReason() {
+        #expect(NetworkCutoff.logLine(from: nil, to: .vpnRequired) == "Kill switch: cutting the network card (vpnRequired)")
+        #expect(
+            NetworkCutoff.logLine(from: .meteredPath, to: nil)
+                == "Kill switch: reconnecting the network card (meteredPath no longer holds)")
+        #expect(
+            NetworkCutoff.logLine(from: .vpnForbidden, to: .meteredPath)
+                == "Kill switch: the network card stays cut (vpnForbidden, now meteredPath)")
+        #expect(NetworkCutoff.logLine(from: .vpnRequired, to: .vpnRequired) == nil, "no change, no line")
+        #expect(NetworkCutoff.logLine(from: nil, to: nil) == nil)
+    }
+
     @Test func aMeteredOrLowDataPathCutsTheCardWhenTheSwitchIsOn() async throws {
         let (paths, feed) = AsyncStream.makeStream(of: HostNetworkPath.self)
         let cutoff = NetworkCutoff(config: machine(.ignore, metered: true), source: { paths })

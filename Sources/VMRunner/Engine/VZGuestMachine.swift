@@ -71,7 +71,10 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     }
 
     /// Takes the attachment off the network card (`false`) or puts the one it had back (`true`), like pulling and
-    /// replugging a cable. A pull is read back at once: a card that is still connected stops the machine.
+    /// replugging a cable. A pull is read back at once: a card that is still connected stops the machine. The kill switch
+    /// logs each cut and reconnection with its reason (`NetworkCutoff.logLine`). This object does not implement the
+    /// delegate's `virtualMachine(_:networkDevice:attachmentWasDisconnectedWithError:)`, which the framework calls when an
+    /// error disconnects an attachment: such a disconnection is neither logged nor shown, and the kill switch does not see it.
     private func setNetworkConnected(_ connected: Bool) {
         guard let device = machine.networkDevices.first else { return }
         if !cable.set(device, connected: connected) { stopBecauseTheCutFailed() }
