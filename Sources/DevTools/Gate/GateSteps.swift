@@ -74,8 +74,16 @@ enum GateSteps {
         { context in
             let arguments =
                 ["test", resolvedOnly, "--sanitize=\(name)", "--scratch-path", scratch] + skipArguments(context) + linkerArguments
-            try await context.run("swift", arguments)
+            try await context.run("swift", arguments, environment: sanitizerEnvironment(name, root: context.root))
         }
+    }
+
+    /// The Swift concurrency runtime is not instrumented, so ThreadSanitizer cannot see how it orders a continuation's
+    /// registration against its resume and reports a race inside `withUnsafe(Throwing)Continuation` when the two land on
+    /// different threads at once. `Scripts/tsan.supp` silences exactly those frames and nothing else.
+    static func sanitizerEnvironment(_ name: String, root: URL) -> [String: String] {
+        guard name == "thread" else { return [:] }
+        return ["TSAN_OPTIONS": "suppressions=\(root.appending(path: "Scripts/tsan.supp").path)"]
     }
 
     @Sendable

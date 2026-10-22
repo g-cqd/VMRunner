@@ -40,6 +40,28 @@ struct ResolvedVersionsTests {
     }
 
     @Test
+    func theThreadSanitizerStepSuppressesOnlyTheContinuationFramesOfTheUninstrumentedRuntime() async throws {
+        try await withTemporaryDirectory { directory in
+            let bin = directory.appending(path: "bin", directoryHint: .isDirectory)
+            let log = directory.appending(path: "env.log")
+            try write(
+                ["bin/swift": "#!/bin/sh\necho \"$TSAN_OPTIONS|$@\" >> '\(log.path)'\nexit 0\n"], to: directory)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appending(path: "swift").path)
+            try write(GateFixture.passing, to: directory)
+            let path = bin.path + ":" + (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")
+            _ = try await VMR.vmr(["check", "asan", "tsan"], in: directory, environment: ["PATH": path])
+            let lines = calls(log)
+            let thread = try #require(lines.first { $0.contains("--sanitize=thread") })
+            let address = try #require(lines.first { $0.contains("--sanitize=address") })
+            #expect(thread.hasPrefix("suppressions=\(directory.path)/Scripts/tsan.supp|"), "\(thread)")
+            #expect(address.hasPrefix("|"), "only the thread sanitizer gets options: \(address)")
+        }
+        let file = try String(contentsOf: Self.root.appending(path: "Scripts/tsan.supp"), encoding: .utf8)
+        let patterns = file.split(separator: "\n").filter { $0.hasPrefix("race:") }
+        #expect(patterns == ["race:withUnsafeThrowingContinuation", "race:withUnsafeContinuation"], "\(patterns)")
+    }
+
+    @Test
     func theAppBuildReadsOnlyTheResolvedFile() async throws {
         try await withFakeSwift(exitStatus: 1) { environment, log, directory in
             try write(AppFixture.files(), to: directory)

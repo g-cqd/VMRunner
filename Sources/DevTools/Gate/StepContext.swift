@@ -25,8 +25,8 @@ struct StepContext: Sendable {
     /// Runs a command in the package root with its output streaming to this process's stdout and stderr (line by line
     /// when a job summary is being collected).
     /// Throws when it exits non-zero.
-    func run(_ executable: String, _ arguments: [String]) async throws {
-        let spec = CommandSpec(executable: executable, arguments: arguments, workingDirectory: root)
+    func run(_ executable: String, _ arguments: [String], environment: [String: String] = [:]) async throws {
+        let spec = CommandSpec(executable: executable, arguments: arguments, workingDirectory: root, environment: environment)
         let result = try await ProcessRunner.run(spec, output: outputMode)
         guard result.succeeded else { throw Self.failure(executable, arguments, result) }
     }

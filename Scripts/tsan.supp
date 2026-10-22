@@ -1,0 +1,10 @@
+# ThreadSanitizer suppressions for `vmr check tsan` (see GateSteps.sanitizerEnvironment).
+#
+# The Swift concurrency runtime (libswift_Concurrency) is not built with ThreadSanitizer, so the tool cannot see the atomic
+# hand-off that orders a continuation's registration against its resume. When a continuation is resumed from another thread
+# right after it was registered, it reports a data race in withUnsafe(Throwing)Continuation. The reports seen were in our test
+# clock, which resumes parked sleepers under its own lock, and in the async-algorithms package's merge storage.
+#
+# The patterns are limited to those two frames. A race on our own state elsewhere on the same stack is not what they name.
+race:withUnsafeThrowingContinuation
+race:withUnsafeContinuation
