@@ -160,6 +160,28 @@ struct UserNetDNSOverTCPTests {
         guest.sendSYN()
         #expect(rig.host.streamOrder.isEmpty)
     }
+
+    @Test func anAnswerThatFindsTheGuestsBufferFullResetsTheSessionAndIsCounted() throws {
+        let rig = start { $0.tcpSendBuffer = 16_384 }
+        var guest = GuestConnection(rig: rig, to: (Wire.gateway, 53))
+        guest.sendSYN()
+        guest.sendACK()
+        guest.window = 0  // the guest stops reading: answers stay in its buffer
+        let name = "4.3.2.1.in-addr.arpa"
+        let first = Wire.dnsQuery(id: 1, name: name, type: 12)
+        let second = Wire.dnsQuery(id: 2, name: name, type: 12)
+        guest.sendData(Wire.be16(first.count) + first + Wire.be16(second.count) + second)
+        #expect(rig.host.resolutions.count == 2)
+        // 60 PTR records of 143 bytes: about 8.6 KB an answer, so one fits the 16 KiB buffer and two do not.
+        let target = DNSWire.encodeName(String(repeating: "a", count: 60) + "." + String(repeating: "b", count: 60) + ".example") ?? []
+        let records = (0..<60).map { _ in DNSRecord(name: name, type: 12, ttl: 60, data: target) }
+        for request in rig.host.resolutions {
+            rig.core.nameResolved(token: request.token, result: DNSLookupResult(responseCode: 0, records: records))
+        }
+        guest.collect()
+        #expect(guest.sawRST, "the session is reset instead of leaving the guest waiting")
+        #expect(rig.core.stats.dnsAnswersLost == 1)
+    }
 }
 
 struct UserNetSystemResolverTests {

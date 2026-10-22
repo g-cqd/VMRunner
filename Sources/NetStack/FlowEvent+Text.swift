@@ -173,6 +173,7 @@ extension UserNetStats {
             ("dhcpAcks", dhcpAcks), ("activeTCPFlows", UInt64(activeTCPFlows)), ("activeUDPFlows", UInt64(activeUDPFlows)),
             ("framesLostToGuest", framesLostToGuest), ("flowEventsDropped", flowEventsDropped), ("malformedFrames", malformedFrames),
             ("droppedFragments", droppedFragments), ("droppedIPv6Frames", droppedIPv6Frames), ("droppedUnsupported", droppedUnsupported),
+            ("dnsAnswersLost", dnsAnswersLost),
         ].map { "\($0.0)=\($0.1)" }.joined(separator: " ")
     }
 }

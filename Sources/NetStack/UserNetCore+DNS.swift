@@ -42,9 +42,14 @@ extension UserNetCore {
             }
         case .tcp(let token):
             // `DNSWire.response` keeps a message within 65,535 bytes; anything else is not framed rather than trapped on.
-            guard let flow = tcpByToken[token], let length = UInt16(exactly: answer.message.count) else { return }
+            guard let flow = tcpByToken[token], flow.isLive, let length = UInt16(exactly: answer.message.count) else { return }
             let framed = [UInt8(length >> 8), UInt8(length & 0xFF)] + answer.message
-            _ = ByteView.withBytes(of: framed) { flow.enqueueLocalResponse($0, ctx: ctx) }
+            let queued = ByteView.withBytes(of: framed) { flow.enqueueLocalResponse($0, ctx: ctx) }
+            guard !queued else { return }
+            // The guest stopped reading and earlier answers fill its buffer. Dropping this one would leave its resolver waiting
+            // for an answer that never comes; the reset makes it ask again at once, and the counter says it happened.
+            ctx.stats.dnsAnswersLost += 1
+            flow.terminate(.guestReset, resetGuest: true, ctx: ctx)
         }
     }
 
@@ -63,6 +68,7 @@ extension UserNetCore {
             guard let message = ring.bytes(from: 2, count: length) else { break }
             ring.discard(2 + length)
             ByteView.withBytes(of: message) { handleDNSQuery($0, route: .tcp(flowToken: flow.token)) }
+            guard flow.isLive else { return }  // an answer that found no room ended the session (see `deliver`)
         }
         if ring.isEmpty, flow.toHost === ring {  // nothing buffered: give the ring back until the next query
             ctx.receiveRings.release(ring)
