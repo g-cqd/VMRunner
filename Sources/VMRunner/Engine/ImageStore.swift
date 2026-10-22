@@ -157,4 +157,11 @@ enum ImageStore {
         try APFS.clone(file, to: copy)
         return copy
     }
+
+    /// Whether `path` names a file directly in `imagesDirectory`, where the cache kept downloads before it filed them by
+    /// checksum (`Images/<name>`, not `Images/<sha256>/<name>`, ADR-0031).
+    static func isInFlatCache(_ path: String, imagesDirectory: URL = AppPaths.images) -> Bool {
+        let parent = URL(filePath: path).deletingLastPathComponent().standardizedFileURL.pathComponents
+        return parent == imagesDirectory.standardizedFileURL.pathComponents
+    }
 }

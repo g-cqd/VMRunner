@@ -135,6 +135,64 @@ struct HostPathApprovalsTests {
         #expect(fresh.unapprovedHostPaths(for: copied.id) == [HostPathGrant(.sharedFolder, "/Users/me/work", writable: true)])
     }
 
+    /// A file in the old flat cache, as a machine made before ADR-0031 names it.
+    private func flatCacheInstaller(in directory: URL) throws -> (images: URL, file: URL) {
+        let images = directory.appending(path: "Images", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: images, withIntermediateDirectories: true)
+        let file = images.appending(path: "debian-13.7.0-arm64-netinst.iso")
+        try Data("installer".utf8).write(to: file)
+        return (images, file)
+    }
+
+    private func machine(installer path: String, named name: String) -> VMConfig {
+        var config = VMConfig.new(name: name, guest: .linux)
+        config.isProvisioned = true
+        config.installerISO = path
+        return config
+    }
+
+    @Test func aMachineFromBeforeTheContentCacheGetsItsOwnCloneOfItsApprovedInstaller() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let (images, old) = try flatCacheInstaller(in: directory)
+        let config = machine(installer: old.path, named: "old")
+        try plant(config, in: directory)
+
+        let library = makeLibrary(in: directory)
+        library.load()  // approves the paths of machines from before approvals, as an upgrade does
+        library.migrateFlatCacheInstallers(imagesDirectory: images)
+
+        let bundle = library.bundle(config.id)
+        #expect(library.machine(config.id)?.installerISO == bundle.installer.path)
+        #expect(library.unapprovedHostPaths(for: config.id).isEmpty, "the clone is approved")
+        try FileManager.default.removeItem(at: old)
+        #expect(try Data(contentsOf: bundle.installer) == Data("installer".utf8), "clearing the images no longer removes it")
+    }
+
+    @Test func aCopiedBundleNamingTheOldCacheIsNotGivenAClone() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let (images, old) = try flatCacheInstaller(in: directory)
+        makeLibrary(in: directory).load()  // from now on approvals are recorded, so a later bundle is not grandfathered
+        let imported = machine(installer: old.path, named: "imported")
+        try plant(imported, in: directory)
+
+        let library = makeLibrary(in: directory)
+        library.load()
+        library.migrateFlatCacheInstallers(imagesDirectory: images)
+
+        #expect(library.machine(imported.id)?.installerISO == old.path)
+        #expect(!FileManager.default.fileExists(atPath: library.bundle(imported.id).installer.path))
+    }
+
+    @Test func onlyAFileDirectlyInTheImagesFolderIsInTheFlatCache() {
+        let images = URL(filePath: "/data/Images", directoryHint: .isDirectory)
+        #expect(ImageStore.isInFlatCache("/data/Images/a.iso", imagesDirectory: images))
+        #expect(!ImageStore.isInFlatCache("/data/Images/\(String(repeating: "a", count: 64))/a.iso", imagesDirectory: images))
+        #expect(!ImageStore.isInFlatCache("/data/Images2/a.iso", imagesDirectory: images))
+        #expect(!ImageStore.isInFlatCache("/data/Machines/x.vm/Installer.iso", imagesDirectory: images))
+    }
+
     @Test func startingAnUnapprovedMachineAsksInsteadOfStarting() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

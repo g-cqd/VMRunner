@@ -100,6 +100,7 @@ final class VMLibrary {
         discardAllEphemeral()
         // An upgrade: machines that exist before approvals were ever recorded are the user's own.
         recordApprovals { try $0.grandfather(machines) }
+        migrateFlatCacheInstallers()
         hasLoaded = true
     }
 
@@ -370,6 +371,29 @@ final class VMLibrary {
     }
 
     var runningCount: Int { controllers.values.filter(\.isActive).count }
+}
+
+extension VMLibrary {
+    /// Gives each machine made before machines kept their own installer (ADR-0031) a clone of it in its bundle. Such a machine
+    /// stores the path of a file directly in the old flat image cache, which clearing the downloaded images removes. Only a path
+    /// the user approved for that machine is migrated, so a copied bundle cannot get a file of the cache cloned into it, and
+    /// the clone is approved too. A machine whose file is gone, or whose clone fails, is left as it is.
+    func migrateFlatCacheInstallers(imagesDirectory: URL = AppPaths.images) {
+        for config in machines {
+            guard let path = config.installerISO, ImageStore.isInFlatCache(path, imagesDirectory: imagesDirectory),
+                approvals.missing([HostPathGrant(.installer, path, writable: false)], for: config.id).isEmpty
+            else { continue }
+            do {
+                let kept = try ImageStore.keepInstaller(URL(filePath: path), in: bundle(config.id))
+                approveHostPaths([HostPathGrant(.installer, kept.path, writable: false)], for: config.id)
+                var migrated = config
+                migrated.installerISO = kept.path
+                update(migrated)
+            } catch {
+                Log.storage.notice("Kept a machine's old installer path: \(error.localizedDescription, privacy: .private)")
+            }
+        }
+    }
 }
 
 /// Why the library refused to do something to a machine.
