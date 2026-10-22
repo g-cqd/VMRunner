@@ -18,6 +18,8 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     let networkCutoff: NetworkCutoff?
     /// The network card's cable as the kill switch pulls it, with the attachment it took off to put back.
     private var cable = NetworkCardCable()
+    /// Set once the kill switch has stopped the machine for a refused cut, so the stop is requested once.
+    private var isStoppingForCut = false
     /// What the machine's stop says when the kill switch could not disconnect its network card.
     static let cutFailedMessage = "the kill switch could not disconnect its network card, so VMRunner stopped it"
     /// Keeps the host-information share current while the machine lives, when the machine shares anything.
@@ -82,12 +84,15 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
 
     /// Fails closed when the network card kept its attachment after the kill switch took it off: the guest must not keep
     /// running behind a toolbar that says its network is cut. Stopping is the default until the owner decides between
-    /// stopping and only showing an error (roadmap 0010, "Owed").
+    /// stopping and only showing an error (roadmap 0010, "Owed"). A refused cut is stopped once, however often it is refused.
     private func stopBecauseTheCutFailed() {
+        guard !isStoppingForCut else { return }
+        isStoppingForCut = true
         Log.machine.error("The network card stayed connected after the kill switch cut it; stopping the machine")
         Task { [weak self, machine] in
-            try? await machine.stop()
-            self?.onStoppedWithError?(Self.cutFailedMessage)
+            var message = Self.cutFailedMessage
+            do { try await machine.stop() } catch { message += "; stopping it failed (\(error.localizedDescription))" }
+            self?.onStoppedWithError?(message)
         }
     }
 
