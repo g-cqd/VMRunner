@@ -316,7 +316,11 @@ struct ProviderTrustRegistrationTests {
                 "rocky-10-boot", "rocky-10-minimal",
                 "ubuntu-server-26.04",
             ])
-        #expect(LinuxCatalog.images.filter(isSigned).map(\.id).sorted() == ["alpine-virt", "ubuntu-server-26.04"])
+        #expect(
+            LinuxCatalog.images.filter(isSigned).map(\.id).sorted() == [
+                "almalinux-10-boot", "almalinux-10-minimal", "alpine-virt", "fedora-server-43-netinst", "fedora-server-44-netinst",
+                "rocky-10-boot", "rocky-10-minimal", "ubuntu-server-26.04",
+            ])
     }
 
     @Test func everySignedProviderPinsKeysThatAreValid() throws {

@@ -12,7 +12,7 @@ enum DownloadPolicy {
     /// host must be added here before it moves from `LinuxCatalog.candidates` to `images`.
     static let allowedHosts: Set<String> = [
         restoreImageHost, "mirror.stream.centos.org", "deb.debian.org", "cdimage.debian.org", "dl-cdn.alpinelinux.org",
-        "cdimage.ubuntu.com",
+        "cdimage.ubuntu.com", "repo.almalinux.org", "download.rockylinux.org", "dl.fedoraproject.org",
     ]
 
     /// The one host that serves macOS restore images, for `.latestMac` and for every ipsw.me entry.

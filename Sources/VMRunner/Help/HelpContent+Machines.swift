@@ -74,16 +74,17 @@ extension HelpCatalog {
                 "The list shows official images. The newest version is looked up when you press Create and downloaded from the "
                     + "project's own "
                     + "server.",
-                "The list offers CentOS Stream, Debian, Alpine Linux, and Ubuntu Server (the current long-term-support release).",
+                "The list offers CentOS Stream, Debian, Alpine Linux, Ubuntu Server (the current long-term-support release), "
+                    + "AlmaLinux, Rocky Linux and Fedora Server.",
                 "• A **boot ISO** is small and downloads the packages during installation, so the VM needs a network.",
                 "• A **DVD** ISO is large but installs offline.",
                 "• **Alpine Linux** is a small diskless system that runs from memory until you install it to disk. It does not "
                     + "support Secure Boot, so VMRunner keeps that off for it.",
                 "• **Ubuntu Server** is a live-server ISO of about 3 GB that installs offline.",
-                "Every download is checked against the checksum the project publishes. For **Ubuntu Server** and **Alpine Linux**, "
-                    + "the project's OpenPGP signature is checked too, against a key built into VMRunner; a missing or wrong signature "
-                    + "stops the setup with a message. CentOS Stream and the Debian netboot image have no signature check, so only "
-                    + "HTTPS from the project's own server protects them.",
+                "Every download is checked against the checksum the project publishes. For **Ubuntu Server**, **Alpine Linux**, "
+                    + "**AlmaLinux**, **Rocky Linux** and **Fedora Server**, the project's OpenPGP signature is checked too, against a "
+                    + "key built into VMRunner; a missing or wrong signature stops the setup with a message. CentOS Stream and the "
+                    + "Debian netboot image have no signature check, so only HTTPS from the project's own server protects them.",
                 "• **Other ISO** lets you install from any arm64 installer you already have. It must boot with UEFI and support "
                     + "virtio disks and networking, which most current arm64 Linux distributions do. Other arm64 systems, "
                     + "such as the BSDs, may work too, but that has not been tested here.",
@@ -91,8 +92,9 @@ extension HelpCatalog {
             ],
             advanced: [
                 "A checksum fetched from the same server proves the file arrived intact, not who built it. A valid signature proves "
-                    + "that the holder of the project's key signed it: Ubuntu signs its SHA256SUMS list and Alpine signs the ISO itself, "
-                    + "and VMRunner checks both and refuses the download on any failure instead of falling back to the checksum alone.",
+                    + "that the holder of the project's key signed it: Ubuntu signs its SHA256SUMS list, AlmaLinux, Rocky Linux and "
+                    + "Fedora sign their CHECKSUM lists and Alpine signs the ISO itself, "
+                    + "and VMRunner checks each and refuses the download on any failure instead of falling back to the checksum alone.",
                 "Alpine publishes each ISO before its signature. If the newest release has no signature yet, VMRunner uses the "
                     + "newest one that has, never older than the oldest it accepts, and says so while it sets up. It never installs an "
                     + "image without a valid signature, and any other problem with a signature stops the setup instead of trying an "

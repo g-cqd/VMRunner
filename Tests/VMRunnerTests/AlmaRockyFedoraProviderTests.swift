@@ -95,3 +95,46 @@ struct FedoraReleaseProviderTests {
         }
     }
 }
+
+private let rockyDirectory = "https://download.rockylinux.org/pub/rocky/10/isos/aarch64/"
+
+/// Resolving Rocky Linux 10 end to end: the signed list, then its detached signature, from the exact host the policy allows.
+struct RockyLinuxResolveTests {
+    private func mirror(signature: String = SignedVendorFiles.rockyLinuxSignature) -> FixtureMirror {
+        FixtureMirror([rockyDirectory + "CHECKSUM": SignedVendorFiles.rockyLinuxChecksum, rockyDirectory + "CHECKSUM.asc": signature])
+    }
+
+    @Test(arguments: [
+        ("boot", "33c2d3dfd5f947b3201478180b549bb2995bd9573c2776b384e5ec1dd47326c0"),
+        ("minimal", "1d1c21199df32f6d17eedb4f713ee0d089b49294401a364b640fcf4ffab45f35"),
+    ])
+    func theNewestISOIsChosenFromTheSignedListAlone(flavor: String, digest: String) async throws {
+        let served = mirror()
+        let resolved = try await LinuxProvider.rocky(release: 10, flavor: flavor).resolve(now: pgpGoldenNow, fetch: served.fetch)
+        let url = try #require(URL(string: rockyDirectory + "Rocky-10.2-aarch64-\(flavor).iso"))
+        #expect(resolved.source == .remote(url, checksum: Checksum(algorithm: .sha256, value: digest)))
+        #expect(resolved.version == "10.2")
+        #expect(served.requests.map(\.url) == [rockyDirectory + "CHECKSUM", rockyDirectory + "CHECKSUM.asc"])
+        #expect(served.requests.last?.limit == PGP.maximumSignatureSize)
+    }
+
+    @Test func aMissingSignatureIsRefused() async {
+        let missing = FixtureMirror([rockyDirectory + "CHECKSUM": SignedVendorFiles.rockyLinuxChecksum])
+        await #expect {
+            try await LinuxProvider.rocky(release: 10, flavor: "boot").resolve(now: pgpGoldenNow, fetch: missing.fetch)
+        } throws: { error in
+            guard case SetupError.signatureRejected(let file, let reason) = error else { return false }
+            return file == "CHECKSUM" && reason.contains("could not be downloaded")
+        }
+    }
+
+    @Test func aSignatureByAnotherPinnedKeyIsRefused() async {
+        let foreign = mirror(signature: SignedVendorFiles.debianSignature)
+        await #expect {
+            try await LinuxProvider.rocky(release: 10, flavor: "boot").resolve(now: pgpGoldenNow, fetch: foreign.fetch)
+        } throws: { error in
+            guard case SetupError.signatureRejected(let file, let reason) = error else { return false }
+            return file == "CHECKSUM" && reason.contains("not pinned for this download")
+        }
+    }
+}

@@ -136,20 +136,6 @@ enum LinuxCatalog {
                 + "the Ubuntu CD image key built into the app, or the download is refused. Releases older than 26.04.1, the oldest "
                 + "this version of the app accepts, are refused.",
             provider: .ubuntuServer(release: "26.04")),
-    ]
-
-    static func image(id: String) -> LinuxImage? { images.first { $0.id == id } }
-
-    /// Verified providers that are deliberately not offered yet: each is one move into `images`, plus its host
-    /// in `DownloadPolicy.allowedHosts`, away from being available.
-    static let candidates = [
-        LinuxImage(
-            id: "debian-stable-netinst", name: "Debian stable", medium: "netinst ISO", install: "network install",
-            approximateSize: "~700 MB", maximumBytes: 3 << 30, supportsSecureBoot: true,
-            trustNotes: "Published by the Debian Project. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.sign) "
-                + "from the Debian CD signing key built into the app; releases older than 13.7.0 are refused. "
-                + "Blocked: the ISO download redirects to a third-party mirror, which the redirect policy refuses.",
-            provider: .debianNetinst),
         LinuxImage(
             id: "almalinux-10-boot", name: "AlmaLinux 10", medium: "boot ISO", install: "network install",
             approximateSize: "~1.1 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
@@ -188,6 +174,20 @@ enum LinuxCatalog {
             trustNotes: "Published by the Fedora Project. The CHECKSUM file must be an inline OpenPGP clear-signed message made by "
                 + "the Fedora 44 release key built into the app, or the download is refused; composes older than 44-1.7 are refused.",
             provider: .fedoraServerNetinst(release: 44)),
+    ]
+
+    static func image(id: String) -> LinuxImage? { images.first { $0.id == id } }
+
+    /// Verified providers that are deliberately not offered yet: each is one move into `images`, plus its host
+    /// in `DownloadPolicy.allowedHosts`, away from being available.
+    static let candidates = [
+        LinuxImage(
+            id: "debian-stable-netinst", name: "Debian stable", medium: "netinst ISO", install: "network install",
+            approximateSize: "~700 MB", maximumBytes: 3 << 30, supportsSecureBoot: true,
+            trustNotes: "Published by the Debian Project. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.sign) "
+                + "from the Debian CD signing key built into the app; releases older than 13.7.0 are refused. "
+                + "Blocked: the ISO download redirects to a third-party mirror, which the redirect policy refuses.",
+            provider: .debianNetinst)
     ]
 
     /// Finds the newest ISO of `image` and its published SHA-256, and proves the checksum with whatever vouches for it.

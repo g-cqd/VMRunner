@@ -62,6 +62,17 @@ struct VendorRegistrationTests {
         }
     }
 
+    @Test func almaLinuxRockyAndFedoraAreOfferedAsSignedProvidersAndNoLongerCandidates() throws {
+        let ids = [
+            "almalinux-10-boot", "almalinux-10-minimal", "rocky-10-boot", "rocky-10-minimal", "fedora-server-43-netinst",
+            "fedora-server-44-netinst",
+        ]
+        for id in ids {
+            #expect(try image(id).provider.trust is SignedChecksumTrust, "\(id)")
+            #expect(!LinuxCatalog.candidates.contains { $0.id == id }, "\(id)")
+        }
+    }
+
     @Test func theOfferedUbuntuIsALongTermSupportRelease() throws {
         let ubuntu = try image("ubuntu-server-26.04")
         // /ubuntu/releases/<release>/release/: an LTS is the April release of an even year.
@@ -82,6 +93,9 @@ struct VendorHostPolicyTests {
         "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-virt-3.24.2-aarch64.iso.sha256",
         "https://cdimage.ubuntu.com/ubuntu/releases/26.04/release/ubuntu-26.04.1-live-server-arm64.iso",
         "https://cdimage.ubuntu.com/ubuntu/releases/26.04/release/SHA256SUMS",
+        "https://repo.almalinux.org/almalinux/10/isos/aarch64/CHECKSUM",
+        "https://download.rockylinux.org/pub/rocky/10/isos/aarch64/CHECKSUM.asc",
+        "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Server/aarch64/iso/Fedora-Server-netinst-aarch64-44-1.7.iso",
     ])
     func allowsTheExactVendorHosts(url: String) throws {
         _ = try DownloadPolicy.validate(try #require(URL(string: url)))
