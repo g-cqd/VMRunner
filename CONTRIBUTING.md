@@ -166,6 +166,38 @@ folder (not a link) of the current user and closed to others, and a missing one 
 used stops the launch with the reason (exit status 78); the app never falls back to the default folder for it. The setting
 does not move the app's preferences (`UserDefaults`) or the unified log.
 
+## Real-guest runs with `vmr guest`
+
+`vmr guest` is how an authorised run acts on a guest without a screen: it fetches a small Linux image, boots it behind a
+console socket, runs commands in it and stops it. Run it only when the owner has authorised real-guest runs for the session,
+and keep to these conditions, which the tool also enforces where it can:
+
+- **Scratch directory.** Everything goes under the `--directory` you give, in practice a new directory under `/tmp`. The tool
+  refuses the user's `Library`, the home folder and `/`. Delete the directory when the run is over.
+- **Caps.** At most 2 CPUs and 2048 MiB (`--cpus`, `--memory-mib`), and a hard run-time limit (`--max-seconds`, 900 by
+  default, 3600 at most) after which the helper stops the machine whatever else happens.
+- **No screen, no keys.** The console is the only channel: no screen capture, no GUI automation, no keystrokes into the
+  foreground. Only processes you started are signalled: `vmr guest stop` signals the pid in the run's pid file, and only while
+  that pid still runs the helper it recorded.
+- **Signed image.** `fetch` takes the newest Alpine netboot release that has a signature and checks its `.sha256` and, when
+  `gpg` is installed, its `.asc` against the release key (accepted only with the fingerprint pinned in the source); it says
+  when the signature could not be checked.
+
+```sh
+swift run vmr guest fetch alpine-netboot --directory /tmp/vmr-guest          # about 430 MB, a minute or two
+swift run vmr guest start --directory /tmp/vmr-guest                         # builds and signs the helper, boots, waits for a login prompt
+swift run vmr guest exec /private/tmp/vmr-guest/guest/console.sock -- uname -a   # prints the output, exits with the command's status
+swift run vmr guest console /private/tmp/vmr-guest/guest/console.sock        # interactive; Ctrl-] detaches
+swift run vmr guest stop --directory /tmp/vmr-guest
+rm -rf /tmp/vmr-guest
+```
+
+`start` prints the socket path (the real path: `/tmp` is `/private/tmp`). The console takes one client at a time, so
+`exec` retries for three seconds while another client leaves and then fails with status 125; a command that runs out of time
+fails with 124. Anything else a guest does is the guest's: with NAT it can reach the network, so run only what you would run
+on a throwaway machine. The decision behind the console is `docs/adr/0052-*`; `docs/research/automation-2026-10.md` has the
+measured numbers.
+
 ## Developer tooling
 
 The scripts are Swift: `Sources/DevTools` (logic), `Sources/vmr` (the command line, `swift run vmr --help`) and
