@@ -21,7 +21,7 @@ most three builds run at once.
 | D | Performance and memory leftovers | 0033 | open |
 | E | Remaining contributions to the shared library | 0035 | the Base64 patch awaits review; the rest follows the stack package |
 | F | The rest of the security backlog | 0034 | in flight: signed AlmaLinux, Rocky Linux and Fedora releases, key expiry, the network leftovers, the gate lock and the installer clones are done; Debian netboot, the floor opt-in and coverage-guided fuzzing wait for the owner |
-| G | Features in dependency order: the workload abstraction (after the container and sandbox first runs), managed preferences (0013), the automation server (0005), host information (0011), realism (0012), the VPN probe and kill switch (0010), provisioning (0016), Developer ID and notarization (0021), private interfaces (0029, after the owner tags the packages) | 0005 to 0029 | open |
+| G | Features in dependency order: the workload abstraction (after the container and sandbox first runs), managed preferences (0013), the automation server (0005), host information (0011), realism (0012), the VPN probe and kill switch (0010), provisioning (0016), Developer ID and notarization (0021), private interfaces (0029, after the owner tags the packages) | 0005 to 0029 | managed preferences (0013), host information (0011), realism (0012) and the kill switch (0010) built, the owner's checks owed; the in-guest VPN probe waits for an ADR; the rest open |
 | H | Deferred: Linux GPU (needs a macOS 27 host), the macOS OCI store, saved-state encryption (after a throughput measurement) | 0014, 0024 | deferred |
 
 Owner-gated: the guest checklist (0030), the sandbox boot run (0025), the container first run (0024), package tags (0029),

@@ -46,7 +46,8 @@ open build/VMRunner.app --args --start "My VM"     # by name or UUID
 
 Common to both: CPU/memory, sparse disk (grow-only), extra disk images, disk cache/flush mode, 1–2 displays,
 audio in/out, NAT, filtered (user-mode) or no network, custom MAC, shared folders (virtiofs), suspend/resume, snapshots,
-duplicate, memory balloon / entropy / vsock devices.
+duplicate, memory balloon / entropy / vsock devices, a VPN and metered-network kill switch, opt-in host information over a
+read-only share, and guest-identity settings (MAC vendor, NVMe, disk serial, a fresh identity per disposable start).
 
 Downloads are resumable and verified: IPSW against ipsw.me's SHA-256, ISOs against the mirror's `.SHA256SUM`. Downloads are
 filed in a shared cache by their checksum, and a Linux machine boots from its own copy-on-write clone of the verified
@@ -79,6 +80,7 @@ Settings ▸ **Security** picks a profile, then every switch stays individually 
 | Suspend (writes RAM to disk) | on | on | on | **off** |
 | Memory balloon | on | on | on | **off** |
 | Auto-login / SSH (macOS first boot) | as set | as set | as set | **off** |
+| Host information (battery, power, thermal state, network path, time zone) | opt-in | opt-in | **off** | off |
 | Runtime limit | none | none | none | **120 min** |
 
 Contained stays on NAT on purpose: the filtered network below is newer and less proven than Apple's NAT, so no profile
@@ -89,6 +91,12 @@ A machine's `config.json` is only data, so the shared folders, extra disks and i
 after you approved them in the app (the file pickers, the New Machine sheet, or "Approve and Start"). A machine copied
 from elsewhere asks at Start; `VMRunner --start` refuses to start it (ADR-0024).
 These settings narrow the host–guest channels. They don't make an untrusted guest safe on their own.
+
+A kill switch cuts a running machine's network card, with NAT or the filtered network, while the Mac breaks the machine's
+rule: a VPN required or forbidden on the Mac, or a metered or Low Data Mode connection. It watches the Mac, not the guest
+(Help ▸ Kill switch). An organisation can restrict every machine through managed preferences (ADR-0013):
+`AllowSharedFolders`, `AllowClipboardSharing`, `AllowMicrophone`, `AllowSuspend`, `AllowHostInformation`,
+`RequireDisposableMachines` and `MaxRuntimeMinutes`; the restricted controls show a lock.
 
 ## Filtered network (user-mode)
 
