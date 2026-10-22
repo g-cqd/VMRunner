@@ -226,6 +226,27 @@ struct UserNetDomainPolicyTests {
         #expect(derived.names(for: ipv4("6.6.6.6"), now: rig.core.currentTime()) == ["evil.test"])
     }
 
+    @Test func pastItsBoundTheDerivedBlockTableForgetsTheOldestAddressFirst() throws {
+        var gate = PolicyGate(policy: try policy { $0.blockedConnections = [try ConnectionRule("evil.test:22")] })
+        let first = ipv4("11.0.0.0")
+        for index in 0...1_024 {  // 1,025 addresses, one a second, for a table of 1,024
+            gate.remember(name: "evil.test", address: first + UInt32(index), ttl: 60, now: TimeInterval(index))
+        }
+        let now = TimeInterval(1_025)
+        #expect(gate.derivedBlocks.count == 1_024)
+        #expect(gate.derivedBlocks.names(for: first, now: now).isEmpty, "the oldest address went first")
+        #expect(gate.derivedBlocks.names(for: first + 1, now: now) == ["evil.test"])
+        #expect(gate.derivedBlocks.names(for: first + 1_024, now: now) == ["evil.test"])
+    }
+
+    @Test func theHousekeepingForgetsADerivedBlockOnceItsLifetimeIsOver() throws {
+        let rig = CoreRig(policy: try policy { $0.blockedConnections = [try ConnectionRule("evil.test:22")] })
+        _ = resolve(rig, "evil.test", addresses: ["6.6.6.6"])
+        rig.advance(PolicyGate.derivedBlockLifetime + 60)  // past the lifetime and the next 30-second housekeeping
+        _ = resolve(rig, "evil.test", addresses: ["6.6.6.7"])
+        #expect(rig.core.gate.derivedBlocks.count == 1, "only the address given after the lifetime is left")
+    }
+
     @Test func aConnectionToAnAnsweredAddressIsJudgedByItsName() throws {
         let rig = CoreRig(
             policy: try policy {

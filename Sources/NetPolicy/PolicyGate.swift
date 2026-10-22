@@ -76,8 +76,11 @@ package struct PolicyGate {
     package var names = NameTable()
     /// The addresses the DNS proxy gave the guest for a name that a block rule with ports names (`evil.example:22`), kept after
     /// ``names`` forgets them. Such a rule is applied per connection through the name an address came with, and would lapse when
-    /// the record's TTL ends while the guest still uses the address. Bounded like ``names``; consulted for blocks only.
-    var derivedBlocks = NameTable(capacity: 1_024)
+    /// the record's TTL ends while the guest still uses the address. Each entry lives ``derivedBlockLifetime``, so past the
+    /// bound the oldest goes first; the stack prunes it with ``names``. Consulted for blocks only.
+    package var derivedBlocks = NameTable(capacity: 1_024)
+    /// How long ``derivedBlocks`` keeps an address after the proxy last gave it: far longer than any record's TTL.
+    static let derivedBlockLifetime: TimeInterval = 12 * 60 * 60
     /// Floor ranges not enforced; always empty outside the integration tests (see `UserNetConfig.exemptedFloorKinds`).
     let floorExemptions: Set<ReservedRangeKind>
 
@@ -90,11 +93,11 @@ package struct PolicyGate {
         policy.evaluate(host: host, port: port, resolvedAddresses: resolvedAddresses, exempting: floorExemptions)
     }
 
-    /// Remembers that the DNS proxy gave the guest `address` for `name`: for `ttl` seconds in ``names``, and for as long as the
-    /// gate lives in ``derivedBlocks`` when a block rule with ports names `name`.
+    /// Remembers that the DNS proxy gave the guest `address` for `name`: for `ttl` seconds in ``names``, and for
+    /// ``derivedBlockLifetime`` in ``derivedBlocks`` when a block rule with ports names `name`.
     package mutating func remember(name: String, address: UInt32, ttl: TimeInterval, now: TimeInterval) {
         names.record(name: name, address: address, ttl: ttl, now: now)
-        if isPortScopedBlockTarget(name) { derivedBlocks.record(name: name, address: address, ttl: .infinity, now: now) }
+        if isPortScopedBlockTarget(name) { derivedBlocks.record(name: name, address: address, ttl: Self.derivedBlockLifetime, now: now) }
     }
 
     /// Judges a connection to `address:port`. Allocates (strings and arrays): called once per new flow, never per packet.

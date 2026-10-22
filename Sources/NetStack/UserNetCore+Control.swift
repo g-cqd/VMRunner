@@ -19,6 +19,7 @@ extension UserNetCore {
         if ctx.now - lastHousekeeping >= 30 {
             lastHousekeeping = ctx.now
             gate.names.prune(now: ctx.now)
+            gate.derivedBlocks.prune(now: ctx.now)
         }
     }
 
