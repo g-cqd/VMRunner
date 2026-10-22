@@ -2,6 +2,7 @@ import Foundation
 import NetPolicy
 import TestKit
 import Testing
+import Virtualization
 
 @testable import VMRunner
 
@@ -164,5 +165,49 @@ struct NetworkCutoffIndicatorTests {
         #expect(NetworkCutoffReason.vpnRequired.text.contains("needs a VPN"))
         #expect(NetworkCutoffReason.vpnForbidden.text.contains("must not use"))
         #expect(NetworkCutoffReason.meteredPath.text.contains("Low Data Mode"))
+    }
+}
+
+/// The cable the kill switch pulls: the same attachment goes back, and a pull the card refuses is reported, never assumed.
+@MainActor
+struct NetworkCardCableTests {
+    /// A card whose attachment the test controls; `refusesDetach` makes it keep its attachment, as a refused change would.
+    @MainActor
+    private final class FakeCard: NetworkCard {
+        var refusesDetach = false
+        private var current: VZNetworkDeviceAttachment?
+
+        init(_ attachment: VZNetworkDeviceAttachment?) { current = attachment }
+
+        var attachment: VZNetworkDeviceAttachment? {
+            get { current }
+            set { if newValue != nil || !refusesDetach { current = newValue } }
+        }
+    }
+
+    @Test func aPulledCableIsPluggedBackWithTheSameAttachment() {
+        let nat = VZNATNetworkDeviceAttachment()
+        let card = FakeCard(nat)
+        var cable = NetworkCardCable()
+        let pulled = cable.set(card, connected: false)
+        #expect(pulled)
+        #expect(card.attachment == nil)
+        let pluggedBack = cable.set(card, connected: true)
+        #expect(pluggedBack)
+        #expect(card.attachment === nat)
+    }
+
+    @Test func aPullTheCardRefusesIsReportedSoTheMachineCanBeStopped() {
+        let nat = VZNATNetworkDeviceAttachment()
+        let card = FakeCard(nat)
+        card.refusesDetach = true
+        var cable = NetworkCardCable()
+        let pulled = cable.set(card, connected: false)
+        #expect(!pulled, "the card is still connected")
+        #expect(card.attachment === nat)
+    }
+
+    @Test func theHelpSaysAMachineWhoseCardStaysConnectedIsStopped() {
+        #expect(HelpTopic.killSwitch.entry.advanced.joined(separator: " ").contains("VMRunner stops the machine"))
     }
 }

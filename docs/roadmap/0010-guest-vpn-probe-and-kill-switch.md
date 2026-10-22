@@ -27,3 +27,10 @@ program in the guest.
 A real-guest run, with NAT and with the filtered network: the guest's link goes down when the attachment is taken off
 and comes back when it is put back, and how long the guest takes to notice; the VPN rule against a real VPN; the metered
 switch on a phone's hotspot.
+
+When the network card keeps its attachment after the kill switch takes it off (read back at once), VMRunner stops the
+machine and says why. This fails closed and is the default until the owner chooses between stopping the machine and only
+showing an error. A framework that refuses the change has not been seen; the unit test uses a card that refuses.
+
+Whether the attachment can be taken off before the machine starts, so that a guest whose rule is broken never has a link
+at all, belongs to the same real-guest run: today the card is cut just after the machine starts.

@@ -1,6 +1,7 @@
 import Foundation
 import GuestConsole
 import Virtualization
+import os
 
 /// A `VZVirtualMachine` behind the controller's seam. It is also the machine's delegate, and forwards the callbacks that
 /// arrive on the framework's queue to the main actor.
@@ -15,8 +16,10 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     /// The kill switch of this run, when the machine has a VPN or metered-network rule. It starts with the machine and
     /// ends when this object is released.
     let networkCutoff: NetworkCutoff?
-    /// The attachment the kill switch took off the network card, kept to put back.
-    private var detachedAttachment: VZNetworkDeviceAttachment?
+    /// The network card's cable as the kill switch pulls it, with the attachment it took off to put back.
+    private var cable = NetworkCardCable()
+    /// What the machine's stop says when the kill switch could not disconnect its network card.
+    static let cutFailedMessage = "the kill switch could not disconnect its network card, so VMRunner stopped it"
     /// Keeps the host-information share current while the machine lives, when the machine shares anything.
     private let hostInfo: HostInfoPublisher?
 
@@ -68,16 +71,20 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     }
 
     /// Takes the attachment off the network card (`false`) or puts the one it had back (`true`), like pulling and
-    /// replugging a cable. A change the framework refuses is reported to the delegate and leaves the card disconnected.
+    /// replugging a cable. A pull is read back at once: a card that is still connected stops the machine.
     private func setNetworkConnected(_ connected: Bool) {
         guard let device = machine.networkDevices.first else { return }
-        if connected {
-            guard let attachment = detachedAttachment else { return }
-            device.attachment = attachment
-            detachedAttachment = nil
-        } else if let attachment = device.attachment {
-            detachedAttachment = attachment
-            device.attachment = nil
+        if !cable.set(device, connected: connected) { stopBecauseTheCutFailed() }
+    }
+
+    /// Fails closed when the network card kept its attachment after the kill switch took it off: the guest must not keep
+    /// running behind a toolbar that says its network is cut. Stopping is the default until the owner decides between
+    /// stopping and only showing an error (roadmap 0010, "Owed").
+    private func stopBecauseTheCutFailed() {
+        Log.machine.error("The network card stayed connected after the kill switch cut it; stopping the machine")
+        Task { [weak self, machine] in
+            try? await machine.stop()
+            self?.onStoppedWithError?(Self.cutFailedMessage)
         }
     }
 

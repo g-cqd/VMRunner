@@ -179,6 +179,8 @@ extension HelpCatalog {
                 "The switch takes the attachment off the guest's virtual network card and puts the same one back, like "
                     + "pulling and replugging a cable: the guest sees its link go down and come up. The Mac's VPN state is read "
                     + "from the system's network path, the same way as the Mac VPN indicator.",
+                "If macOS keeps the card connected when the switch pulls it, VMRunner stops the machine and says why, rather "
+                    + "than let the guest run with a network the toolbar calls cut.",
                 "Not yet verified with a real guest: how quickly each guest notices that the link is back.",
             ],
             related: [.guestVpn, .networkMode, .networkPolicy]

@@ -1,6 +1,7 @@
 import NetPolicy
 import Network
 import Observation
+import Virtualization
 
 /// The kill switch of one run (roadmap 0010): it follows the Mac's network path and disconnects the guest's network card
 /// while the machine's rules say so (`VMConfig.networkCutoffReason(on:)`), then connects it again.
@@ -82,5 +83,35 @@ extension HostNetworkPath.Interface {
         } else {
             self = .other
         }
+    }
+}
+
+/// The part of a machine's network card the kill switch changes: its attachment, the cable.
+@MainActor
+protocol NetworkCard: AnyObject {
+    var attachment: VZNetworkDeviceAttachment? { get set }
+}
+
+extension VZNetworkDevice: NetworkCard {}
+
+/// The cable of a machine's network card as the kill switch pulls it: it keeps the attachment it took off to put the same
+/// one back, and reads the card back after a pull, so a pull that did not take is reported, never assumed.
+@MainActor
+struct NetworkCardCable {
+    private var detached: VZNetworkDeviceAttachment?
+
+    /// Takes the attachment off `card` (`connected` false) or puts back the one it had (`true`). Returns false when the card
+    /// still has an attachment after it was set to nil: the change was refused, and the guest is still connected.
+    mutating func set(_ card: some NetworkCard, connected: Bool) -> Bool {
+        if connected {
+            guard let attachment = detached else { return true }
+            card.attachment = attachment
+            detached = nil
+            return true
+        }
+        guard let attachment = card.attachment else { return true }
+        detached = attachment
+        card.attachment = nil
+        return card.attachment == nil
     }
 }
