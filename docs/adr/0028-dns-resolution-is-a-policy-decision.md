@@ -46,3 +46,7 @@ Domain rules stay advisory. The name table expires entries after the record's TT
 thousand addresses, so a guest that waits, or connects to an address it learned elsewhere, is judged by the address alone.
 Deriving address blocks from domain rules would close that and is not done here. DNS over HTTPS, TLS and QUIC are still not
 intercepted. A pool of resolver workers (today each lookup takes a thread, at most 32 at a time) is also left alone.
+
+(Update 2026-10-22, roadmap 0034 item 4: a block rule for a name on some ports now keeps holding for the addresses the proxy
+gave for that name after the table forgets them, and lookups run on at most 32 resolver threads that take queued lookups in
+turn. A guest that connects to an address it learned elsewhere is still judged by the address alone.)

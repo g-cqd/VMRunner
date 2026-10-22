@@ -20,7 +20,7 @@ most three builds run at once.
 | C | Naming ADR and renames, then the packages in order | 0032 | naming ADR and the renames done except `TestKit`; seams in flight |
 | D | Performance and memory leftovers | 0033 | open |
 | E | Remaining contributions to the shared library | 0035 | the Base64 patch awaits review; the rest follows the stack package |
-| F | The rest of the security backlog | 0034 | in flight: Secure Boot and the image, bounds, atomic suspend image, idempotent load; the rest open |
+| F | The rest of the security backlog | 0034 | in flight: signed AlmaLinux, Rocky Linux and Fedora releases, key expiry, the network leftovers, the gate lock and the installer clones are done; Debian netboot, the floor opt-in and coverage-guided fuzzing wait for the owner |
 | G | Features in dependency order: the workload abstraction (after the container and sandbox first runs), managed preferences (0013), the automation server (0005), host information (0011), realism (0012), the VPN probe and kill switch (0010), provisioning (0016), Developer ID and notarization (0021), private interfaces (0029, after the owner tags the packages) | 0005 to 0029 | open |
 | H | Deferred: Linux GPU (needs a macOS 27 host), the macOS OCI store, saved-state encryption (after a throughput measurement) | 0014, 0024 | deferred |
 

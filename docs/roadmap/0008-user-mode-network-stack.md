@@ -30,12 +30,14 @@ A review of the stack with the guest as the attacker produced a series of fixes,
 
 Validation against real macOS and Linux guests: DHCP and MTU handling, checksum offload, throughput through the framework.
 
-Left open on purpose after the review:
+Done since (roadmap 0034, item 4): a block rule for a name on some ports keeps holding for the addresses the proxy gave for
+that name after the name table forgets them; lookups run on at most 32 resolver threads that take queued lookups in turn (256
+wait at most, then SERVFAIL); the queue of frames waiting for the guest's socket is bounded in bytes (8 MiB) as well as
+frames; repeated DNS answers are folded like refusals; a DNS-over-TCP answer that finds the guest-bound ring full resets the
+session and is counted (`dnsAnswersLost`).
 
-- Address blocks derived from domain rules, so that a domain rule outlives the name table's expiry (ADR-0028 records the
-  gap: domain rules stay advisory).
-- A pool of resolver workers in place of one short-lived thread per lookup (at most 32 at a time).
-- A byte bound on the queue of frames waiting for the guest's socket (it is bounded by count today).
-- Answered DNS events are not folded the way refusals are, and a DNS-over-TCP answer that finds the guest-bound ring full
-  is dropped without a trace.
+Left open on purpose:
+
+- A block rule for a name on every port needs no derived block: the name is never resolved for the guest, so only an address
+  the guest learned elsewhere reaches it, and that is judged by the address alone (ADR-0028).
 - An explicit, separate opt-in for one kind of the floor (ADR-0029), should a guest ever need the Mac's loopback services.
