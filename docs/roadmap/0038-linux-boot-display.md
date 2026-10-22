@@ -119,7 +119,7 @@ log show --last 10m --predicate 'category == "display"' --info
 log stream --level info --predicate 'category == "display"'
 ```
 
-Three kinds of line matter (sizes are pixels, window sizes are points; nothing identifies a machine or a path):
+Four kinds of line matter (sizes are pixels, window sizes are points; nothing identifies a machine or a path):
 
 1. **`Starting display W×H px for a window of W×H pt; host screen scale S, guest pixels per point P; source …, width cap …,
    remembered size …; match window …, follows window …, restoring …`**: the scanout the firmware is given, and why. `source` is
@@ -138,6 +138,12 @@ Three kinds of line matter (sizes are pixels, window sizes are points; nothing i
    while the firmware, the boot loader or the installer's early console is on screen; for a guest that has booted, it means
    its display driver does not act on the size, which is a finding to report. The size the framework reports is the display's
    size at that moment: for an ignored request it is normally still the size from before.
+4. **`Display resize: asking again (repeat N) for W×H px: the guest has not answered`**: an ignored request is repeated after 2,
+   4, 8 and 16 seconds and then every 30 seconds, because the guest's display driver may load after the firmware and the boot
+   loader and only then answer. Each repeat is followed by `guest responded` (the repeats stop and the note in the machine view
+   goes) or by another `guest did not respond`. The repeats also stop when the window gets another size (the count starts over),
+   when the display shows the wanted size by itself (`display now shows W×H px, nothing left to ask`), and when the machine
+   stops. If a booted guest answers the first repeat after the boot loader, the guest's driver was what was missing before.
 
 A `refused` line (error level) is the framework rejecting the request; it is retried. No `Display resize` line after a window
 change means nothing was asked: the first ten seconds of a cold boot, a view under 64 points, "Resize guest display with

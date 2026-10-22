@@ -31,6 +31,10 @@ protocol ResizableDisplay: AnyObject {
 ///   guest ignores it. The follower therefore listens for the framework's end of the reconfiguration and reports, for every
 ///   accepted request, whether it came within `responseTimeout` (`guestResponded`) or not (`guestIgnored`). A response that
 ///   comes after the report is still reported, so the last report says what the guest did last.
+/// - A request the guest ignored is asked again, because the guest's display driver may load after the firmware and the boot
+///   loader, and only then can answer: after `reaskDelay(attempt:)` (2, 4, 8, 16, then every 30 seconds) for as long as the
+///   view still wants that size and the display shows another. A response, a new size of the view, the follower being turned
+///   off or let go ends it, and so does a display that has reached the size by itself. One wait is pending at most.
 @MainActor
 final class DisplayFollower {
     /// What happened, for the log. Sizes are pixels unless the case says points.
@@ -45,6 +49,10 @@ final class DisplayFollower {
         case guestResponded(target: CGSize, displayIs: CGSize)
         /// No end of the reconfiguration came within `responseTimeout` of an accepted request.
         case guestIgnored(target: CGSize, displayIs: CGSize)
+        /// A request the guest ignored is made again; `attempt` counts the repeats of this size.
+        case askedAgain(target: CGSize, attempt: Int)
+        /// The display shows the size that was wanted without anything having answered, so there is nothing left to ask.
+        case reachedWithoutRequest(target: CGSize)
 
         var description: String {
             switch self {
@@ -62,6 +70,10 @@ final class DisplayFollower {
             case .guestIgnored(let target, let displayIs):
                 "guest did not respond within \(DisplayFollower.responseTimeout): asked \(Self.text(target)) px, "
                     + "the framework reports \(Self.text(displayIs)) px"
+            case .askedAgain(let target, let attempt):
+                "asking again (repeat \(attempt)) for \(Self.text(target)) px: the guest has not answered"
+            case .reachedWithoutRequest(let target):
+                "display now shows \(Self.text(target)) px, nothing left to ask"
             }
         }
 
@@ -79,6 +91,11 @@ final class DisplayFollower {
     /// some screens; it does not promise that the guest will follow.
     nonisolated static let ignoredNotice =
         "The guest ignored the display resize (firmware and boot loader screens cannot follow the window)."
+    /// The wait before the `attempt`-th repeat (1 is the first) of a request the guest ignored: 2, 4, 8, 16, then 30 seconds.
+    nonisolated static func reaskDelay(attempt: Int) -> Duration {
+        let seconds = [2, 4, 8, 16, 30]
+        return .seconds(seconds[min(max(attempt, 1), seconds.count) - 1])
+    }
     /// How long after an accepted request the guest has to finish reconfiguring the display before it counts as ignoring it.
     nonisolated static let responseTimeout = Duration.seconds(2)
 
@@ -105,6 +122,8 @@ final class DisplayFollower {
     /// The last accepted request the guest has not answered; it stays after `guestIgnored`, so a late answer is still reported.
     private var unanswered: CGSize?
     private var observation: (display: ObjectIdentifier, token: AnyObject)?
+    /// How many times the unanswered request was repeated.
+    private var reasked = 0
 
     private let sleep: (Duration) async throws -> Void
     private let display: () -> (any ResizableDisplay)?
@@ -113,6 +132,7 @@ final class DisplayFollower {
     private var holdTask: Task<Void, Never>?
     private var retryTask: Task<Void, Never>?
     private var responseTask: Task<Void, Never>?
+    private var reaskTask: Task<Void, Never>?
 
     init<C: Clock>(
         scale: Double, enabled: Bool, hold: Duration, clock: C, display: @escaping () -> (any ResizableDisplay)?,
@@ -137,6 +157,7 @@ final class DisplayFollower {
         holdTask?.cancel()
         retryTask?.cancel()
         responseTask?.cancel()
+        reaskTask?.cancel()
     }
 
     /// Applies a change of scale or of whether the guest follows at all, and asks again for the current view size.
@@ -182,11 +203,19 @@ final class DisplayFollower {
         if target == current || (lastRequest.map { $0.target == target && $0.displayAfter == current } ?? false) {
             lastRequest = (target, current)
             report(.skipped(target: target))
+            if target == current { settle(target) }
             return
         }
         report(.requested(points: size, target: target, displayWas: current))
+        send(target, from: size, to: display)
+    }
+
+    /// Asks `display` for `target` and starts the clock on the answer. A refusal is reported and retried for `size`.
+    private func send(_ target: CGSize, from size: CGSize, to display: any ResizableDisplay) {
         observe(display)
         let earlier = unanswered
+        if target != earlier { reasked = 0 }
+        reaskTask?.cancel()
         unanswered = target
         do {
             try display.reconfigure(sizeInPixels: target)
@@ -201,6 +230,16 @@ final class DisplayFollower {
             report(.refused(target: target, errorKind: error.logKind, attempt: attempt, retryIn: delay))
             if let delay { retry(size, after: delay) }
         }
+    }
+
+    /// The display shows the wanted size: whatever was unanswered no longer matters, and the repeats stop.
+    private func settle(_ target: CGSize) {
+        guard unanswered != nil else { return }
+        unanswered = nil
+        reasked = 0
+        responseTask?.cancel()
+        reaskTask?.cancel()
+        report(.reachedWithoutRequest(target: target))
     }
 
     /// Listens to `display` for the end of a reconfiguration, once per display.
@@ -223,13 +262,36 @@ final class DisplayFollower {
     private func reconfigurationEnded() {
         guard let target = unanswered, let display = display() else { return }
         unanswered = nil
+        reasked = 0
         responseTask?.cancel()
+        reaskTask?.cancel()
         report(.guestResponded(target: target, displayIs: display.sizeInPixels))
     }
 
     private func responseTimedOut() {
         guard let target = unanswered, let display = display() else { return }
         report(.guestIgnored(target: target, displayIs: display.sizeInPixels))
+        let delay = Self.reaskDelay(attempt: reasked + 1)
+        reaskTask?.cancel()
+        reaskTask = Task { [weak self, sleep] in
+            try? await sleep(delay)
+            guard !Task.isCancelled else { return }
+            self?.askAgain()
+        }
+    }
+
+    /// Repeats the unanswered request, if the view still wants that size, the display shows another and the follower is on.
+    private func askAgain() {
+        guard enabled, released, let viewSize, let wanted = Self.pixels(for: viewSize, scale: scale), wanted == unanswered,
+            let display = display()
+        else { return }
+        guard display.sizeInPixels != wanted else {
+            settle(wanted)
+            return
+        }
+        reasked += 1
+        report(.askedAgain(target: wanted, attempt: reasked))
+        send(wanted, from: viewSize, to: display)
     }
 
     private func retry(_ size: CGSize, after delay: Duration) {

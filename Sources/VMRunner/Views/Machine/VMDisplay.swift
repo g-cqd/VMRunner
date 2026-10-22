@@ -83,7 +83,8 @@ final class DisplayResizer {
     private func handle(_ event: DisplayFollower.Event) {
         switch event {
         case .refused: Log.display.error("Display resize: \(event.description, privacy: .public)")
-        case .guestResponded:
+        case .askedAgain: Log.display.notice("Display resize: \(event.description, privacy: .public)")
+        case .guestResponded, .reachedWithoutRequest:
             Log.display.notice("Display resize: \(event.description, privacy: .public)")
             guestAnswered(true)
         case .guestIgnored:
