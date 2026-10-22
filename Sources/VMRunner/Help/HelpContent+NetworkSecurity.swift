@@ -289,6 +289,10 @@ extension HelpCatalog {
                     + "on, \"What this machine can reach\" shows the socket's path.",
                 "Nothing listens on the guest's side until you set it up:",
                 "• **Any Linux**: add `console=hvc0` to the kernel command line. Alpine's init then starts a login on it by itself.",
+                "• **Alpine from VMRunner's catalog**: its ISO boots with `console=tty0 console=ttyAMA0` after one second at its "
+                    + "boot menu, so the socket stays silent. In that second press an arrow key in the machine's window, then `e`, "
+                    + "add `console=hvc0` at the end of the line that starts with `linux`, and press Ctrl-X. VMRunner cannot change "
+                    + "the ISO's command line for you; no image in the catalog is known to start a login on `hvc0` by itself.",
                 "• **Distributions with systemd** (Debian, Ubuntu, Fedora, ...): run `systemctl enable --now serial-getty@hvc0` in "
                     + "the guest.",
                 "• **macOS guests** are not supported: the switch is off and disabled for them.",

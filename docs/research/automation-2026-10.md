@@ -146,3 +146,16 @@ which was run for real, and the unit tests cover the switch, the profiles, the e
 help). The count of bytes the bridge dropped is kept in the bridge but not shown anywhere, so "nothing dropped" above is
 the md5 comparison. Any guest but Alpine's, any console speed above a few MB/s, a client that is slower than the guest by
 more than the 1 MiB queue, programs that redraw the whole screen, and macOS guests.
+
+**The app's own Alpine image (2026-10-22).** An authorised real-guest run booted the catalog's
+`alpine-virt-3.24.2-aarch64.iso` (signature and checksum verified) from the app with `serialConsole` on: the guest
+reached `localhost login:` on its screen, but the socket stayed silent (`vmr guest exec` timed out twice, the console
+having sent nothing). The ISO's `boot/grub/grub.cfg` has `console=tty0 console=ttyAMA0` and `set timeout=1`, and the
+live system starts no getty on `hvc0`. The app boots an ISO through EFI and leaves its kernel command line alone, so
+the guest must boot with `console=hvc0`: at the GRUB menu (stop the one-second countdown, `e`, add it to the `linux`
+line, Ctrl-X), or, as that run did, from a FAT boot image with the ISO's files and a `grub.cfg` that says
+`set timeout=0` and `console=tty0 console=hvc0`, attached as the installer. With it, `/proc/cmdline` ended in
+`console=tty0 console=hvc0` and `exec` logged in as root. The netboot image of `vmr guest` gets `console=hvc0` from its
+own command line. No image in the catalog is known to start a login on `hvc0` by itself: Alpine's was checked and does
+not; the others were not tried. An installed system that runs systemd may start one on `hvc0` in a virtual machine
+through its getty generator, which was not tried either.

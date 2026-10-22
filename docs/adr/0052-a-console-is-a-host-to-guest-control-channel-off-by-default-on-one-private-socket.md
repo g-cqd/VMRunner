@@ -69,3 +69,10 @@ Opening the console in the user's terminal application (an app-wide choice with 
 owner suggested and which needs the client in the app's bundle first. The capability tokens and per-machine agent policy of
 the automation server (roadmap 0005). A guest agent over vsock, which would not need a getty. Console support for macOS
 guests. Flow control from the host to the guest beyond the bounded queue.
+
+(Update 2026-10-22: an authorised real-guest run found that the Alpine ISO of the app's own catalog boots with
+`console=tty0 console=ttyAMA0` after one second at its GRUB menu, so with `serialConsole` on the socket stays silent:
+the app boots an ISO through EFI and leaves its kernel command line alone. The guest must boot with `console=hvc0`. The
+run did it with a small FAT boot image holding the ISO's files and a `grub.cfg` with `console=tty0 console=hvc0`,
+attached as the installer; a user can instead add `console=hvc0` at the GRUB menu. No image in the catalog is known to
+start a login on `hvc0` by itself; the help topic *Serial console* says so. The decision is unchanged.)

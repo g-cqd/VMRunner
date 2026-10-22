@@ -128,6 +128,7 @@ struct SerialConsoleTests {
         for needed in ["console=hvc0", "systemctl enable --now serial-getty@hvc0", "macOS guests", "Isolated and Hardened"] {
             #expect(text.contains(needed), "the topic should say \(needed)")
         }
+        #expect(text.contains("console=ttyAMA0"), "the topic should say why the catalog's Alpine image leaves the socket silent")
         #expect(HelpTopic.devices.entry.related.contains(.serialConsole))
         #expect(HelpCatalog.search("serial console").contains(.serialConsole))
     }
