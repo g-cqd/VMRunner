@@ -86,10 +86,7 @@ struct VPNIndicator: Equatable, Sendable {
         }
     }
 
-    var guestText: String {
-        guard case .suspected(let kind, let confidence, _, _) = guest else { return "Guest VPN: not detected" }
-        return "Guest VPN: \(kind.label) suspected (\(confidence.label) confidence)"
-    }
+    var guestText: String { guest.eventLine }
 
     /// What the detector saw, strongest first, at most three lines.
     var guestEvidence: [String] {
@@ -102,29 +99,6 @@ struct VPNIndicator: Equatable, Sendable {
         case .quiet: "network.badge.shield.half.filled"
         case .hostVPN: "lock.shield"
         case .guestVPN: "exclamationmark.shield"
-        }
-    }
-}
-
-extension GuestVPNKind {
-    var label: String {
-        switch self {
-        case .wireGuard: "WireGuard"
-        case .openVPN: "OpenVPN"
-        case .ipsec: "IPsec"
-        case .l2tp: "L2TP"
-        case .pptp: "PPTP"
-        case .dnsHint: "VPN"
-        }
-    }
-}
-
-extension GuestVPNConfidence {
-    var label: String {
-        switch self {
-        case .low: "low"
-        case .medium: "medium"
-        case .high: "high"
         }
     }
 }

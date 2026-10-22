@@ -94,3 +94,85 @@ extension ReservedRangeKind {
         }
     }
 }
+
+extension GuestVPNKind {
+    package var label: String {
+        switch self {
+        case .wireGuard: "WireGuard"
+        case .openVPN: "OpenVPN"
+        case .ipsec: "IPsec"
+        case .l2tp: "L2TP"
+        case .pptp: "PPTP"
+        case .dnsHint: "VPN"
+        }
+    }
+}
+
+extension GuestVPNConfidence {
+    package var label: String {
+        switch self {
+        case .low: "low"
+        case .medium: "medium"
+        case .high: "high"
+        }
+    }
+}
+
+extension GuestVPNState {
+    /// The verdict as one line: `Guest VPN: WireGuard suspected (medium confidence)`, or that none is detected.
+    package var eventLine: String {
+        guard case .suspected(let kind, let confidence, _, _) = self else { return "Guest VPN: not detected" }
+        return "Guest VPN: \(kind.label) suspected (\(confidence.label) confidence)"
+    }
+}
+
+// MARK: One line per event
+
+extension FlowEvent {
+    /// `allowed`, `denied`, `answered`, `closed` or `revoked`: the word that sorts an event, for a reader that filters.
+    package var outcomeWord: String {
+        switch phase {
+        case .opened: "allowed"
+        case .denied: "denied"
+        case .answered: "answered"
+        case .closed(.policyRevoked): "revoked"
+        case .closed: "closed"
+        }
+    }
+
+    /// The event as one plain line, such as `TCP denied example.com (93.184.216.34:80): The name matches the blocked domain
+    /// example.com. x3`: the transport, the outcome, where, why, and how many attempts it stands for when more than one.
+    package var eventLine: String {
+        var line = "\(transport.label) \(outcomeWord) \(destinationText)"
+        switch phase {
+        case .opened:
+            break
+        case .denied(let denial):
+            line += ": \(denial.explanation)"
+        case .answered(let code):
+            line += ": \(Self.answerText(responseCode: code))"
+        case .closed(.policyRevoked(let reason)):
+            line += ": \(reason.explanation)"
+        case .closed(let reason):
+            let seconds = duration.formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "en_US_POSIX")))
+            line += ": \(reason.logName), \(bytesToHost) bytes to the host, \(bytesToGuest) to the guest, \(seconds) s"
+        }
+        if count > 1 { line += " x\(count)" }
+        return line
+    }
+}
+
+extension UserNetStats {
+    /// The counters worth reading as `name=value` pairs on one line.
+    package var summaryLine: String {
+        [
+            ("framesFromGuest", framesFromGuest), ("framesToGuest", framesToGuest), ("bytesFromGuest", bytesFromGuest),
+            ("bytesToGuest", bytesToGuest), ("tcpFlowsOpened", tcpFlowsOpened), ("tcpFlowsDenied", tcpFlowsDenied),
+            ("tcpFlowsFailed", tcpFlowsFailed), ("tcpRetransmits", tcpRetransmits), ("udpFlowsOpened", udpFlowsOpened),
+            ("udpFlowsDenied", udpFlowsDenied), ("icmpEchoes", icmpEchoes), ("dnsQueries", dnsQueries), ("dnsBlocked", dnsBlocked),
+            ("dhcpAcks", dhcpAcks), ("activeTCPFlows", UInt64(activeTCPFlows)), ("activeUDPFlows", UInt64(activeUDPFlows)),
+            ("framesLostToGuest", framesLostToGuest), ("flowEventsDropped", flowEventsDropped), ("malformedFrames", malformedFrames),
+            ("droppedFragments", droppedFragments), ("droppedIPv6Frames", droppedIPv6Frames), ("droppedUnsupported", droppedUnsupported),
+        ].map { "\($0.0)=\($0.1)" }.joined(separator: " ")
+    }
+}
