@@ -13,6 +13,46 @@ enum StartDisplay {
     /// Smallest window, in points, that is trusted to be a real layout rather than a pane that has not been laid out yet.
     private static let usableWindow = CGSize(width: 320, height: 200)
 
+    /// Where a start size came from.
+    enum Source: String, Equatable {
+        /// The size remembered from the cold boot that the saved state was taken on.
+        case savedState = "saved state"
+        /// The window, at `displayScale` pixels per point.
+        case window
+        /// The configured size, because "Match window" is off.
+        case fixedSize = "fixed size"
+        /// The configured size, because there is no usable window yet.
+        case configuredSizeWithoutWindow = "configured size, no usable window"
+    }
+
+    /// What the width cap did to a start size.
+    enum Cap: String, Equatable {
+        /// The guest is not capped: macOS, a saved state, or a fixed size the guest keeps for the whole run.
+        case notApplicable = "does not apply"
+        /// The cap is in force and the size was already within it.
+        case withinCap = "in force, not needed"
+        /// The cap is in force and reduced the size.
+        case reduced = "applied"
+    }
+
+    /// A start size and the rule that decided it, for the log. Words and numbers only.
+    struct Decision: Equatable {
+        var width: Int
+        var height: Int
+        var source: Source
+        var cap: Cap
+        /// A remembered size exists and was not used, because this is a cold start.
+        var rememberedSizeIgnored: Bool
+
+        var size: (width: Int, height: Int) { (width, height) }
+
+        /// The rule in words, for the log: `source window, width cap applied, remembered size ignored`.
+        var rule: String {
+            let remembered = source == .savedState ? "used" : (rememberedSizeIgnored ? "ignored" : "none")
+            return "source \(source.rawValue), width cap \(cap.rawValue), remembered size \(remembered)"
+        }
+    }
+
     /// Framebuffer size in pixels for this boot.
     ///
     /// - A restored machine keeps the size it was suspended with, because saved state only restores into an identical
@@ -26,15 +66,31 @@ enum StartDisplay {
     ///
     /// macOS follows its configured density and is never capped.
     static func size(for config: VMConfig, window: CGSize?, restoring: Bool) -> (width: Int, height: Int) {
-        if restoring, let width = config.lastDisplayWidth, let height = config.lastDisplayHeight { return (width, height) }
+        decide(for: config, window: window, restoring: restoring).size
+    }
+
+    /// `size(for:window:restoring:)` with the rule that decided it.
+    static func decide(for config: VMConfig, window: CGSize?, restoring: Bool) -> Decision {
+        let remembered = config.lastDisplayWidth != nil && config.lastDisplayHeight != nil
+        if restoring, let width = config.lastDisplayWidth, let height = config.lastDisplayHeight {
+            return Decision(width: width, height: height, source: .savedState, cap: .notApplicable, rememberedSizeIgnored: false)
+        }
         let capped = config.guest == .linux && (config.fitsWindowAtStart || config.automaticallyReconfiguresDisplay)
+        func decision(_ size: (width: Int, height: Int), _ source: Source, requested: Double) -> Decision {
+            let cap: Cap = !capped ? .notApplicable : (requested > Double(legibleWidth) ? .reduced : .withinCap)
+            return Decision(width: size.width, height: size.height, source: source, cap: cap, rememberedSizeIgnored: remembered)
+        }
         if config.fitsWindowAtStart, let window, window.width >= usableWindow.width, window.height >= usableWindow.height {
-            return fitted(window.width * config.displayScale, window.height * config.displayScale, capped: capped)
+            let width = window.width * config.displayScale
+            let size = fitted(width, window.height * config.displayScale, capped: capped)
+            return decision(size, .window, requested: width)
         }
+        let source: Source = config.fitsWindowAtStart ? .configuredSizeWithoutWindow : .fixedSize
         if capped, config.displayWidth > legibleWidth {
-            return fitted(Double(config.displayWidth), Double(config.displayHeight), capped: true)
+            let size = fitted(Double(config.displayWidth), Double(config.displayHeight), capped: true)
+            return decision(size, source, requested: Double(config.displayWidth))
         }
-        return (config.displayWidth, config.displayHeight)
+        return decision((config.displayWidth, config.displayHeight), source, requested: Double(config.displayWidth))
     }
 
     private static func fitted(_ width: Double, _ height: Double, capped: Bool) -> (width: Int, height: Int) {

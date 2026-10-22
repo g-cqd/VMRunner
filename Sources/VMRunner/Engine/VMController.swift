@@ -85,10 +85,9 @@ final class VMController {
         let mayResume = config.allowsSuspend && !config.ephemeral
         if !mayResume { bundle.discardSavedState() }
         let restoring = bundle.hasSavedState
-        let display = StartDisplay.size(for: config, window: windowSize, restoring: restoring)
-        let window = windowSize.map(DisplayDiagnostics.text) ?? "unknown size"
-        Log.display.info(
-            "Starting display \(display.width)×\(display.height) px for a window of \(window, privacy: .public) pt, restoring \(restoring)")
+        let decision = StartDisplay.decide(for: config, window: windowSize, restoring: restoring)
+        let display = decision.size
+        decision.log(config: config, window: windowSize, restoring: restoring)
         if !restoring {
             config.lastDisplayWidth = display.width
             config.lastDisplayHeight = display.height
