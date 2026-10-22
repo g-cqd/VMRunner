@@ -54,6 +54,12 @@ final class FakeFactory: MachineFactory {
     }
 }
 
+/// Stands in for the process: an activity begins and ends without telling the system.
+private final class CountingActivityHost: ActivityHost {
+    func beginActivity(options: ProcessInfo.ActivityOptions, reason: String) -> any NSObjectProtocol { NSObject() }
+    func endActivity(_ activity: any NSObjectProtocol) {}
+}
+
 /// One Linux machine in a scratch folder, a library that knows it, and a controller wired to fakes and a test clock.
 @MainActor
 final class ControllerRig {
@@ -61,12 +67,14 @@ final class ControllerRig {
     let library: VMLibrary
     let factory = FakeFactory()
     let clock = TestClock()
+    /// The latency activity the controller holds while a machine exists, on a host that touches nothing.
+    let activity = LatencyActivity(host: CountingActivityHost(), isEnabled: true)
     let controller: VMController
     let id: UUID
 
     init(ephemeral: Bool = false, runtimeMinutes: Int = 0, allowsSuspend: Bool = true) throws {
         directory = try scratchDirectory()
-        let controller = VMController(factory: factory, runtimeLimit: RuntimeLimit(clock: clock))
+        let controller = VMController(factory: factory, runtimeLimit: RuntimeLimit(clock: clock), latency: activity)
         self.controller = controller
         library = VMLibrary(machinesDirectory: directory, makeController: { controller })
         var config = VMConfig.new(name: "fake", guest: .linux)
@@ -112,6 +120,7 @@ final class ControllerRig {
         #expect(controller.suspendUnavailableReason == nil, sourceLocation: sourceLocation)
         #expect(!disposableCopyExists, sourceLocation: sourceLocation)
         #expect(clock.sleeperCount == 0, "the runtime limit is still counting", sourceLocation: sourceLocation)
+        #expect(!activity.isHeld, "the latency activity outlived the machine", sourceLocation: sourceLocation)
     }
 
     /// Every stack that was started was stopped.

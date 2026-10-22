@@ -350,8 +350,8 @@ enum MachineEffect: Hashable, Sendable {
     /// Presses the guest's power button; reports `shutdownFailed` if the framework refuses.
     case requestGuestStop
     case report(String)
-    /// Stops the network stack, cancels the runtime limit, discards the disposable copy, detaches the machine from the view,
-    /// and makes every report of this run stale.
+    /// Stops the network stack, cancels the runtime limit, discards the disposable copy, ends the latency activity, detaches
+    /// the machine from the view, and makes every report of this run stale.
     case release
 
     // Wait for the framework; each reports its outcome as an event.

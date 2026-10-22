@@ -38,7 +38,7 @@ running, an image deleted, or a run torn down by the report of the run before it
    brought up after its run ended is stopped.
 5. **One way out.** Every way a run ends (the guest stops, an error, a force stop, a failed start, a suspend, quitting)
    goes through the one `release` effect: the network stack is stopped, the runtime limit cancelled, the disposable copy
-   discarded, suspend support cleared and the machine let go, which detaches it from the view.
+   discarded, suspend support cleared, the latency activity ended and the machine let go, which detaches it from the view.
 6. **A force stop never drops a machine it could not stop.** When the framework cannot stop a machine that is starting,
    pausing or saving, the state becomes stopping and the stop follows the call in flight. Asked twice, the force stop gives
    up waiting and releases the machine; the late completion is stale.

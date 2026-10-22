@@ -19,6 +19,7 @@ struct MachineStartTests {
         #expect(rig.controller.network != nil)
         #expect(rig.controller.virtualMachine == nil, "a fake has no framework machine to show")
         #expect(rig.config.hasBooted, "the first boot is recorded")
+        #expect(rig.activity.isHeld, "macOS is told the app is latency-critical while a machine exists")
 
         guest.powerOff()
         rig.expectReleased()

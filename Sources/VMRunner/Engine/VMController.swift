@@ -44,10 +44,16 @@ final class VMController {
     @ObservationIgnored private var stopIssued = false
     @ObservationIgnored private let factory: any MachineFactory
     @ObservationIgnored private let runtimeLimit: RuntimeLimit
+    /// Held from the end of preparation until the machine is let go, so it ends on every path that ends a run.
+    @ObservationIgnored private let latency: LatencyActivity
 
-    init(factory: any MachineFactory = VZMachineFactory(), runtimeLimit: RuntimeLimit = RuntimeLimit(clock: ContinuousClock())) {
+    init(
+        factory: any MachineFactory = VZMachineFactory(), runtimeLimit: RuntimeLimit = RuntimeLimit(clock: ContinuousClock()),
+        latency: LatencyActivity = .shared
+    ) {
         self.factory = factory
         self.runtimeLimit = runtimeLimit
+        self.latency = latency
     }
 
     var isActive: Bool { state.isActive }
@@ -221,7 +227,7 @@ final class VMController {
 
     private func adopt(_ prepared: PreparedMachine, run token: UInt64) {
         guest = prepared.machine
-        LatencyActivity.shared.hold(for: ObjectIdentifier(self))
+        latency.hold(for: ObjectIdentifier(self))
         suspendSupport = prepared.suspend
         network = prepared.network
         prepared.network?.start()
@@ -257,7 +263,7 @@ final class VMController {
         guest?.onGuestStopped = nil
         guest?.onStoppedWithError = nil
         guest = nil
-        LatencyActivity.shared.release(for: ObjectIdentifier(self))
+        latency.release(for: ObjectIdentifier(self))
         suspendSupport = nil
         firmwareStartedAt = nil
     }

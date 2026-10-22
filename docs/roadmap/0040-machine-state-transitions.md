@@ -77,5 +77,5 @@ after a cancel) stays in the library's job table and no longer overlaps a new jo
   calls the delegate after a successful `stop()`, and whether the state observation ever fired: all need a guest.
 - The memory image is written in place; a crash in the middle of a suspend can leave a partial image, which a later restore
   rejects and falls back from. Writing it under a temporary name and renaming it is a separate change.
-- An activity assertion or an input-latency monitor that another change hooks into a machine's start and stop belongs in
-  the two places the controller has for it: the `armRuntimeLimit` effect (the machine is running) and `release` (it is gone).
+- The latency activity (roadmap 0037) is held when the controller receives a prepared machine and ended where the machine is
+  let go, so it is released on every path that releases the machine; the tests check it after every ending.
