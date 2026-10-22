@@ -69,8 +69,9 @@ final class VMController {
         guard state.canStart else { return }
         errorMessage = nil
         var config = config
-        // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable.
-        if config.networkMode.hasNetworkDevice, config.macAddress.flatMap({ VZMACAddress(string: $0) }) == nil {
+        // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable; a disposable
+        // machine with a fresh identity gets a new one at each start (`needsNewMACAddress`).
+        if config.networkMode.hasNetworkDevice, config.needsNewMACAddress {
             config.macAddress = config.macVendor.makeAddress()
             library.update(config)
         }
@@ -201,7 +202,7 @@ final class VMController {
         guard let attempt = launch else { return .startFailed("The machine has nothing to start.") }
         do {
             if attempt.config.ephemeral && !attempt.disposableCopyMade {
-                try attempt.bundle.prepareEphemeral(guest: attempt.config.guest)
+                try attempt.bundle.prepareEphemeral(guest: attempt.config.guest, identity: attempt.config.makeFreshMachineIdentity())
                 launch?.disposableCopyMade = true
             }
             // A configuration that failed to restore can't be reused, and neither can its network stack: each attempt

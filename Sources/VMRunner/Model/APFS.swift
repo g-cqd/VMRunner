@@ -153,17 +153,19 @@ extension VMBundle {
 
     // MARK: Disposable copies
 
-    /// Clones everything the guest can write so the originals stay untouched.
-    func prepareEphemeral(guest: GuestOS) throws {
+    /// Clones everything the guest can write so the originals stay untouched, and gives this start its own machine
+    /// identifier when `identity` is set (the bytes of a new one).
+    func prepareEphemeral(guest: GuestOS, identity: Data? = nil) throws {
         discardEphemeral()
         try APFS.clone(disk, to: ephemeralDisk)
         switch guest {
         case .macOS: try APFS.clone(auxiliaryStorage, to: ephemeralAuxiliaryStorage)
         case .linux: try APFS.clone(efiVariables, to: ephemeralEFIVariables)
         }
+        if let identity { try identity.writePrivately(to: ephemeralMachineIdentifier) }
     }
 
     func discardEphemeral() {
-        for file in [ephemeralDisk, ephemeralAuxiliaryStorage, ephemeralEFIVariables] { remove(file) }
+        for file in [ephemeralDisk, ephemeralAuxiliaryStorage, ephemeralEFIVariables, ephemeralMachineIdentifier] { remove(file) }
     }
 }

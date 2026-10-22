@@ -136,6 +136,8 @@ struct VMBundle: Sendable {
     var ephemeralDisk: URL { url.appending(path: "Disk.ephemeral.img") }
     var ephemeralAuxiliaryStorage: URL { url.appending(path: "AuxiliaryStorage.ephemeral") }
     var ephemeralEFIVariables: URL { url.appending(path: "EFIVariables.ephemeral.fd") }
+    /// The machine identifier of one disposable start, when the machine takes a fresh identity at each start.
+    var ephemeralMachineIdentifier: URL { url.appending(path: "MachineIdentifier.ephemeral") }
     var snapshots: URL { url.appending(path: "Snapshots", directoryHint: .isDirectory) }
     /// The folder the host-information share serves to the guest, read-only. No directory hint: the path has no trailing
     /// slash, so a link planted here is removed itself, never followed.
@@ -156,6 +158,11 @@ struct VMBundle: Sendable {
     func activeDisk(ephemeral: Bool) -> URL { ephemeral ? ephemeralDisk : disk }
     func activeAuxiliaryStorage(ephemeral: Bool) -> URL { ephemeral ? ephemeralAuxiliaryStorage : auxiliaryStorage }
     func activeEFIVariables(ephemeral: Bool) -> URL { ephemeral ? ephemeralEFIVariables : efiVariables }
+    /// The identifier this start uses: the disposable copy's own one while it exists, otherwise the machine's.
+    func activeMachineIdentifier(ephemeral: Bool) -> URL {
+        guard ephemeral, FileManager.default.fileExists(atPath: ephemeralMachineIdentifier.path) else { return machineIdentifier }
+        return ephemeralMachineIdentifier
+    }
 
     /// The per-guest firmware state file: macOS auxiliary storage or the EFI variable store.
     func stateFile(for guest: GuestOS) -> URL { guest == .macOS ? auxiliaryStorage : efiVariables }

@@ -179,6 +179,8 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     // Isolation
     /// Boot from copy-on-write clones of the disk and firmware state, and discard them on stop.
     var ephemeral = false
+    /// Disposable machines only: a new MAC address and machine identifier at each start, so runs can't be matched by them.
+    var freshIdentityPerStart = false
     /// Suspending writes guest memory to disk, so locked-down machines turn it off.
     var allowsSuspend = true
     /// Shut the machine down after this many minutes; 0 means no limit.

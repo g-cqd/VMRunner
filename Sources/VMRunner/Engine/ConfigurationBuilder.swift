@@ -105,8 +105,9 @@ enum ConfigurationBuilder {
         _ vz: VZVirtualMachineConfiguration, _ config: VMConfig, _ bundle: VMBundle, _ display: (width: Int, height: Int)
     ) throws {
         let platform = VZMacPlatformConfiguration()
+        let identifierFile = bundle.activeMachineIdentifier(ephemeral: config.ephemeral)
         guard let model = VZMacHardwareModel(dataRepresentation: try Data(contentsOf: bundle.hardwareModel)),
-            let identifier = VZMacMachineIdentifier(dataRepresentation: try Data(contentsOf: bundle.machineIdentifier))
+            let identifier = VZMacMachineIdentifier(dataRepresentation: try Data(contentsOf: identifierFile))
         else { throw SetupError.missingFile(bundle.hardwareModel.path) }
         platform.hardwareModel = model
         platform.machineIdentifier = identifier
@@ -137,7 +138,7 @@ enum ConfigurationBuilder {
         _ vz: VZVirtualMachineConfiguration, _ config: VMConfig, _ bundle: VMBundle, _ display: (width: Int, height: Int)
     ) throws {
         let platform = VZGenericPlatformConfiguration()
-        if let data = try? Data(contentsOf: bundle.machineIdentifier),
+        if let data = try? Data(contentsOf: bundle.activeMachineIdentifier(ephemeral: config.ephemeral)),
             let identifier = VZGenericMachineIdentifier(dataRepresentation: data)
         {
             platform.machineIdentifier = identifier
