@@ -1,5 +1,5 @@
 /// What the host's network stack says about VPN use.
-enum VPNState: Hashable, Sendable {
+package enum VPNState: Hashable, Sendable {
     /// A tunnel interface that looks like a real VPN is up.
     case active
     /// No such interface was seen.
@@ -9,13 +9,19 @@ enum VPNState: Hashable, Sendable {
 }
 
 /// One network interface as the classifier needs it. A plain value so classification is testable without a network.
-struct InterfaceSnapshot: Hashable, Sendable {
+package struct InterfaceSnapshot: Hashable, Sendable {
     /// BSD name, such as `en0` or `utun3`.
     var name: String
     /// Whether the interface is up and usable for traffic.
     var isUp: Bool
     /// Addresses assigned to the interface, or `nil` when the source cannot say (the host's network path monitor gives none).
     var addresses: [IPAddress]?
+
+    package init(name: String, isUp: Bool, addresses: [IPAddress]?) {
+        self.name = name
+        self.isUp = isUp
+        self.addresses = addresses
+    }
 }
 
 extension VPNState {
@@ -37,7 +43,7 @@ extension VPNState {
     ///
     /// - Limits: it cannot tell iCloud Private Relay or a developer tool's tunnel from a VPN if they present as a
     ///   routable `utun`; and "active" means a tunnel is up, not that guest traffic uses it (split tunneling).
-    static func classify(_ interfaces: [InterfaceSnapshot]) -> VPNState {
+    package static func classify(_ interfaces: [InterfaceSnapshot]) -> VPNState {
         var sawUnaddressedTunnel = false
         for interface in interfaces where interface.isUp && isTunnelName(interface.name) {
             guard let addresses = interface.addresses else { return .active }

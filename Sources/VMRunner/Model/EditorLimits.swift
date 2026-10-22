@@ -1,3 +1,5 @@
+import NetPolicy
+
 /// Ranges and steps shared by the editor controls and the help text, so the two can't disagree.
 enum EditorLimits {
     static let maxDiskGiB = 4096
@@ -17,8 +19,8 @@ enum EditorLimits {
     static let runtimeStepMinutes = 15
     /// Rules one policy list may hold. Every rule is checked on each new connection, so the list is kept human-sized.
     static let maxRulesPerList = 200
-    /// Longest rule, in the canonical text a policy stores it as. A URL prefix is the longest kind.
-    static let maxRuleLength = 2048
+    /// Longest rule, in the canonical text a policy stores it as. The policy enforces it, so it owns the value.
+    static let maxRuleLength = NetworkPolicy.maxRuleLength
     /// Characters in a short free-text field: a machine or snapshot name, the first-boot account's full name and user name, a
     /// MAC address, a guest version.
     static let maxTextLength = 255

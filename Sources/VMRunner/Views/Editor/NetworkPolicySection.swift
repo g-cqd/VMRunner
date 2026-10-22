@@ -1,3 +1,4 @@
+import NetPolicy
 import SwiftUI
 
 /// The rules of a filtered network: the policy mode, the private-range switch, and the allow and block lists.

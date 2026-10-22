@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
 
 private let example = ipv4("93.184.216.34")

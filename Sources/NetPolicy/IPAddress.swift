@@ -11,7 +11,7 @@ import Network
 /// ``HostForm`` for how they are handled.
 ///
 /// `Codable` encodes the canonical text form (`"10.0.0.1"`, `"fe80::1"`) and decoding re-validates it.
-enum IPAddress: Hashable, Sendable {
+package enum IPAddress: Hashable, Sendable {
     case v4(UInt32)
     case v6(UInt128)
 
@@ -75,7 +75,7 @@ enum IPAddress: Hashable, Sendable {
 
 extension IPAddress: CustomStringConvertible {
     /// Canonical text: dotted quad, or RFC 5952 compressed lower-case IPv6.
-    var description: String {
+    package var description: String {
         switch self {
         case .v4(let bits): [24, 16, 8, 0].map { String((bits >> $0) & 0xFF) }.joined(separator: ".")
         case .v6(let bits): Self.formatIPv6(bits)
@@ -103,7 +103,7 @@ extension IPAddress: CustomStringConvertible {
 }
 
 extension IPAddress: Codable {
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         let text = try container.decode(String.self)
         guard let address = IPAddress(strictLiteral: text) else {
@@ -112,7 +112,7 @@ extension IPAddress: Codable {
         self = address
     }
 
-    func encode(to encoder: any Encoder) throws {
+    package func encode(to encoder: any Encoder) throws {
         try StringRuleCoding.encode(description, to: encoder)
     }
 }
@@ -123,7 +123,7 @@ extension IPAddress: Codable {
 /// `Prefix.Masked`). The canonical form is what ``description`` and `Codable` produce. A bare address means
 /// `/32` or `/128`. `/0` matches every address of its family. IPv6 rules inside `::ffff:0:0/96` with a prefix of
 /// at least 96 are stored as the equivalent IPv4 rule, since evaluation treats mapped addresses as IPv4.
-struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
+package struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
     /// The first address of the block (host bits cleared).
     let network: IPAddress
     /// Number of leading bits that must match: 0...32 for IPv4, 0...128 for IPv6.
@@ -178,7 +178,7 @@ struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
         }
     }
 
-    var description: String {
+    package var description: String {
         let isHost = prefixLength == Self.width(of: network)
         return isHost ? network.description : "\(network)/\(prefixLength)"
     }
@@ -193,11 +193,11 @@ struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
     private static func mask4(_ prefix: Int) -> UInt32 { UInt32.max << (32 - prefix) }
     private static func mask6(_ prefix: Int) -> UInt128 { UInt128.max << (128 - prefix) }
 
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         self = try StringRuleCoding.decode(decoder, kind: "address rule") { try Self($0) }
     }
 
-    func encode(to encoder: any Encoder) throws {
+    package func encode(to encoder: any Encoder) throws {
         try StringRuleCoding.encode(description, to: encoder)
     }
 }
@@ -206,7 +206,7 @@ struct AddressRule: Hashable, Sendable, Codable, CustomStringConvertible {
 ///
 /// Two groups: the *floor* (see ``isFloor``), which no policy setting lifts, and the rest, which
 /// ``NetworkPolicy/blockPrivateRanges`` governs.
-enum ReservedRangeKind: String, Hashable, Sendable {
+package enum ReservedRangeKind: String, Hashable, Sendable {
     /// `169.254.169.254`, the instance-metadata endpoint of the major clouds.
     case cloudMetadata
     /// `192.168.64.0/24`: the host's side of the Virtualization.framework NAT network (gateway, DNS, host services).
@@ -234,7 +234,7 @@ enum ReservedRangeKind: String, Hashable, Sendable {
     /// network's range). They are denied whatever the policy says, because reaching them reaches the Mac itself, which
     /// no list of rules is meant to grant by accident. The other kinds are other people's networks, which
     /// ``NetworkPolicy/blockPrivateRanges`` governs.
-    var isFloor: Bool {
+    package var isFloor: Bool {
         switch self {
         case .cloudMetadata, .hostGateway, .loopback, .linkLocal, .unspecified, .benchmarking: true
         case .privateNetwork, .carrierGradeNAT, .uniqueLocal, .siteLocal, .multicast, .reserved: false
@@ -244,7 +244,7 @@ enum ReservedRangeKind: String, Hashable, Sendable {
 
 /// The built-in non-public ranges: the floor (always enforced) and the private networks `NetworkPolicy.blockPrivateRanges`
 /// governs.
-enum ReservedRanges {
+package enum ReservedRanges {
     private static func v4(_ bits: UInt32, _ prefix: Int, _ kind: ReservedRangeKind) -> (kind: ReservedRangeKind, rule: AddressRule) {
         (kind, AddressRule(network: .v4(bits), prefixLength: prefix))
     }

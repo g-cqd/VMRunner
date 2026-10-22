@@ -36,8 +36,8 @@ import Foundation
 /// allow a private network deliberately; nothing lifts the floor.
 ///
 /// The VPN requirement is not part of `evaluate`; it depends on host state over time, not on a destination.
-struct NetworkPolicy: Hashable, Sendable, Codable {
-    enum Mode: String, Hashable, Sendable, Codable, CaseIterable {
+package struct NetworkPolicy: Hashable, Sendable, Codable {
+    package enum Mode: String, Hashable, Sendable, Codable, CaseIterable {
         /// Everything is allowed except what a rule blocks.
         case denyListed
         /// Only ``NetworkPolicy/allowedDomains`` / ``NetworkPolicy/allowedAddresses`` are allowed, minus blocks.
@@ -45,7 +45,7 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
     }
 
     /// Why a destination was denied.
-    enum Reason: Hashable, Sendable {
+    package enum Reason: Hashable, Sendable {
         case malformedHost
         /// A numeric host that is not canonical dotted-quad (`2130706433`, `0x7f000001`, `0177.0.0.1`, `127.1`).
         case nonCanonicalAddress
@@ -86,29 +86,32 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
         let pathRulesApplied: Bool
     }
 
+    /// Longest rule, in the canonical text a policy stores it as. A URL prefix is the longest kind.
+    package static let maxRuleLength = 2048
+
     /// Block the private networks: RFC 1918, carrier-grade NAT (`100.64.0.0/10`), unique-local IPv6, multicast and the
     /// reserved blocks. On by default. It does not govern the *floor* (loopback, `0.0.0.0`, link-local and cloud
     /// metadata, the NAT gateway `192.168.64.0/24`, `198.18.0.0/15`): those are denied whatever this says.
-    var blockPrivateRanges = true
+    package var blockPrivateRanges = true
     var blockedAddresses: [AddressRule] = []
-    var blockedDomains: [DomainRule] = []
+    package var blockedDomains: [DomainRule] = []
     /// Enforced for http only; see the type documentation.
     var blockedURLPrefixes: [URLRule] = []
     var blockedPorts: [PortRule] = []
     /// A destination plus ports, denied: `ssh to this block` without blocking the block entirely.
-    var blockedConnections: [ConnectionRule] = []
-    var mode = Mode.denyListed
-    var allowedDomains: [DomainRule] = []
-    var allowedAddresses: [AddressRule] = []
+    package var blockedConnections: [ConnectionRule] = []
+    package var mode = Mode.denyListed
+    package var allowedDomains: [DomainRule] = []
+    package var allowedAddresses: [AddressRule] = []
     /// In allow-list mode, when not empty, an allowed destination must also use one of these ports.
     var allowedPorts: [PortRule] = []
     /// In allow-list mode, a destination plus ports that is allowed on its own: "only HTTPS to GitHub".
-    var allowedConnections: [ConnectionRule] = []
+    package var allowedConnections: [ConnectionRule] = []
     /// In allow-list mode, when not empty, an http URL must also start with one of these (https paths are invisible).
     var allowedURLPrefixes: [URLRule] = []
     var vpn = VPNRequirement.ignore
 
-    init() {}
+    package init() {}
 
     private enum CodingKeys: String, CodingKey {
         case blockPrivateRanges, blockedAddresses, blockedDomains, blockedURLPrefixes, blockedPorts, blockedConnections
@@ -116,7 +119,7 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
     }
 
     /// Missing keys take their defaults, so policies saved by older versions keep decoding.
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         blockPrivateRanges = try container.decodeIfPresent(Bool.self, forKey: .blockPrivateRanges) ?? true
         blockedAddresses = try container.decodeIfPresent([AddressRule].self, forKey: .blockedAddresses) ?? []

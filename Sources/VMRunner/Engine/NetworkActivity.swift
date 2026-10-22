@@ -1,5 +1,6 @@
 import AsyncAlgorithms
 import Foundation
+import NetPolicy
 import Observation
 
 /// The live side of one run of a filtered network: a bounded log of recent connections, the guest and host VPN signals,

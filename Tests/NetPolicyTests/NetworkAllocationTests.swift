@@ -2,7 +2,7 @@ import Foundation
 import TestKit
 import Testing
 
-@testable import VMRunner
+@testable import NetPolicy
 
 /// The rule set and the decisions whose allocations are guarded here and recorded by the benchmarks.
 enum PolicyAllocationFixture {

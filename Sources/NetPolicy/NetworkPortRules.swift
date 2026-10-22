@@ -4,14 +4,14 @@ import Foundation
 ///
 /// An integer literal is a single port, so `policy.blockedPorts = [22, 23]` reads naturally. Port 0 is never valid
 /// traffic and is rejected when parsing text. `Codable` encodes the canonical text.
-struct PortRule: Hashable, Sendable, Codable, CustomStringConvertible, ExpressibleByIntegerLiteral {
+package struct PortRule: Hashable, Sendable, Codable, CustomStringConvertible, ExpressibleByIntegerLiteral {
     let range: ClosedRange<UInt16>
 
     init(_ port: UInt16) {
         range = port...port
     }
 
-    init(integerLiteral value: UInt16) {
+    package init(integerLiteral value: UInt16) {
         self.init(value)
     }
 
@@ -38,12 +38,12 @@ struct PortRule: Hashable, Sendable, Codable, CustomStringConvertible, Expressib
 
     func contains(_ port: UInt16) -> Bool { range.contains(port) }
 
-    var description: String {
+    package var description: String {
         range.lowerBound == range.upperBound ? "\(range.lowerBound)" : "\(range.lowerBound)-\(range.upperBound)"
     }
 
     /// Accepts the canonical text, and a bare JSON number for a single port (how policies were saved before ranges).
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         if let number = try? decoder.singleValueContainer().decode(UInt16.self) {
             self.init(number)
             return
@@ -51,7 +51,7 @@ struct PortRule: Hashable, Sendable, Codable, CustomStringConvertible, Expressib
         self = try StringRuleCoding.decode(decoder, kind: "port rule") { try Self($0) }
     }
 
-    func encode(to encoder: any Encoder) throws {
+    package func encode(to encoder: any Encoder) throws {
         try StringRuleCoding.encode(description, to: encoder)
     }
 }
@@ -63,13 +63,13 @@ struct PortRule: Hashable, Sendable, Codable, CustomStringConvertible, Expressib
 /// "SSH to this block" without blocking the block entirely. An IPv6 target with ports must be bracketed; a bare IPv6
 /// target (more than one colon, no brackets) applies to every port. Domain targets follow ``DomainRule`` (`evil.com`
 /// is the exact name, `*.evil.com` its subdomains), address targets follow ``AddressRule``.
-struct ConnectionRule: Hashable, Sendable, Codable, CustomStringConvertible {
-    enum Target: Hashable, Sendable {
+package struct ConnectionRule: Hashable, Sendable, Codable, CustomStringConvertible {
+    package enum Target: Hashable, Sendable {
         case name(DomainRule)
         case address(AddressRule)
     }
 
-    let target: Target
+    package let target: Target
     /// Empty means every port.
     let ports: [PortRule]
 
@@ -143,7 +143,7 @@ struct ConnectionRule: Hashable, Sendable, Codable, CustomStringConvertible {
         return rule.matches(name)
     }
 
-    var description: String {
+    package var description: String {
         var text: String
         switch target {
         case .name(let rule): text = rule.description
@@ -154,11 +154,11 @@ struct ConnectionRule: Hashable, Sendable, Codable, CustomStringConvertible {
         return text
     }
 
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         self = try StringRuleCoding.decode(decoder, kind: "connection rule") { try Self($0) }
     }
 
-    func encode(to encoder: any Encoder) throws {
+    package func encode(to encoder: any Encoder) throws {
         try StringRuleCoding.encode(description, to: encoder)
     }
 }

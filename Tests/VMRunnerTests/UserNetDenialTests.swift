@@ -3,6 +3,7 @@ import Synchronization
 import TestKit
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
 
 private func endpoint(_ transport: FlowTransport = .udp, _ port: UInt16 = 9_999, name: String? = nil) -> DenialSuppression.Endpoint {

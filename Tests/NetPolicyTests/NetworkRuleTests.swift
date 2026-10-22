@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import VMRunner
+@testable import NetPolicy
 
 struct AddressRuleTests {
     @Test(arguments: [

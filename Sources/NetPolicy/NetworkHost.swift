@@ -1,7 +1,7 @@
 import Foundation
 
 /// Why a user-written rule (address, domain, or URL prefix) was rejected. Each case carries the offending text.
-enum NetworkPolicyError: Error, Hashable, Sendable {
+package enum NetworkPolicyError: Error, Hashable, Sendable {
     case empty
     case invalidAddress(String)
     case invalidPrefixLength(String)
@@ -17,7 +17,7 @@ enum NetworkPolicyError: Error, Hashable, Sendable {
     case invalidPort(String)
     /// A connection rule with broken brackets or an empty port list.
     case invalidConnection(String)
-    /// The rule, as stored, is longer than `EditorLimits.maxRuleLength`.
+    /// The rule, as stored, is longer than `NetworkPolicy.maxRuleLength`.
     case ruleTooLong
 }
 
@@ -35,7 +35,7 @@ extension NetworkPolicyError: LocalizedError {
         case .unsupportedURLComponent(let component): "A URL rule cannot contain \(component)."
         case .invalidPort(let text): "\"\(text)\" is not a port (1-65535) or a range like 8000-8100."
         case .invalidConnection(let text): "\"\(text)\" is not a valid connection rule like example.com:443 or [2001:db8::/32]:443."
-        case .ruleTooLong: "A rule can be at most \(EditorLimits.maxRuleLength) characters."
+        case .ruleTooLong: "A rule can be at most \(NetworkPolicy.maxRuleLength) characters."
         }
     }
 }
@@ -50,7 +50,7 @@ extension NetworkPolicyError: LocalizedError {
 /// - Names are ASCII only (`xn--` for IDNs): lower-cased, one trailing dot removed, no empty labels, labels of
 ///   1...63 characters from `a-z 0-9 - _`, no leading or trailing hyphen, 253 characters at most. Anything else,
 ///   including `%` escapes and full-width look-alikes, is malformed.
-enum HostForm: Hashable, Sendable {
+package enum HostForm: Hashable, Sendable {
     case address(IPAddress)
     /// Lower-case, no trailing dot.
     case name(String)
@@ -105,7 +105,7 @@ enum HostForm: Hashable, Sendable {
 }
 
 /// Percent-decoding that undoes layered encoding, so `%2561` cannot hide an `a`.
-enum PercentDecoding {
+package enum PercentDecoding {
     /// Decodes `%HH` escapes repeatedly until the text stops changing. Invalid escapes (`%zz`, a trailing `%`)
     /// are left as they are; invalid UTF-8 produced by decoding becomes U+FFFD.
     ///
@@ -158,7 +158,7 @@ enum PercentDecoding {
 /// segment (`/admin;x=1`); trailing dots and spaces are trimmed from a segment (`/admin.` on Windows servers);
 /// and everything is lower-cased (some servers are case-insensitive). The cost is occasionally blocking a path a
 /// case-sensitive server would treat as different.
-enum URLPath {
+package enum URLPath {
     /// - Returns: the normalized segments, or `nil` when the path contains control characters (including `%00`),
     ///   or never stops decoding. Callers treat `nil` as malformed.
     static func normalizedSegments(_ percentEncodedPath: String) -> [String]? {

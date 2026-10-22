@@ -1,11 +1,11 @@
-import Foundation
+package import Foundation
 
 /// IP-to-name memory of what the DNS proxy told the guest, so a later connection to a bare address can be judged
 /// by the names that led the guest there.
 ///
 /// Bounded: at most `capacity` addresses and `namesPerAddress` names each; expired entries go first, then the
 /// entry that expires soonest. An address that several names share (a CDN) keeps all of them.
-struct NameTable {
+package struct NameTable {
     private struct Entry {
         var name: String
         var expires: TimeInterval
@@ -23,7 +23,7 @@ struct NameTable {
     var count: Int { entries.count }
 
     /// Remembers that `name` resolved to `address` for `ttl` seconds.
-    mutating func record(name: String, address: UInt32, ttl: TimeInterval, now: TimeInterval) {
+    package mutating func record(name: String, address: UInt32, ttl: TimeInterval, now: TimeInterval) {
         if entries[address] == nil, entries.count >= capacity { evict(now: now) }
         var list = (entries[address] ?? []).filter { $0.expires > now && $0.name != name }
         list.append(Entry(name: name, expires: now + ttl))
@@ -36,7 +36,7 @@ struct NameTable {
         (entries[address] ?? []).filter { $0.expires > now }.map(\.name)
     }
 
-    mutating func prune(now: TimeInterval) {
+    package mutating func prune(now: TimeInterval) {
         entries = entries.filter { $0.value.contains { $0.expires > now } }
     }
 
@@ -51,7 +51,7 @@ struct NameTable {
 }
 
 /// The verdict on one connection attempt.
-enum GateVerdict: Hashable, Sendable {
+package enum GateVerdict: Hashable, Sendable {
     /// Allowed; `name` is the DNS name the guest was given for this address, if any.
     case allow(name: String?)
     case deny(NetworkPolicy.Reason, name: String?)
@@ -71,13 +71,13 @@ enum GateVerdict: Hashable, Sendable {
 /// Names are advisory (a guest can connect to an address it learned elsewhere, and a shared address inherits every
 /// name that pointed at it), addresses are authoritative: the host connection is always made to the very address
 /// that was judged.
-struct PolicyGate {
-    var policy: NetworkPolicy
-    var names = NameTable()
+package struct PolicyGate {
+    package var policy: NetworkPolicy
+    package var names = NameTable()
     /// Floor ranges not enforced; always empty outside the integration tests (see `UserNetConfig.exemptedFloorKinds`).
     let floorExemptions: Set<ReservedRangeKind>
 
-    init(policy: NetworkPolicy, floorExemptions: Set<ReservedRangeKind> = []) {
+    package init(policy: NetworkPolicy, floorExemptions: Set<ReservedRangeKind> = []) {
         self.policy = policy
         self.floorExemptions = floorExemptions
     }
@@ -87,7 +87,7 @@ struct PolicyGate {
     }
 
     /// Judges a connection to `address:port`. Allocates (strings and arrays): called once per new flow, never per packet.
-    func judge(address: UInt32, port: UInt16, now: TimeInterval) -> GateVerdict {
+    package func judge(address: UInt32, port: UInt16, now: TimeInterval) -> GateVerdict {
         let ip = IPAddress.v4(address)
         let literal = evaluate(ip.description, port: port, resolvedAddresses: [])
         let known = names.names(for: address, now: now)
@@ -112,7 +112,7 @@ struct PolicyGate {
     }
 
     /// Judges an ICMP echo: like a connection with no port, so a port allow-list does not apply.
-    func judgeEcho(address: UInt32, now: TimeInterval) -> GateVerdict {
+    package func judgeEcho(address: UInt32, now: TimeInterval) -> GateVerdict {
         let verdict = judge(address: address, port: 0, now: now)
         if case .deny(.portNotAllowListed, let name) = verdict { return .allow(name: name) }
         return verdict
@@ -125,7 +125,7 @@ struct PolicyGate {
     /// - the name is `.local` or `.arpa`, other than the reverse lookup of an IPv4 address (`d.c.b.a.in-addr.arpa`), which is
     ///   judged as that address, as for a ping;
     /// - in allow-list mode, no allowed domain or connection rule names it.
-    func resolutionDenial(for name: String, now: TimeInterval) -> NetworkPolicy.Reason? {
+    package func resolutionDenial(for name: String, now: TimeInterval) -> NetworkPolicy.Reason? {
         if let reason = nameBlock(for: name) { return reason }
         guard let form = try? HostForm(parsing: name), case .name(let normalized) = form else { return nil }
         if let address = Self.reversedAddress(normalized) {
@@ -140,7 +140,7 @@ struct PolicyGate {
     /// A refusal of `address` as an answer for `name` that holds on every port: a built-in range, a blocked address or
     /// a connection rule that blocks all ports. What depends on the port or on the allow-list is left to the
     /// connection, which is judged when the guest makes it.
-    func addressBlock(_ address: UInt32, for name: String) -> NetworkPolicy.Reason? {
+    package func addressBlock(_ address: UInt32, for name: String) -> NetworkPolicy.Reason? {
         guard case .deny(let reason) = evaluate(name, port: 0, resolvedAddresses: [.v4(address)]), Self.isBlock(reason)
         else { return nil }
         return reason
@@ -173,7 +173,7 @@ struct PolicyGate {
     /// The definite refusals of a name: a blocked domain, or a connection rule that blocks the name on every port.
     /// Alone, it is what the names on a CNAME chain are held to (an allow-list does not apply to a CDN's name);
     /// everything else is decided per connection.
-    func nameBlock(for name: String) -> NetworkPolicy.Reason? {
+    package func nameBlock(for name: String) -> NetworkPolicy.Reason? {
         guard let form = try? HostForm(parsing: name) else { return .malformedHost }
         guard case .name(let normalized) = form else { return nil }
         if let rule = policy.blockedDomains.first(where: { $0.matches(normalized) }) { return .blockedDomain(rule) }

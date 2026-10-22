@@ -1,6 +1,6 @@
 /// Whether the host's VPN state must (or must not) be present for a guest to have network access.
 /// The decision itself is ``VPNRequirement/allowsNetwork(vpn:)``, below.
-enum VPNRequirement: String, Hashable, Sendable, Codable, CaseIterable {
+package enum VPNRequirement: String, Hashable, Sendable, Codable, CaseIterable {
     case ignore, required, forbidden
 }
 

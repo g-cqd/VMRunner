@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
 
 private let loopback = ipv4("127.0.0.1")

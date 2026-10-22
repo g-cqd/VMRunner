@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// `config.json` is data from disk, which a copied or downloaded bundle controls, so it is checked where it enters the app
 /// and rejected, never clamped: a value that is out of range means the file is not one this app wrote.

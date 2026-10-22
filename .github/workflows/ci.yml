@@ -61,7 +61,7 @@ jobs:
             while IFS= read -r file; do
               [ -z "$file" ] && continue
               if ! [[ "$file" =~ ^(docs/|LICENSE$|\.github/(ISSUE_TEMPLATE/|CODEOWNERS$|PULL_REQUEST_TEMPLATE\.md$))|\.md$ ]]; then code=true; fi
-              if [[ "$file" =~ ^(Sources/VMRunner/(Network|Engine)/|Sources/(TestKit|CTestKitMalloc)/|Package\.(swift|resolved)$) ]]; then risky=true; fi
+              if [[ "$file" =~ ^(Sources/VMRunner/(Network|Engine)/|Sources/NetPolicy/|Sources/(TestKit|CTestKitMalloc)/|Package\.(swift|resolved)$) ]]; then risky=true; fi
             done <<<"$files"
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"

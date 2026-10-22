@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// What the detector sees of one packet crossing the user-mode network stack.
 ///

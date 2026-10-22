@@ -145,8 +145,9 @@ library and its copies on the same APFS volume (it is, by default: `~/Library/Ap
 ## Layout
 
 ```
+Sources/NetPolicy   the network policy: rules, host and IP parsing, the gate that judges a connection (system frameworks only)
 Sources/VMRunner
-  Model/    VMConfig (Codable settings), NetworkPolicy and its rules, Security (profiles, exposure summary), APFS (clone, snapshots),
+  Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
             Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)
   Engine/   ConfigurationBuilder (VMConfig -> VZVirtualMachineConfiguration), Provisioner (media + install),
             VMController (run/pause/suspend/restore, runtime limit), NetworkActivity (filtered-network log and VPN signals), Downloads, Catalogs (ipsw.me and the Linux vendors)

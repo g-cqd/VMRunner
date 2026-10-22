@@ -1,7 +1,7 @@
 import Foundation
 
 /// One of the rule lists a person can edit. The editor builds its sections from this, so adding a list is one case.
-enum PolicyList: String, CaseIterable, Identifiable, Sendable {
+package enum PolicyList: String, CaseIterable, Identifiable, Sendable {
     case allowedDomains, allowedAddresses, allowedPorts, allowedConnections, allowedURLPrefixes
     case blockedDomains, blockedAddresses, blockedPorts, blockedConnections, blockedURLPrefixes
 
@@ -9,10 +9,10 @@ enum PolicyList: String, CaseIterable, Identifiable, Sendable {
         case domain, address, port, connection, urlPrefix
     }
 
-    var id: Self { self }
+    package var id: Self { self }
 
-    static let allowLists = allCases.filter(\.isAllow)
-    static let blockLists = allCases.filter { !$0.isAllow }
+    package static let allowLists = allCases.filter(\.isAllow)
+    package static let blockLists = allCases.filter { !$0.isAllow }
 
     var isAllow: Bool {
         switch self {
@@ -31,7 +31,7 @@ enum PolicyList: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var title: String {
+    package var title: String {
         switch kind {
         case .domain: "Domains"
         case .address: "IP addresses"
@@ -42,7 +42,7 @@ enum PolicyList: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// A placeholder showing the syntax.
-    var example: String {
+    package var example: String {
         switch kind {
         case .domain: "example.com or *.example.com"
         case .address: "203.0.113.7 or 203.0.113.0/24"
@@ -53,7 +53,7 @@ enum PolicyList: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// What the list does, for a tooltip.
-    var tooltip: String {
+    package var tooltip: String {
         let verb = isAllow ? "allowed" : "blocked"
         switch kind {
         case .domain:
@@ -72,7 +72,7 @@ enum PolicyList: String, CaseIterable, Identifiable, Sendable {
 
 extension NetworkPolicy {
     /// The rules of one list in their canonical text form, in the order they are checked.
-    func rules(in list: PolicyList) -> [String] {
+    package func rules(in list: PolicyList) -> [String] {
         switch list {
         case .allowedDomains: allowedDomains.map(\.description)
         case .allowedAddresses: allowedAddresses.map(\.description)
@@ -91,10 +91,10 @@ extension NetworkPolicy {
     ///
     /// - Throws: the engine's own parse error (``NetworkPolicyError``), or ``NetworkPolicyError/ruleTooLong`` when the rule
     ///   as stored is longer than a stored configuration may hold; the policy is unchanged then.
-    mutating func add(_ text: String, to list: PolicyList) throws(NetworkPolicyError) {
+    package mutating func add(_ text: String, to list: PolicyList) throws(NetworkPolicyError) {
         var updated = self
         try updated.insertRule(text, to: list)
-        guard updated.rules(in: list).allSatisfy({ $0.utf8.count <= EditorLimits.maxRuleLength }) else { throw .ruleTooLong }
+        guard updated.rules(in: list).allSatisfy({ $0.utf8.count <= Self.maxRuleLength }) else { throw .ruleTooLong }
         self = updated
     }
 
@@ -114,7 +114,7 @@ extension NetworkPolicy {
     }
 
     /// Removes the rule at `index`; an index out of range is ignored.
-    mutating func remove(at index: Int, from list: PolicyList) {
+    package mutating func remove(at index: Int, from list: PolicyList) {
         switch list {
         case .allowedDomains: Self.remove(at: index, from: &allowedDomains)
         case .allowedAddresses: Self.remove(at: index, from: &allowedAddresses)
@@ -130,7 +130,7 @@ extension NetworkPolicy {
     }
 
     /// Why `text` is not a valid rule for `list`, or `nil` if it is.
-    static func problem(with text: String, for list: PolicyList) -> NetworkPolicyError? {
+    package static func problem(with text: String, for list: PolicyList) -> NetworkPolicyError? {
         var probe = NetworkPolicy()
         do {
             try probe.add(text, to: list)

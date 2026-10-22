@@ -1,3 +1,5 @@
+import NetPolicy
+
 /// IPv4 dispatch and ICMP.
 extension UserNetCore {
     func handleIPv4(_ payload: ByteView) {

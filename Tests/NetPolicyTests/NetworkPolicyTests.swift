@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import VMRunner
+@testable import NetPolicy
 
 func address(_ text: String) throws -> IPAddress {
     try #require(IPAddress(strictLiteral: text), "test address \(text) must parse")
@@ -200,7 +200,6 @@ struct AddressJudgementTests {
         #expect(open.evaluate(host: "svc.example", port: 80, resolvedAddresses: loopback, exempting: [.loopback]) == .allow)
         #expect(!open.evaluate(host: "svc.example", port: 80, resolvedAddresses: loopback, exempting: [.linkLocal]).isAllowed)
         #expect(!open.evaluate(host: "svc.example", port: 80, resolvedAddresses: loopback).isAllowed)
-        #expect(UserNetConfig().exemptedFloorKinds.isEmpty, "the app never exempts anything")
     }
 
     /// DNS rebinding: the name is fine, one of the addresses behind it is not. Every address must pass.

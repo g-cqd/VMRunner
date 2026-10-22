@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
 
 private func start(_ configure: (inout UserNetConfig) -> Void = { _ in }) -> CoreRig {

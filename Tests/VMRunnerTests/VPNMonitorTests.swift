@@ -3,7 +3,12 @@ import Observation
 import TestKit
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
+
+private func address(_ text: String) throws -> IPAddress {
+    try #require(IPAddress(strictLiteral: text), "test address \(text) must parse")
+}
 
 private func interface(_ name: String, up: Bool = true, _ addresses: String...) throws -> InterfaceSnapshot {
     InterfaceSnapshot(name: name, isUp: up, addresses: try addresses.map(address))

@@ -2,7 +2,7 @@ import Foundation
 import TestKit
 import Testing
 
-@testable import VMRunner
+@testable import NetPolicy
 
 /// A fixed rule set and a fixed mix of decisions: the allow-list mode, which has the most rules to walk.
 private enum DecisionWorkload {
@@ -72,8 +72,8 @@ struct NetworkPolicyBenchmarks {
     }
 }
 
-/// The heap allocations of the paths the allocation guards cover, recorded as they are in this build (the guards assert
-/// ceilings in a debug build; the benchmarks run optimized).
+/// The heap allocations of the policy's decisions, recorded as they are in this build (the guards assert ceilings in a
+/// debug build; the benchmarks run optimized).
 @Suite(.serialized, .tags(.bench), .benchmarksRequested, .enabled(if: allocationCountingAvailable, "needs the malloc_logger hook"))
 struct AllocationBenchmarks {
     private func record(_ name: String, _ count: Int) {
@@ -92,14 +92,5 @@ struct AllocationBenchmarks {
         let decide = { _ = policy.evaluate(url: url, resolvedAddresses: resolved) }
         decide()
         record("policy.url", (0..<5).compactMap { _ in mallocDelta(decide) }.min() ?? -1)
-    }
-
-    @Test func userNetStackPaths() throws {
-        record("usernet.arpDHCPAndGatewayPing", UserNetAllocationScenarios.arpDHCPAndGatewayPing().allocations)
-        record("usernet.guestToHostTCPData", UserNetAllocationScenarios.guestToHostTCPData().allocations)
-        record("usernet.hostToGuestTCPData", UserNetAllocationScenarios.hostToGuestTCPData().allocations)
-        record("usernet.udpRoundTrips", UserNetAllocationScenarios.udpRoundTrips().allocations)
-        record("usernet.housekeepingWithIdleFlows", UserNetAllocationScenarios.housekeepingWithIdleFlows().allocations)
-        record("usernet.realLoopUDPRoundTrips", try UserNetAllocationScenarios.realLoopUDPRoundTrips().allocations)
     }
 }

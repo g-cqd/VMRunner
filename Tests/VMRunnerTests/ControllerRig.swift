@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import TestKit
 import Testing
 import Virtualization

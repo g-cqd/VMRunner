@@ -1,4 +1,6 @@
 /// Time, policy changes, host path changes, and shutdown.
+import NetPolicy
+
 extension UserNetCore {
     /// Periodic housekeeping: timeouts, retransmission, delayed acknowledgements. Call a few times per second.
     func tick() {

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
 
 struct NetworkConfigTests {
@@ -237,7 +238,7 @@ struct FlowLogTests {
 
     @Test func everyDenialExplainsItself() throws {
         let rule = try AddressRule("10.0.0.0/8")
-        let ip = try address("10.1.1.1")
+        let ip = try #require(IPAddress(strictLiteral: "10.1.1.1"), "test address 10.1.1.1 must parse")
         let reasons: [NetworkPolicy.Reason] = [
             .malformedHost, .nonCanonicalAddress, .malformedURL, .unsupportedScheme("ftp"), .blockedPort(22),
             .blockedConnection(try ConnectionRule("a.com:22")), .portNotAllowListed(25), .urlNotAllowListed,

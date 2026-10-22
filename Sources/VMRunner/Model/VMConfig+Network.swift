@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 extension DenyAction {
     var label: String {

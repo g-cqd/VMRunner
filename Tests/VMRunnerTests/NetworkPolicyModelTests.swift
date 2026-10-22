@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Testing
 
 @testable import VMRunner

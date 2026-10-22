@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// Turns flow events into log lines, at most one per destination and reason per ``interval``.
 ///

@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// What the stack does with a TCP connection attempt the policy denies.
 enum DenyAction: String, Sendable, Hashable, Codable, CaseIterable, Identifiable {

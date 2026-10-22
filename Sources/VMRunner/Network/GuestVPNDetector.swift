@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// Passive, heuristic detection of a VPN or tunnel running inside the guest, from the packets the user-mode stack
 /// forwards. Pure and deterministic: time is passed in (monotonic seconds), nothing is read from the system.

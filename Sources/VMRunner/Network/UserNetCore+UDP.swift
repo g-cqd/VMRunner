@@ -1,3 +1,5 @@
+import NetPolicy
+
 /// UDP: DHCP, DNS interception, and NATed datagram flows.
 extension UserNetCore {
     func handleUDP(_ header: IPv4Header) {

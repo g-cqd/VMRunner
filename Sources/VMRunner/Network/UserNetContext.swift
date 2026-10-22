@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// The shared environment of the core's state machines: configuration, the host, counters, buffers, and the only
 /// code that builds frames for the guest.

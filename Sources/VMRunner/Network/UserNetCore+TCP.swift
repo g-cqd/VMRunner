@@ -1,3 +1,5 @@
+import NetPolicy
+
 /// TCP: new connections, existing flows, and the host-side events that drive them.
 extension UserNetCore {
     func handleTCP(_ header: IPv4Header) {

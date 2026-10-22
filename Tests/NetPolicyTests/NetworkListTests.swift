@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import VMRunner
+@testable import NetPolicy
 
 struct PortRuleTests {
     @Test(arguments: [("22", 22...22), ("8000-8100", 8000...8100), (" 443 ", 443...443), ("1-65535", 1...65535)])

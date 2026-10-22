@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Testing
 
 @testable import VMRunner
@@ -12,6 +13,10 @@ struct UserNetFloorTests {
     ]
 
     private static let privateNetworks = ["10.1.2.3", "172.16.5.5", "192.168.1.9", "100.64.0.1"]
+
+    @Test func theAppNeverExemptsAnything() {
+        #expect(UserNetConfig().exemptedFloorKinds.isEmpty, "only the integration tests lift a floor range")
+    }
 
     private func start() -> CoreRig {
         let rig = CoreRig(policy: CoreRig.openPolicy)

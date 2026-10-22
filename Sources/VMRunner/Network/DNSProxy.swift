@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// How a DNS answer travels back to the guest.
 enum DNSReplyRoute: Hashable {

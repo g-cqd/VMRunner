@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Observation
 
 /// State and actions behind the rule lists of the network policy editor. The simple fields (mode, private ranges, deny

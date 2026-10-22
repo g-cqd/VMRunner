@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Synchronization
 
 /// State the loop thread publishes for readers on other threads.

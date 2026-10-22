@@ -35,9 +35,17 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "VMRunner",
-            dependencies: [.product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
+            dependencies: ["NetPolicy", .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
             path: "Sources/VMRunner", swiftSettings: hardening),
-        .testTarget(name: "VMRunnerTests", dependencies: ["VMRunner", "TestKit"], path: "Tests/VMRunnerTests", swiftSettings: hardening),
+        .testTarget(
+            name: "VMRunnerTests", dependencies: ["VMRunner", "NetPolicy", "TestKit"], path: "Tests/VMRunnerTests",
+            swiftSettings: hardening),
+
+        // The network policy (rules, host and IP parsing, the gate): system frameworks only, no app type. The app, the
+        // user-mode stack and their tests share it through `package` access; nothing outside this package links it.
+        .target(name: "NetPolicy", path: "Sources/NetPolicy", swiftSettings: hardening),
+        .testTarget(
+            name: "NetPolicyTests", dependencies: ["NetPolicy", "TestKit"], path: "Tests/NetPolicyTests", swiftSettings: hardening),
 
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
         // engine chosen by `vmr sandbox`. It links the system frameworks and VMHelperCore only, never the app.

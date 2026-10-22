@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// The user-mode network: everything between the guest's Ethernet frames and abstract host I/O, as a synchronous
 /// state machine with no threads, sockets, or timers of its own.

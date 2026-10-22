@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// Resolves names for the DNS proxy using the host's own resolution machinery.
 ///

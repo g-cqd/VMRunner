@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Testing
 
+@testable import NetPolicy
 @testable import VMRunner
 
 /// The length and count bounds of a stored configuration: one past each is refused where the file is read, one at each loads,

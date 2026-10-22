@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 enum GuestOS: String, Codable, CaseIterable, Identifiable, Sendable {
     case macOS, linux

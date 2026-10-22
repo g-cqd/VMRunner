@@ -12,7 +12,7 @@ import Foundation
 ///
 /// A name rule judges the name the client *asked for*. It cannot see through a CNAME or a different name for the same
 /// server; pair it with address rules when that matters. `Codable` encodes the rule text and re-validates on decode.
-struct DomainRule: Hashable, Sendable, Codable, CustomStringConvertible {
+package struct DomainRule: Hashable, Sendable, Codable, CustomStringConvertible {
     enum Scope: Hashable, Sendable {
         /// Only the named host.
         case exact
@@ -42,22 +42,22 @@ struct DomainRule: Hashable, Sendable, Codable, CustomStringConvertible {
     }
 
     /// Whether the rule covers `hostName`, which must already be normalized (see ``HostForm``).
-    func matches(_ hostName: String) -> Bool {
+    package func matches(_ hostName: String) -> Bool {
         switch scope {
         case .exact: hostName == name
         case .subdomains: hostName.hasSuffix("." + name)
         }
     }
 
-    var description: String {
+    package var description: String {
         scope == .subdomains ? "*." + name : name
     }
 
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         self = try StringRuleCoding.decode(decoder, kind: "domain rule") { try Self($0) }
     }
 
-    func encode(to encoder: any Encoder) throws {
+    package func encode(to encoder: any Encoder) throws {
         try StringRuleCoding.encode(description, to: encoder)
     }
 }
@@ -74,7 +74,7 @@ struct DomainRule: Hashable, Sendable, Codable, CustomStringConvertible {
 /// and the normalized path (see ``URLPath``) must start with the rule's path **on segment boundaries**, so `/admin`
 /// covers `/admin`, `/admin/x`, and `/ADMIN/../admin;v=1`, but not `/administrator`. No path means the whole host.
 /// Credentials, query strings, and fragments are rejected in rules. `Codable` encodes the canonical text.
-struct URLRule: Hashable, Sendable, Codable, CustomStringConvertible {
+package struct URLRule: Hashable, Sendable, Codable, CustomStringConvertible {
     enum Host: Hashable, Sendable {
         case name(DomainRule)
         case address(IPAddress)
@@ -161,7 +161,7 @@ struct URLRule: Hashable, Sendable, Codable, CustomStringConvertible {
         }
     }
 
-    var description: String {
+    package var description: String {
         var text = "http://"
         switch host {
         case .name(let rule): text += rule.description
@@ -172,11 +172,11 @@ struct URLRule: Hashable, Sendable, Codable, CustomStringConvertible {
         return text + "/" + pathSegments.map(URLPath.encode).joined(separator: "/")
     }
 
-    init(from decoder: any Decoder) throws {
+    package init(from decoder: any Decoder) throws {
         self = try StringRuleCoding.decode(decoder, kind: "URL rule") { try Self($0) }
     }
 
-    func encode(to encoder: any Encoder) throws {
+    package func encode(to encoder: any Encoder) throws {
         try StringRuleCoding.encode(description, to: encoder)
     }
 }

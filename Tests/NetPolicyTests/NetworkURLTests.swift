@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import VMRunner
+@testable import NetPolicy
 
 struct NetworkURLTests {
     private func url(_ text: String) throws -> URL {

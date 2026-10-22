@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// One-tap starting points for how much of the host a guest can reach. Each profile only sets what it
 /// defines; per-device switches stay editable afterwards.

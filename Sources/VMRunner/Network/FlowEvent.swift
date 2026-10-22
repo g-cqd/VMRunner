@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// The kind of traffic a ``FlowEvent`` is about.
 enum FlowTransport: String, Sendable, Hashable {

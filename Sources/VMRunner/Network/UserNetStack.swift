@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Synchronization
 
 // DESIGN NOTE: the user-mode network stack
