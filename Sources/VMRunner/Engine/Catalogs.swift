@@ -153,14 +153,14 @@ enum LinuxCatalog {
         LinuxImage(
             id: "almalinux-10-boot", name: "AlmaLinux 10", medium: "boot ISO", install: "network install",
             approximateSize: "~1.1 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
-            trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message "
-                + "that the app does not check.",
+            trustNotes: "Published by the AlmaLinux OS Foundation. The CHECKSUM file must be an inline OpenPGP clear-signed message "
+                + "made by the AlmaLinux 10 key built into the app, or the download is refused; releases older than 10.2 are refused.",
             provider: .almaLinux(release: 10, flavor: "boot")),
         LinuxImage(
             id: "almalinux-10-minimal", name: "AlmaLinux 10", medium: "minimal ISO", install: "offline install",
             approximateSize: "~1.7 GB", maximumBytes: 6 << 30, supportsSecureBoot: true,
-            trustNotes: "Published by the AlmaLinux OS Foundation; the CHECKSUM file is an inline OpenPGP clear-signed message "
-                + "that the app does not check.",
+            trustNotes: "Published by the AlmaLinux OS Foundation. The CHECKSUM file must be an inline OpenPGP clear-signed message "
+                + "made by the AlmaLinux 10 key built into the app, or the download is refused; releases older than 10.2 are refused.",
             provider: .almaLinux(release: 10, flavor: "minimal")),
         LinuxImage(
             id: "rocky-10-boot", name: "Rocky Linux 10", medium: "boot ISO", install: "network install",

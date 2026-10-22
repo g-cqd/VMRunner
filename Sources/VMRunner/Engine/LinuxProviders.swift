@@ -379,11 +379,18 @@ extension LinuxProvider {
         checksum: .sibling(suffix: "sha256"), format: .gnu,
         trust: SignedImageTrust(suffix: "asc", keys: [PGP.PinnedKeys.alpineCopa]), minimumVersion: "3.24.2")
 
+    /// The release of each AlmaLinux major version when the app was last updated; a version not listed starts at itself.
+    private static let almaLinuxFloors = [10: "10.2"]
+
+    /// The CHECKSUM file lists every ISO of a major version and is a cleartext-signed message made by that version's key; a
+    /// version the app pins no key for is refused, not read without a signature.
     static func almaLinux(release: Int, flavor: String) -> Self {
         Self(
             host: "repo.almalinux.org", directoryPath: "/almalinux/\(release)/isos/aarch64/",
             iso: .newest(prefix: "AlmaLinux-", suffix: "-aarch64-\(flavor).iso"),
-            checksum: .shared(fileName: "CHECKSUM"), format: .bsd, trust: HTTPSOnlyTrust())
+            checksum: .shared(fileName: "CHECKSUM"), format: .bsd,
+            trust: SignedChecksumTrust(placement: .cleartext, keys: release == 10 ? [PGP.PinnedKeys.almaLinux10] : []),
+            series: "\(release)", minimumVersion: almaLinuxFloors[release] ?? "\(release)")
     }
 
     static func rocky(release: Int, flavor: String) -> Self {

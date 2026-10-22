@@ -108,6 +108,31 @@ extension PGP {
         }
 
         /// Every pinned key, for tests that check each constant against its fingerprint.
-        static let all = [debianCD, ubuntuCDImage, fedora44, alpineCopa]
+        static let all = [debianCD, ubuntuCDImage, fedora44, alpineCopa, almaLinux10]
+
+        /// Checked on 2026-10-22 against almalinux.org/security and the AlmaLinux 10 release notes: no expiry.
+        static let almaLinux10 = PinnedKey(
+            owner: "AlmaLinux OS 10",
+            fingerprint: "EE6DB7B98F5BF5EDD9DA0DE5DEE5C11CC2A1E572",
+            created: 1_720_707_311,
+            modulus: [
+                "af83c22503119ac95f333a2f44c7e3ddf25ae3d81ac1ce5a06f2b8bce0e469f6",
+                "8f288eaee5ca42a62049477b5d5c403d8b7ff6b895c410e047376da883efce97",
+                "e8ad9e5529411009d93337e30e0f11eb749fb01baef1893e954caa941ac39d20",
+                "d868faee380ccb233dabf368a4202d630db8a966c3053c51cf238fe16b2c96c4",
+                "9de81b145ed266ed60b07d12510a9e0b7efe17e8ec92e495a91bce7c8846e544",
+                "17756b65bf755c2eabfe276a7c9a0dc815d22a2763cf4230a8e86090b524f38a",
+                "f396d0e8dc0cf01aabac77b3c4ba13a6aa29ce869d2131d5ecced0f84d5ca1c3",
+                "cda25eefcea2738039b6536587cce99f1bb660ea928a34693fa83cf0ae677c82",
+                "fdc694f5d86f0925c44ff086a1773784be79bbd3d5aa67159bf9b0bee1089840",
+                "2fc55734fdd07311493e1705bc2ac68ddc7a142ab0b8fcdaa099a433f3fe369e",
+                "9eeeda3f8138e27884072434475677cac1f3a098374d2c7719ef2c1b29f15dc8",
+                "c04a972e118ea01b1a832eb567c84a08cfac88e1a7c666dbc9b81a2ceb3e0cf9",
+                "71b7d2ebb602c91ce0f0983f7aa32b143c9b80d25bfc28c892a48774b52a69f5",
+                "69ffc070469118311987f342eed646f459a906a579fb752535d73a33733eeaf4",
+                "4642726f7c85c00a31a5e3f2a3f5abba9338d4e1d6e7c704a9d0baae20a725c4",
+                "b853ce112e3fa1c2fb9f05507b6ab790ef9b044e729eca8cd95be3f5e84d6dff",
+            ].joined(),
+            exponent: "010001")
     }
 }
