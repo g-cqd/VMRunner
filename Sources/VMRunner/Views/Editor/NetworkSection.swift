@@ -59,7 +59,7 @@ struct NetworkSection: View {
                 prompt: Text("Automatic")
             )
             .help("The guest network card's hardware address. Leave empty for an automatic one that is kept between starts.")
-            Button("Randomize") { config.macAddress = VZMACAddress.randomLocallyAdministered().string }
+            Button("Randomize") { config.macAddress = config.macVendor.makeAddress() }
                 .help("Pick a new random address. Discards a suspended state.")
             HelpButton(.macAddress)
         }

@@ -137,6 +137,8 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     // Network
     var networkMode = NetworkMode.nat
     var macAddress: String?
+    /// Whose prefix an address VMRunner makes for this machine carries. A stored address is kept as it is.
+    var macVendor = MACVendor.locallyAdministered
     /// Rules for `.filtered` networking; kept (and ignored) in the other modes so switching back loses nothing. Its VPN rule
     /// (`vpn`) is the kill switch's, and applies in every mode with a network card.
     var networkPolicy = NetworkPolicy()

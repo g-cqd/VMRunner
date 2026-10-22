@@ -71,7 +71,7 @@ final class VMController {
         var config = config
         // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable.
         if config.networkMode.hasNetworkDevice, config.macAddress.flatMap({ VZMACAddress(string: $0) }) == nil {
-            config.macAddress = VZMACAddress.randomLocallyAdministered().string
+            config.macAddress = config.macVendor.makeAddress()
             library.update(config)
         }
         // A memory snapshot is only valid for the exact disk it was taken against, and disposable or
