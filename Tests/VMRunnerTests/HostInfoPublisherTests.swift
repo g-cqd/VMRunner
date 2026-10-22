@@ -81,4 +81,17 @@ struct HostInfoPublisherTests {
         #expect(text("network", in: directory) == "status=satisfied\ninterface=ethernet\nexpensive=0\nconstrained=0\n")
         feed.finish()
     }
+
+    @Test func aLinkPlantedAtAFileNameIsNotWrittenThrough() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let target = directory.appending(path: "target")
+        try Data("secret".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(at: directory.appending(path: "battery"), withDestinationURL: target)
+        let publisher = HostInfoPublisher(
+            directory: directory, sharing: HostInfoSharing(battery: true), clock: TestClock(),
+            read: { _ in HostFacts(batteryPercent: 50) })
+        publisher.start()
+        #expect(text("target", in: directory) == "secret", "the link's target is untouched")
+    }
 }

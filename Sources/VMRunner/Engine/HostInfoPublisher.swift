@@ -79,15 +79,14 @@ final class HostInfoPublisher {
     /// Writes `data` over `file` in place: the file keeps its name and inode, and is truncated and then written with its
     /// whole content in one call. A guest reading it through the share sees the old text, the new text or, for a moment, an
     /// empty file, never a missing one: a replace by rename made the name vanish for about a second in a Linux guest, whose
-    /// virtio-fs entry cache still held the old file. A file that is not there yet is created, never through a link.
+    /// virtio-fs entry cache still held the old file. The file is opened without following a link: a link at that name
+    /// makes the write fail instead of writing through it.
     private static func overwrite(_ file: URL, with data: Data) throws {
-        guard FileManager.default.fileExists(atPath: file.path) else {
-            try data.write(to: file, options: .withoutOverwriting)
-            return
-        }
-        let handle = try FileHandle(forWritingTo: file)
+        // `open` gets a NUL-terminated copy of the path that outlives the call; O_NOFOLLOW makes it fail with ELOOP on a link.
+        let descriptor = unsafe open(file.path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0o644)
+        guard descriptor >= 0 else { throw POSIXError(POSIXError.Code(rawValue: errno) ?? .EIO) }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? handle.close() }
-        try handle.truncate(atOffset: 0)
         try handle.write(contentsOf: data)
     }
 }
