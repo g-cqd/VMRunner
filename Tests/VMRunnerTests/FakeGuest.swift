@@ -24,12 +24,9 @@ final class FakeGuest: GuestMachine {
     /// Every call, recorded when it begins (before it waits), as its `GuestCall` raw value.
     let log = AsyncEventProbe<String>()
     private(set) var state = VZVirtualMachine.State.stopped
-    /// When false, the guest never reports a state change, as if the framework did not announce them.
-    var announcesStateChanges = true
 
     var virtualMachine: VZVirtualMachine? { nil }
     var canStop: Bool { state == .running || state == .paused }
-    var onStateChange: (@MainActor (VZVirtualMachine.State) -> Void)?
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
 
@@ -74,33 +71,40 @@ final class FakeGuest: GuestMachine {
     // MARK: GuestMachine
 
     func start() async throws {
-        try await run(.start, from: [.stopped], through: .starting, to: .running, failingTo: .stopped)
+        try await run(.start, from: [.stopped], through: .starting, to: .running)
     }
 
     func restoreState(from url: URL) async throws {
-        try await run(.restore, from: [.stopped], through: .restoring, to: .paused, failingTo: .stopped)
+        try await run(.restore, from: [.stopped], through: .restoring, to: .paused)
     }
 
     func saveState(to url: URL) async throws {
-        try await run(.save, from: [.paused], through: .saving, to: .paused, failingTo: .paused)
+        do {
+            try await run(.save, from: [.paused], through: .saving, to: .paused)
+        } catch {
+            // A failed save can leave a partial file behind.
+            try? Data("partial".utf8).write(to: url)
+            throw error
+        }
         try Data("memory".utf8).write(to: url)
     }
 
     func pause() async throws {
-        try await run(.pause, from: [.running], through: .pausing, to: .paused, failingTo: .running)
+        try await run(.pause, from: [.running], through: .pausing, to: .paused)
     }
 
     func resume() async throws {
-        try await run(.resume, from: [.paused], through: .resuming, to: .running, failingTo: .paused)
+        try await run(.resume, from: [.paused], through: .resuming, to: .running)
     }
 
     func requestStop() throws {
         log.record(GuestCall.requestStop.rawValue)
         guard state == .running else { throw FakeGuestError(message: Self.invalidState(state)) }
+        if let message = failures[.requestStop] { throw FakeGuestError(message: message) }
     }
 
     func stop() async throws {
-        try await run(.stop, from: [.running, .paused], through: .stopping, to: .stopped, failingTo: .stopped)
+        try await run(.stop, from: [.running, .paused], through: .stopping, to: .stopped)
     }
 
     // MARK: Plumbing
@@ -109,16 +113,20 @@ final class FakeGuest: GuestMachine {
         "Invalid virtual machine state (\(state)). The requested transition is not valid in this state."
     }
 
+    /// A call that is refused in the wrong state, passes through `transient` while it waits, and ends in `success`, or back
+    /// where it began if it fails. If the guest itself changed the state meanwhile (it powered off), the call fails.
     private func run(
         _ call: GuestCall, from allowed: Set<VZVirtualMachine.State>, through transient: VZVirtualMachine.State,
-        to success: VZVirtualMachine.State, failingTo failure: VZVirtualMachine.State
+        to success: VZVirtualMachine.State
     ) async throws {
         log.record(call.rawValue)
-        guard allowed.contains(state) else { throw FakeGuestError(message: Self.invalidState(state)) }
+        let before = state
+        guard allowed.contains(before) else { throw FakeGuestError(message: Self.invalidState(before)) }
         move(to: transient)
         try await gates[call]?.waitUntilOpen()
+        guard state == transient else { throw FakeGuestError(message: "The machine stopped during the call.") }
         if let message = failures[call] {
-            move(to: failure)
+            move(to: before)
             throw FakeGuestError(message: message)
         }
         move(to: success)
@@ -126,6 +134,5 @@ final class FakeGuest: GuestMachine {
 
     private func move(to newState: VZVirtualMachine.State) {
         state = newState
-        if announcesStateChanges { onStateChange?(newState) }
     }
 }

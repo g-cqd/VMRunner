@@ -326,8 +326,7 @@ final class VMLibrary {
 
     func suspendMachine(_ id: UUID) {
         let controller = controller(for: id)
-        let bundle = bundle(id)
-        Task { await controller.suspend(to: bundle) }
+        Task { await controller.suspend() }
     }
 
     var runningCount: Int { controllers.values.filter(\.isActive).count }

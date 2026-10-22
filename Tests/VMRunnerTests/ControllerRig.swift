@@ -79,6 +79,7 @@ final class ControllerRig {
         let bundle = library.bundle(config.id)
         try Data("disk".utf8).write(to: bundle.disk)
         try Data("nvram".utf8).write(to: bundle.efiVariables)
+        _ = library.controller(for: id)
     }
 
     var bundle: VMBundle { library.bundle(id) }
@@ -99,6 +100,26 @@ final class ControllerRig {
     }
 
     var disposableCopyExists: Bool { FileManager.default.fileExists(atPath: bundle.ephemeralDisk.path) }
+
+    /// The run is over and nothing it held remains.
+    func expectReleased(sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(controller.state == .stopped, sourceLocation: sourceLocation)
+        #expect(controller.guest == nil, sourceLocation: sourceLocation)
+        #expect(controller.virtualMachine == nil, sourceLocation: sourceLocation)
+        #expect(controller.network == nil, sourceLocation: sourceLocation)
+        #expect(controller.deadline == nil, sourceLocation: sourceLocation)
+        #expect(!controller.canSuspend, sourceLocation: sourceLocation)
+        #expect(controller.suspendUnavailableReason == nil, sourceLocation: sourceLocation)
+        #expect(!disposableCopyExists, sourceLocation: sourceLocation)
+        #expect(clock.sleeperCount == 0, "the runtime limit is still counting", sourceLocation: sourceLocation)
+    }
+
+    /// Every stack that was started was stopped.
+    func expectNetworkBalanced(runs: Int, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+        let events = try await factory.network.wait(forAtLeast: 2 * runs)
+        #expect(events.filter { $0.hasPrefix("begin") }.count == runs, sourceLocation: sourceLocation)
+        #expect(events.filter { $0.hasPrefix("shutdown") }.count == runs, sourceLocation: sourceLocation)
+    }
 
     func cleanUp() { try? FileManager.default.removeItem(at: directory) }
 }

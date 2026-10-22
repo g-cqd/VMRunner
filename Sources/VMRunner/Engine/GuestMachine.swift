@@ -7,13 +7,11 @@ import Virtualization
 protocol GuestMachine: AnyObject {
     /// The framework's machine, for the view that displays it; `nil` for a test double.
     var virtualMachine: VZVirtualMachine? { get }
-    /// The framework's own state.
-    var state: VZVirtualMachine.State { get }
     /// Whether the framework allows a stop now. It does not while a start, a pause or a resume is in flight.
     var canStop: Bool { get }
-    /// Called when the framework's state changes, the guest powers off by itself, or the machine stops because of an
-    /// error. The controller sets them once, right after it receives the machine.
-    var onStateChange: (@MainActor (VZVirtualMachine.State) -> Void)? { get set }
+    /// Called when the guest powers off by itself, and when the machine stops because of an error. The controller sets them
+    /// once, right after it receives the machine, and clears them when it lets the machine go. The controller's own state
+    /// never copies the framework's: it follows the outcome of each call and these two reports.
     var onGuestStopped: (@MainActor () -> Void)? { get set }
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)? { get set }
 

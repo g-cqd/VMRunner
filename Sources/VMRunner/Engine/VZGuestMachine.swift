@@ -8,9 +8,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     let machine: VZVirtualMachine
     /// Evaluated at start, not at creation: a restore never needs them, and a bad provisioning setup must fail the start.
     private let startOptions: () throws -> VZMacOSVirtualMachineStartOptions?
-    private var observation: NSKeyValueObservation?
 
-    var onStateChange: (@MainActor (VZVirtualMachine.State) -> Void)?
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
 
@@ -19,14 +17,9 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         self.startOptions = startOptions
         super.init()
         machine.delegate = self
-        observation = machine.observe(\.state, options: [.new]) { [weak self] _, change in
-            guard let newState = change.newValue else { return }
-            Task { @MainActor in self?.onStateChange?(newState) }
-        }
     }
 
     var virtualMachine: VZVirtualMachine? { machine }
-    var state: VZVirtualMachine.State { machine.state }
     var canStop: Bool { machine.canStop }
 
     func start() async throws {

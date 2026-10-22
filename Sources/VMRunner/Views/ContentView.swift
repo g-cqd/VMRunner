@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import Virtualization
 
 struct ContentView: View {
     @Environment(VMLibrary.self) private var library
@@ -138,13 +137,12 @@ private struct MachineRow: View {
         .tag(config.id)
     }
 
-    private func statusColor(_ state: VZVirtualMachine.State) -> Color? {
-        switch state {
+    private func statusColor(_ state: MachineState) -> Color? {
+        switch state.indicator {
         case .running: .green
-        case .paused, .pausing, .resuming: .orange
-        case .starting, .stopping, .saving, .restoring: .yellow
-        case .error: .red
-        default: nil
+        case .paused: .orange
+        case .busy: .yellow
+        case .none: nil
         }
     }
 }

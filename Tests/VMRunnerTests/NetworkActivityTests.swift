@@ -237,65 +237,6 @@ struct ControllerNetworkTests {
         return config
     }
 
-    @Test func aPolicyEditedWhileTheMachineRunsReachesItsNetwork() async throws {
-        let directory = try scratchDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let library = VMLibrary(machinesDirectory: directory, saveDelay: .seconds(3600))
-        var config = try makeMachine(in: library)
-        let controller = library.controller(for: config.id)
-        let made = try UserNetStack.make(pathChanges: { AsyncStream { _ in } })
-
-        controller.beginNetwork(made.stack, policy: config.networkPolicy)
-        let activity = try #require(controller.network)
-        #expect(activity.isRunning)
-
-        config.name = "renamed"
-        library.update(config)
-        #expect(activity.policy == NetworkPolicy(), "an unrelated edit is not a policy change")
-
-        try config.networkPolicy.add("evil.com", to: .blockedDomains)
-        library.update(config)
-        #expect(activity.policy.rules(in: .blockedDomains) == ["evil.com"])
-
-        activity.stop()
-        await made.stack.stop()
-        close(made.guestDescriptor)
-    }
-
-    @Test func aMachineWithNoStackHasNoActivityAndIgnoresPolicyEdits() throws {
-        let directory = try scratchDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let library = VMLibrary(machinesDirectory: directory, saveDelay: .seconds(3600))
-        var config = try makeMachine(in: library)
-        let controller = library.controller(for: config.id)
-
-        controller.beginNetwork(nil, policy: config.networkPolicy)
-        try config.networkPolicy.add("22", to: .blockedPorts)
-        library.update(config)
-
-        #expect(controller.network == nil)
-    }
-
-    @Test func aFreshStartReplacesAndStopsTheEarlierActivity() async throws {
-        let controller = VMController()
-        let first = try UserNetStack.make(pathChanges: { AsyncStream { _ in } })
-        let second = try UserNetStack.make(pathChanges: { AsyncStream { _ in } })
-
-        controller.beginNetwork(first.stack, policy: NetworkPolicy())
-        let firstActivity = try #require(controller.network)
-        controller.beginNetwork(second.stack, policy: NetworkPolicy())
-
-        #expect(!firstActivity.isRunning)
-        #expect(controller.network !== firstActivity)
-        #expect(controller.network?.isRunning == true)
-
-        controller.network?.stop()
-        await first.stack.stop()
-        await second.stack.stop()
-        close(first.guestDescriptor)
-        close(second.guestDescriptor)
-    }
-
     @Test func changingTheNetworkModeDiscardsSavedStateButOtherEditsDoNot() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
