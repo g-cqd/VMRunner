@@ -108,7 +108,7 @@ extension PGP {
         }
 
         /// Every pinned key, for tests that check each constant against its fingerprint.
-        static let all = [debianCD, ubuntuCDImage, fedora44, alpineCopa, almaLinux10]
+        static let all = [debianCD, ubuntuCDImage, fedora44, alpineCopa, almaLinux10, rockyLinux10]
 
         /// Checked on 2026-10-22 against almalinux.org/security and the AlmaLinux 10 release notes: no expiry.
         static let almaLinux10 = PinnedKey(
@@ -132,6 +132,31 @@ extension PGP {
                 "69ffc070469118311987f342eed646f459a906a579fb752535d73a33733eeaf4",
                 "4642726f7c85c00a31a5e3f2a3f5abba9338d4e1d6e7c704a9d0baae20a725c4",
                 "b853ce112e3fa1c2fb9f05507b6ab790ef9b044e729eca8cd95be3f5e84d6dff",
+            ].joined(),
+            exponent: "010001")
+
+        /// Checked on 2026-10-22 against rockylinux.org/keys and the key file on download.rockylinux.org: no expiry.
+        static let rockyLinux10 = PinnedKey(
+            owner: "Release Engineering (Rocky Linux 10)",
+            fingerprint: "FC226859C0860BF0DDB95B085B106C736FEDFC85",
+            created: 1_747_640_745,
+            modulus: [
+                "c56076fd397e7f865489b987b3c67cda6f4d4f52779ce3f5af45d5394110b24b",
+                "395289cc5d09846b6ac404627cad181ad330cedf1920ce1fd06d56929f16f396",
+                "f32c5f0578245db053da9dbf3caf7aaa3222b2d6c61992b9c94e6a8474cee07d",
+                "f431a2af3bcbbeab721c76dc5cd48d8eb864eb590d3e30023b7593e6353aabbc",
+                "196a92cfd50fa523f52498a55d27d7619d150648dfaf8c5ee235ef4bebd2a456",
+                "694f1c974130de7a94f6b381be71cfcda6f95210b2839f9713b43046928ace24",
+                "7158d738d215353a94fccabe21a19770f4b8a6740d3273b9a78b3edc5863df7c",
+                "cadf050724d5329f2c2f16b13489df664f4ff1a295d4c8c843afdb6f687e17c1",
+                "9d8f07f8c783d5c716df9db21df96f2abf4f7e1c6dda542e37ba821699b9922a",
+                "75de180a4a704bf4cf094480af8de76b638437c8e7c5672b5622c62c6362801d",
+                "ef252d369169f3ed9c2f135a48aa4773fe769696a299e86b2b950151482b68f3",
+                "8b1f0f802f93c18487f8825c9b0d4ed56c290edf2a25f004f5287d5f4ee67db1",
+                "a7a74b49186ffe1d7b92770208fc65d07911342f7e034fb5dc6377b7b6e6020a",
+                "84a99efb6656f2a95b8d937c67e3c115a95bf7e26b7d181cb5d2a1f7f6e86dfc",
+                "1392df4138e397de6ec905afdf0a4313152b0ce7b37768436778895564593f76",
+                "19d738097b1c255683d36c351eff03dcac5a390e89f86050f9e1cb54a7f3b7f7",
             ].joined(),
             exponent: "010001")
     }

@@ -229,9 +229,6 @@ struct ProviderLocationTests {
         #expect(
             try LinuxProvider.alpineVirt.checksumURL(for: release("alpine-virt-3.24.2-aarch64.iso")).absoluteString
                 == "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-virt-3.24.2-aarch64.iso.sha256")
-        #expect(
-            try LinuxProvider.rocky(release: 10, flavor: "boot").checksumURL(for: release("Rocky-10.2-aarch64-boot.iso")).absoluteString
-                == "https://download.rockylinux.org/pub/rocky/10/isos/aarch64/Rocky-10.2-aarch64-boot.iso.CHECKSUM")
     }
 
     @Test func sharedChecksumFilesLiveInTheDirectory() throws {
@@ -242,6 +239,9 @@ struct ProviderLocationTests {
         #expect(
             try LinuxProvider.debianNetinst.checksumURL(for: release("debian-13.7.0-arm64-netinst.iso")).absoluteString
                 == "https://cdimage.debian.org/debian-cd/current/arm64/iso-cd/SHA256SUMS")
+        #expect(
+            try LinuxProvider.rocky(release: 10, flavor: "boot").checksumURL(for: release("Rocky-10.2-aarch64-boot.iso")).absoluteString
+                == "https://download.rockylinux.org/pub/rocky/10/isos/aarch64/CHECKSUM")
     }
 
     @Test func theNetbootMiniISOIsAFixedPathWithItsIndexInTheParentDirectory() throws {

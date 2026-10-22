@@ -165,14 +165,16 @@ enum LinuxCatalog {
         LinuxImage(
             id: "rocky-10-boot", name: "Rocky Linux 10", medium: "boot ISO", install: "network install",
             approximateSize: "~1.1 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
-            trustNotes: "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature "
-                + "(.asc) that the app does not check.",
+            trustNotes: "Published by the Rocky Enterprise Software Foundation. The CHECKSUM file must carry a valid detached OpenPGP "
+                + "signature (CHECKSUM.asc) from the Rocky Linux 10 key built into the app, or the download is refused; releases "
+                + "older than 10.2 are refused.",
             provider: .rocky(release: 10, flavor: "boot")),
         LinuxImage(
             id: "rocky-10-minimal", name: "Rocky Linux 10", medium: "minimal ISO", install: "offline install",
             approximateSize: "~2.4 GB", maximumBytes: 8 << 30, supportsSecureBoot: true,
-            trustNotes: "Published by the Rocky Enterprise Software Foundation; each .CHECKSUM file has a detached OpenPGP signature "
-                + "(.asc) that the app does not check.",
+            trustNotes: "Published by the Rocky Enterprise Software Foundation. The CHECKSUM file must carry a valid detached OpenPGP "
+                + "signature (CHECKSUM.asc) from the Rocky Linux 10 key built into the app, or the download is refused; releases "
+                + "older than 10.2 are refused.",
             provider: .rocky(release: 10, flavor: "minimal")),
         LinuxImage(
             id: "fedora-server-44-netinst", name: "Fedora Server 44", medium: "netinst ISO", install: "network install",

@@ -312,6 +312,7 @@ struct ProviderTrustRegistrationTests {
         #expect(
             signed == [
                 "almalinux-10-boot", "almalinux-10-minimal", "alpine-virt", "debian-stable-netinst", "fedora-server-44-netinst",
+                "rocky-10-boot", "rocky-10-minimal",
                 "ubuntu-server-26.04",
             ])
         #expect(LinuxCatalog.images.filter(isSigned).map(\.id).sorted() == ["alpine-virt", "ubuntu-server-26.04"])
@@ -346,6 +347,7 @@ struct ProviderTrustRegistrationTests {
             "alpine-virt": PGP.PinnedKeys.alpineCopa.fingerprint, "ubuntu-server-26.04": PGP.PinnedKeys.ubuntuCDImage.fingerprint,
             "debian-stable-netinst": PGP.PinnedKeys.debianCD.fingerprint, "fedora-server-44-netinst": PGP.PinnedKeys.fedora44.fingerprint,
             "almalinux-10-boot": PGP.PinnedKeys.almaLinux10.fingerprint, "almalinux-10-minimal": PGP.PinnedKeys.almaLinux10.fingerprint,
+            "rocky-10-boot": PGP.PinnedKeys.rockyLinux10.fingerprint, "rocky-10-minimal": PGP.PinnedKeys.rockyLinux10.fingerprint,
         ]
         for image in everyImage where isSigned(image) {
             let keys = (image.provider.trust as? SignedChecksumTrust)?.keys ?? (image.provider.trust as? SignedImageTrust)?.keys ?? []

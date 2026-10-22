@@ -323,6 +323,7 @@ struct PGPPinnedKeyTests {
         (PGP.PinnedKeys.fedora44, "36F612DCF27F7D1A48A835E4DBFCF71C6D9F90A6"),
         (PGP.PinnedKeys.alpineCopa, "0482D84022F52DF1C4E7CD43293ACD0907D9495A"),
         (PGP.PinnedKeys.almaLinux10, "EE6DB7B98F5BF5EDD9DA0DE5DEE5C11CC2A1E572"),
+        (PGP.PinnedKeys.rockyLinux10, "FC226859C0860BF0DDB95B085B106C736FEDFC85"),
     ]
 
     // The fingerprint check proves the constants are the key the vendor published, but it is the golden tests (`PGPGoldenTests`)

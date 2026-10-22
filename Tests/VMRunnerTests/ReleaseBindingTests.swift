@@ -42,6 +42,8 @@ struct ReleaseBindingTests {
         #expect(LinuxProvider.fedoraServerNetinst(release: 44).series == "44")
         #expect(LinuxProvider.almaLinux(release: 10, flavor: "boot").minimumVersion == "10.2")
         #expect(LinuxProvider.almaLinux(release: 10, flavor: "boot").series == "10")
+        #expect(LinuxProvider.rocky(release: 10, flavor: "boot").minimumVersion == "10.2")
+        #expect(LinuxProvider.rocky(release: 10, flavor: "boot").series == "10")
     }
 
     @Test func everyFloorAndSeriesIsANumberTheComparisonCanRead() {

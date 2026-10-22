@@ -45,3 +45,13 @@ struct AlmaLinuxProviderTests {
         }
     }
 }
+
+/// Rocky Linux signs one CHECKSUM list per major version with a detached signature, with one key per major version.
+struct RockyLinuxProviderTests {
+    @Test func theRealChecksumFileVerifiesAgainstThePinnedKey() throws {
+        let check = try PGP.Check.detached(
+            Array(SignedVendorFiles.rockyLinuxSignature.utf8), keys: [PGP.PinnedKeys.rockyLinux10.publicKey()], now: pgpGoldenNow)
+        try check.verify(Array(SignedVendorFiles.rockyLinuxChecksum.utf8))
+        #expect(throws: PGP.Failure.badSignature) { try check.verify(Array(SignedVendorFiles.almaLinuxChecksum.utf8)) }
+    }
+}

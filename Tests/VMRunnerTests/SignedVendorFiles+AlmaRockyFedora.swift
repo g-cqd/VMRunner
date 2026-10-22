@@ -37,4 +37,42 @@ extension SignedVendorFiles {
         -----END PGP SIGNATURE-----
 
         """
+
+    /// `CHECKSUM` of `/pub/rocky/10/isos/aarch64/` on download.rockylinux.org.
+    static let rockyLinuxChecksum = """
+        # Rocky-10.2-aarch64-boot.iso: 1120931840 bytes
+        SHA256 (Rocky-10.2-aarch64-boot.iso) = 33c2d3dfd5f947b3201478180b549bb2995bd9573c2776b384e5ec1dd47326c0
+        # Rocky-10.2-aarch64-dvd1.iso: 9659678720 bytes
+        SHA256 (Rocky-10.2-aarch64-dvd1.iso) = 3b8253987604df1bc5e1c33c838ff3ee9ce4a8f02ed9e27e300ecff58c0c9588
+        # Rocky-10.2-aarch64-minimal.iso: 2397044736 bytes
+        SHA256 (Rocky-10.2-aarch64-minimal.iso) = 1d1c21199df32f6d17eedb4f713ee0d089b49294401a364b640fcf4ffab45f35
+        # Rocky-10-latest-aarch64-boot.iso: 1120931840 bytes
+        SHA256 (Rocky-10-latest-aarch64-boot.iso) = 33c2d3dfd5f947b3201478180b549bb2995bd9573c2776b384e5ec1dd47326c0
+        # Rocky-10-latest-aarch64-dvd.iso: 9659678720 bytes
+        SHA256 (Rocky-10-latest-aarch64-dvd.iso) = 3b8253987604df1bc5e1c33c838ff3ee9ce4a8f02ed9e27e300ecff58c0c9588
+        # Rocky-10-latest-aarch64-minimal.iso: 2397044736 bytes
+        SHA256 (Rocky-10-latest-aarch64-minimal.iso) = 1d1c21199df32f6d17eedb4f713ee0d089b49294401a364b640fcf4ffab45f35
+
+        """
+
+    /// `CHECKSUM.asc`: an armored detached signature over `rockyLinuxChecksum`, SHA-256.
+    static let rockyLinuxSignature = """
+        -----BEGIN PGP SIGNATURE-----
+
+        iQIzBAABCAAdFiEE/CJoWcCGC/DduVsIWxBsc2/t/IUFAmoZCzYACgkQWxBsc2/t
+        /IUYTg/+Na9nlLa/UVRk8cX1/gAoSEL76oh7C8tr5Y+rhA7pjT37hk/Ctg2Mvrv4
+        Yt4LmeckUFXHJuCX3yQE2z6dEoAMBjo7BEwWUh+YmSaHjniL5SYiublrw2VaMqZl
+        3jpYGbAWAW8/sdYYnO4Cm5FnRNMFBx6WxI6oo2yQmeG+Wg0jZmUPja+Hffts//PU
+        U1fcAZT3HvmA1M5YZRvNOWbcJxO1MeJt97cPztbkr8oTM5pyFI0gEMmz1ER429q0
+        kN+Wx2Ue91Al2pLiYribXUHwsvVZFs5yO/63QcjzmhuDtXN6hI2hAtXarVc8oog8
+        8oeFQo1ZlIeUj0TdF+C5iuEiBuXkpp8ckmXARcWdc2pANbKtAuT76AGNWCJrtp89
+        B38aJ4L6iMc791ISGzrMa+k7nE6nq4QWor+8vPNgiXGR80mspcPypH6K8map8OCd
+        /yWv2pPiFe6F7XnOdwwHeMBqMn6/OIX2jt2VTOXyvsEH0RPxsV6p40o+pln6J9c/
+        Cf6XsXvHF/zCmKOS8i1tXS0p5lyZSYCcBycs+X9bRmcYTwdRZiBPGK7gnVxe+I1X
+        Tesl2NtuJNP8Tl3S4TKh1FWatoMhnCAKtQBf4ueN+NaA7v1krlkREA0KgJx/aV8p
+        Wu8eS2O6pDMTwRBkj/uN6iW1Hrps2Qx5SewLyHUmoMGhptY90d4=
+        =j8PH
+        -----END PGP SIGNATURE-----
+
+        """
 }

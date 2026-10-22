@@ -393,11 +393,18 @@ extension LinuxProvider {
             series: "\(release)", minimumVersion: almaLinuxFloors[release] ?? "\(release)")
     }
 
+    /// The release of each Rocky Linux major version when the app was last updated; a version not listed starts at itself.
+    private static let rockyFloors = [10: "10.2"]
+
+    /// The CHECKSUM file lists every ISO of a major version and has a detached signature (`CHECKSUM.asc`) made by that version's
+    /// key; a version the app pins no key for is refused, not read without a signature.
     static func rocky(release: Int, flavor: String) -> Self {
         Self(
             host: "download.rockylinux.org", directoryPath: "/pub/rocky/\(release)/isos/aarch64/",
             iso: .newest(prefix: "Rocky-", suffix: "-aarch64-\(flavor).iso"),
-            checksum: .sibling(suffix: "CHECKSUM"), format: .bsd, trust: HTTPSOnlyTrust())
+            checksum: .shared(fileName: "CHECKSUM"), format: .bsd,
+            trust: SignedChecksumTrust(placement: .detached(suffix: "asc"), keys: release == 10 ? [PGP.PinnedKeys.rockyLinux10] : []),
+            series: "\(release)", minimumVersion: rockyFloors[release] ?? "\(release)")
     }
 
     /// The newest point release of each Ubuntu LTS when the app was last updated; a release not listed starts at itself.
