@@ -118,6 +118,7 @@ extension Sequence<UInt8> {
             digits.append(hexDigits[Int(byte >> 4)])
             digits.append(hexDigits[Int(byte & 0x0F)])
         }
+        // ASCII digits only
         return String(decoding: digits, as: UTF8.self)  // swiftlint:disable:this optional_data_string_conversion
     }
 }

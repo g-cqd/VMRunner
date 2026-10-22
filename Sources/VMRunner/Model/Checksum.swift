@@ -4,6 +4,7 @@ struct Checksum: Codable, Hashable, Sendable {
     /// machine still loads, and fetching its image fails with `SetupError.weakChecksum` before any request.
     enum Algorithm: Hashable, Sendable, Codable {
         case sha256
+        /// Only decoding produces this case, never with "sha256" (which decodes as `.sha256`). Its name is kept as stored.
         case refused(String)
 
         init(from decoder: any Decoder) throws {

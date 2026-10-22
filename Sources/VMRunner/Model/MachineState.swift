@@ -363,7 +363,7 @@ enum MachineEffect: Hashable, Sendable {
     /// Stops the machine if the framework allows it now; otherwise the call in flight is followed by this effect.
     case stopMachine
 
-    /// Whether carrying the effect out waits for the framework. In a list of effects only the last may.
+    /// Whether carrying the effect out waits (for the configuration build or the framework). In a list of effects only the last may.
     var waits: Bool {
         switch self {
         case .prepare, .fallBackToColdBoot, .restoreState, .bootMachine, .pauseMachine, .resumeMachine, .suspendMachine, .stopMachine: true
