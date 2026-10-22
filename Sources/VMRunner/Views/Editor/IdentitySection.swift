@@ -5,11 +5,15 @@ import SwiftUI
 struct IdentitySection: View {
     @Binding var config: VMConfig
 
-    /// The serial number as typed, kept to what a stored configuration may hold: ASCII, at most 20 characters.
+    /// The serial number as typed, kept to what a disk identifier may hold (`serialNumber(typed:)`).
     private var serial: Binding<String> {
-        Binding(
-            get: { config.diskSerial },
-            set: { config.diskSerial = String($0.filter(\.isASCII).prefix(EditorLimits.maxDiskSerialLength)) })
+        Binding(get: { config.diskSerial }, set: { config.diskSerial = Self.serialNumber(typed: $0) })
+    }
+
+    /// `typed` with only printable ASCII without spaces (`!` to `~`), cut to `EditorLimits.maxDiskSerialLength` characters:
+    /// no space, tab, newline or other control character reaches the disk's identifier.
+    nonisolated static func serialNumber(typed: String) -> String {
+        String(typed.filter { (0x21...0x7E).contains($0.asciiValue ?? 0) }.prefix(EditorLimits.maxDiskSerialLength))
     }
 
     var body: some View {

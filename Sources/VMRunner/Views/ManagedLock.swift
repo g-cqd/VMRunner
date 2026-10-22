@@ -12,15 +12,20 @@ extension View {
         lockedByOrganisation(policy.isLocked(setting))
     }
 
+    /// A locked control, disabled, beside a lock that says who locked it; an unlocked control as it is, so the form lays it
+    /// out as it would without the modifier.
+    @ViewBuilder
     private func lockedByOrganisation(_ isLocked: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            self.disabled(isLocked)
-            if isLocked {
+        if isLocked {
+            HStack(alignment: .firstTextBaseline) {
+                self.disabled(true)
                 Image(systemName: "lock.fill")
                     .foregroundStyle(.secondary)
                     .help(ManagedPreferences.lockedHelp)
                     .accessibilityLabel(ManagedPreferences.lockedHelp)
             }
+        } else {
+            self
         }
     }
 }

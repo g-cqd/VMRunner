@@ -100,6 +100,11 @@ struct StorageDevicesTests {
         #expect(throws: DecodingError.self) { try VMConfig.decode(from: config.encoded()) }
     }
 
+    @Test func theEditorKeepsOnlyPrintableASCIIWithoutSpacesInASerialNumber() {
+        #expect(IdentitySection.serialNumber(typed: "VMR 0001\t\u{7}é\n~!") == "VMR0001~!")
+        #expect(IdentitySection.serialNumber(typed: String(repeating: "9", count: 30)).count == EditorLimits.maxDiskSerialLength)
+    }
+
     @Test func aConfigWrittenBeforeTheDiskSettingsKeepsTheDefaults() throws {
         let old =
             #"{"id":"3B873409-1F62-435C-A557-0040D55FBE19","name":"legacy","guest":"linux","cpuCount":2,"memoryMiB":2048,"diskGiB":32}"#
