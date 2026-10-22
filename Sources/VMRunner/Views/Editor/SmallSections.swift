@@ -44,12 +44,20 @@ struct DevicesSection: View {
     @Binding var balloon: Bool
     @Binding var entropy: Bool
     @Binding var vsock: Bool
+    @Binding var serialConsole: Bool
+    let guest: GuestOS
 
     var body: some View {
         Section {
             Toggle("Memory balloon", isOn: $balloon).settingHelp(.memoryBalloon)
             Toggle("Entropy (virtio-rng)", isOn: $entropy).settingHelp(.entropy)
             Toggle("Host–guest socket (vsock)", isOn: $vsock).settingHelp(.vsock)
+            Toggle("Serial console (local socket)", isOn: guest == .linux ? $serialConsole : .constant(false))
+                .disabled(guest != .linux)
+                .settingHelp(.serialConsole)
+            if guest == .macOS {
+                Text("Not available for macOS guests.").font(.caption).foregroundStyle(.secondary)
+            }
         } header: {
             HelpHeader("Devices", topic: .devices)
         }

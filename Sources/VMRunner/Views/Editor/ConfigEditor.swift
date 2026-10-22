@@ -42,7 +42,9 @@ struct ConfigEditor: View {
             if config.guest == .macOS {
                 BootSection(recovery: $config.bootIntoRecovery, hasBooted: config.hasBooted, provisioning: $config.provisioning)
             }
-            DevicesSection(balloon: $config.memoryBalloon, entropy: $config.entropyDevice, vsock: $config.socketDevice)
+            DevicesSection(
+                balloon: $config.memoryBalloon, entropy: $config.entropyDevice, vsock: $config.socketDevice,
+                serialConsole: $config.serialConsole, guest: config.guest)
             SnapshotsSection(model: model.snapshots, guest: config.guest, diskGiB: config.diskGiB, didRestore: model.didRestore)
         }
         .formStyle(.grouped)

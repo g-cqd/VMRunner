@@ -154,6 +154,9 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var memoryBalloon = true
     var entropyDevice = true
     var socketDevice = true
+    /// Linux only: the guest's first serial port (`hvc0`) is reachable from this Mac as a local socket. A host-to-guest control
+    /// channel, off by default and off in the Isolated and Hardened profiles.
+    var serialConsole = false
 
     // Isolation
     /// Boot from copy-on-write clones of the disk and firmware state, and discard them on stop.

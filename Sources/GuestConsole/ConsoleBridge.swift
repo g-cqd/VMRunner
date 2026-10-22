@@ -23,6 +23,8 @@ public final class ConsoleBridge: Sendable {
     public static let clientQueueCapacity = 1 << 20
     /// Capacity of each socket buffer of the guest pair, and of a client's socket.
     public static let pairBufferBytes = 256 * 1024
+    /// The longest socket path in bytes (`sockaddr_un.sun_path` less its terminating NUL).
+    public static var socketPathLimit: Int { ConsoleSocket.pathLimit }
     /// What a refused second client receives before it is closed.
     public static let busyMessage = "vmr-console: busy: another client is attached\n"
 

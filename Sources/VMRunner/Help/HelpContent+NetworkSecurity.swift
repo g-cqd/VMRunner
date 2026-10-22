@@ -170,11 +170,11 @@ extension HelpCatalog {
             title: "Virtual devices",
             summary: "Small helper devices the guest can use. Most people never change them.",
             paragraphs: [
-                "These are the memory balloon, the random-number generator, and the host–guest socket. Each one is another thing the "
-                    + "guest talks to, "
+                "These are the memory balloon, the random-number generator, the host–guest socket, and the serial console. Each one is "
+                    + "another thing the guest talks to, "
                     + "so each is a (small) part of the attack surface."
             ],
-            related: [.memoryBalloon, .entropy, .vsock]
+            related: [.memoryBalloon, .entropy, .vsock, .serialConsole]
         ),
         .memoryBalloon: HelpEntry(
             area: .security,
@@ -206,6 +206,36 @@ extension HelpCatalog {
                     + "surface small."
             ],
             related: [.devices]
+        ),
+        .serialConsole: HelpEntry(
+            area: .security,
+            title: "Serial console (local socket)",
+            summary: "Lets a program on your Mac type into the Linux guest through a local socket. Off by default.",
+            paragraphs: [
+                "A serial console is a plain text connection between your Mac and the guest, like the console port of a server. "
+                    + "VMRunner serves it on a local socket (a file on your Mac), so a terminal program or a script can log in to the "
+                    + "guest and run commands without any network.",
+                "Anyone who can reach the socket can type into the guest as whoever is logged in on its console, so treat it like a "
+                    + "shell. The socket is yours alone (mode 0600, in a folder only you can enter), one program can be attached at "
+                    + "a time, and nothing is exposed to the network. The Isolated and Hardened profiles turn it off. While it is "
+                    + "on, \"What this machine can reach\" shows the socket's path.",
+                "Nothing listens on the guest's side until you set it up:",
+                "• **Any Linux**: add `console=hvc0` to the kernel command line. Alpine's init then starts a login on it by itself.",
+                "• **Distributions with systemd** (Debian, Ubuntu, Fedora, ...): run `systemctl enable --now serial-getty@hvc0` in "
+                    + "the guest.",
+                "• **macOS guests** are not supported: the switch is off and disabled for them.",
+                "Takes effect the next time the machine starts.",
+            ],
+            advanced: [
+                "The guest sees a virtio console port (`/dev/hvc0`). VMRunner joins it to a socket pair and copies bytes between the "
+                    + "pair and the socket. It keeps the last 64 KiB of the guest's output for the next program that attaches, and it "
+                    + "drops older output rather than ever holding the guest back. The socket is `Console.sock` in the machine's "
+                    + "folder; when that path is too long for a local socket (about 100 bytes) it is a short name in a private "
+                    + "folder of your temporary items instead.",
+                "Attach with `nc -U <socket>`, or from a checkout of VMRunner with `swift run vmr guest console <socket>` "
+                    + "(Ctrl-] detaches) and `swift run vmr guest exec <socket> -- <command>`.",
+            ],
+            related: [.exposureSummary, .vsock, .devices, .securityProfiles]
         ),
         .bootRecovery: HelpEntry(
             area: .macOS,

@@ -35,7 +35,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "VMRunner",
-            dependencies: ["NetPolicy", "NetStack", .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
+            dependencies: ["GuestConsole", "NetPolicy", "NetStack", .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
             path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(
             name: "VMRunnerTests", dependencies: ["VMRunner", "NetPolicy", "NetStack", "TestKit"], path: "Tests/VMRunnerTests",

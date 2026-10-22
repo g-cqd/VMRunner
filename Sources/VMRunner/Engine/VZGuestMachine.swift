@@ -1,4 +1,5 @@
 import Foundation
+import GuestConsole
 import Virtualization
 
 /// A `VZVirtualMachine` behind the controller's seam. It is also the machine's delegate, and forwards the callbacks that
@@ -6,14 +7,20 @@ import Virtualization
 @MainActor
 final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     let machine: VZVirtualMachine
+    /// Serves the guest's serial console on a local socket. It starts with the machine and ends when this object is released
+    /// (or earlier, when the guest side of the port closes), so the socket exists exactly while the machine can use it.
+    private let console: ConsoleBridge?
     /// Evaluated at start, not at creation: a restore never needs them, and a bad provisioning setup must fail the start.
     private let startOptions: () throws -> VZMacOSVirtualMachineStartOptions?
 
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
 
-    init(machine: VZVirtualMachine, startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?) {
+    init(
+        machine: VZVirtualMachine, console: ConsoleBridge? = nil, startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
+    ) {
         self.machine = machine
+        self.console = console
         self.startOptions = startOptions
         super.init()
         machine.delegate = self
@@ -23,6 +30,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     var canStop: Bool { machine.canStop }
 
     func start() async throws {
+        console?.start()
         if let options = try startOptions() {
             try await machine.start(options: options)
         } else {
@@ -30,7 +38,10 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         }
     }
 
-    func restoreState(from url: URL) async throws { try await machine.restoreMachineStateFrom(url: url) }
+    func restoreState(from url: URL) async throws {
+        console?.start()
+        try await machine.restoreMachineStateFrom(url: url)
+    }
     func saveState(to url: URL) async throws { try await machine.saveMachineStateTo(url: url) }
     func pause() async throws { try await machine.pause() }
     func resume() async throws { try await machine.resume() }
@@ -59,7 +70,7 @@ struct VZMachineFactory: MachineFactory {
             of: built.configuration, allowed: suspendAllowed, filtered: config.networkMode == .filtered)
         let machine = VZVirtualMachine(configuration: built.configuration)
         return PreparedMachine(
-            machine: VZGuestMachine(machine: machine, startOptions: { try Self.startOptions(for: config) }),
+            machine: VZGuestMachine(machine: machine, console: built.consoleBridge, startOptions: { try Self.startOptions(for: config) }),
             network: network,
             suspend: suspend
         )

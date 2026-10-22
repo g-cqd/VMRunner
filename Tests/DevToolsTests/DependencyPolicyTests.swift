@@ -38,12 +38,34 @@ struct DependencyPolicyTests {
         return Set(try matches(#"`(swift-[a-z-]+)`"#, in: item).flatMap { $0 })
     }
 
+    /// Library targets of this repository the app links besides the packages, none of them outside code: the network policy and
+    /// the user-mode stack (ADR-0047), and the console, which imports Foundation and the system's C library only (ADR-0052).
+    /// A new one is a decision of its own.
+    private static let repositoryLibraries: Set<String> = ["GuestConsole", "NetPolicy", "NetStack"]
+
     @Test
     func theAppTargetDependsOnExactlyThePackagesTheAdrNames() throws {
         let app = try Self.appDependencies()
         #expect(app.packages == (try Self.adrPackages()), "Package.swift and ADR-0001 disagree about what the app links")
-        #expect(app.targets == ["NetPolicy", "NetStack"], "the app target names only the library targets of this package: \(app.targets)")
+        #expect(app.targets == Self.repositoryLibraries, "the app target names only the library targets of this package: \(app.targets)")
         #expect(app.packages.isDisjoint(with: ["swift-subprocess", "swift-argument-parser"]), "tooling packages stay out of the app")
+    }
+
+    @Test
+    func theConsoleLibraryImportsNothingButFoundationAndSynchronization() throws {
+        let directory = Self.root.appending(path: "Sources/GuestConsole")
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".swift") }
+        #expect(!files.isEmpty)
+        for file in files {
+            let source = try String(contentsOf: directory.appending(path: file), encoding: .utf8)
+            for line in source.split(whereSeparator: \.isNewline) where line.hasPrefix("import ") || line.hasPrefix("public import ") {
+                let module = line.split(separator: " ").last.map(String.init)
+                #expect(["Foundation", "Synchronization"].contains(module), "\(file): \(line) (no Virtualization, no other framework)")
+            }
+        }
+        let manifest = try Self.text("Package.swift")
+        let target = try #require(try Self.matches(#"\.target\(name: "GuestConsole"([^)]*)\)"#, in: manifest).first?.first)
+        #expect(!target.contains("dependencies"), "GuestConsole depends on no other target or package")
     }
 
     @Test

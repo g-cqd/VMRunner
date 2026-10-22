@@ -22,6 +22,8 @@ enum SetupError: LocalizedError {
     /// The OpenPGP signature that should vouch for `file` is missing, malformed or wrong; `reason` completes "because ...".
     case signatureRejected(file: String, reason: String)
     case rosettaUnavailable
+    /// The serial console's socket could not be set up; `reason` completes "because ...".
+    case consoleUnavailable(reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -59,6 +61,8 @@ enum SetupError: LocalizedError {
             "Refusing \(file): its OpenPGP signature cannot be trusted, because \(reason)."
         case .rosettaUnavailable:
             "Rosetta for Linux isn't installed. Install it from the VM's settings."
+        case .consoleUnavailable(let reason):
+            "The serial console can't be set up, because \(reason). Turn it off in the machine's settings to start without it."
         }
     }
 }

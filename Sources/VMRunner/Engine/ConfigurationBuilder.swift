@@ -1,4 +1,5 @@
 import Foundation
+import GuestConsole
 import NetStack
 import Virtualization
 
@@ -25,6 +26,10 @@ enum ConfigurationBuilder {
     struct Built {
         let configuration: VZVirtualMachineConfiguration
         let networkStack: UserNetStack?
+        /// The bridge that serves the guest's serial console on a local socket, when the machine has one. It is bound but not
+        /// running: the caller starts it with the machine and keeps it for as long as the machine lives, and it ends by itself
+        /// when the guest side of the port closes. A bridge that is released without having started removes its socket.
+        let consoleBridge: ConsoleBridge?
     }
 
     static func build(_ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil) throws -> Built {
@@ -46,9 +51,40 @@ enum ConfigurationBuilder {
         if config.memoryBalloon { vz.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()] }
         if config.socketDevice { vz.socketDevices = [VZVirtioSocketDeviceConfiguration()] }
         vz.directorySharingDevices += try directoryShares(for: config)
+        let console = try serialConsole(for: config, bundle: bundle)
+        if let console { vz.serialPorts = [console.port] }
 
         try vz.validate()
-        return Built(configuration: vz, networkStack: network.stack)
+        return Built(configuration: vz, networkStack: network.stack, consoleBridge: console?.bridge)
+    }
+
+    // MARK: Serial console
+
+    /// The guest's first serial port (`hvc0`) joined to a bridge that serves it on a local socket, for a Linux guest whose
+    /// console switch is on. macOS guests have no such port here.
+    private static func serialConsole(
+        for config: VMConfig, bundle: VMBundle
+    ) throws -> (port: VZSerialPortConfiguration, bridge: ConsoleBridge)? {
+        guard config.guest == .linux, config.serialConsole else { return nil }
+        let placement = bundle.consoleSocket()
+        do {
+            try ConsoleBridge.makePrivateDirectory(at: placement.directory)
+            let pair = try ConsoleBridge.makeGuestPair()
+            let bridge: ConsoleBridge
+            let handles: (reading: FileHandle, writing: FileHandle)
+            do {
+                handles = try pair.guestHandles()
+                bridge = try ConsoleBridge(guestDescriptor: pair.host, socketPath: placement.path)
+            } catch {
+                close(pair.host)
+                throw error
+            }
+            let port = VZVirtioConsoleDeviceSerialPortConfiguration()
+            port.attachment = VZFileHandleSerialPortAttachment(fileHandleForReading: handles.reading, fileHandleForWriting: handles.writing)
+            return (port, bridge)
+        } catch {
+            throw SetupError.consoleUnavailable(reason: "\(error)")
+        }
     }
 
     // MARK: macOS

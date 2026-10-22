@@ -119,6 +119,7 @@ extension VMConfig {
         guard profile != .contained else { return config }
 
         config.networkMode = .none
+        config.serialConsole = false
         config.audioOutput = false
         config.sharedFolders = []
         config.extraDisks = []
@@ -155,6 +156,7 @@ extension VMConfig {
         var rosetta: Bool
         var nested: Bool
         var vsock: Bool
+        var serialConsole: Bool
         var balloon: Bool
         var ephemeral: Bool
         var suspend: Bool
@@ -181,6 +183,7 @@ extension VMConfig {
             rosetta: linux && rosetta,
             nested: linux && nestedVirtualization,
             vsock: socketDevice,
+            serialConsole: linux && serialConsole,
             balloon: memoryBalloon,
             ephemeral: ephemeral,
             suspend: allowsSuspend,
@@ -240,6 +243,11 @@ extension VMConfig {
             items.append(Exposure(level: .medium, text: "Nested virtualization: the guest can run its own hypervisor."))
         }
         if socketDevice { items.append(Exposure(level: .low, text: "vsock: a host–guest socket channel is present.")) }
+        if guest == .linux, serialConsole {
+            // Any process of this user can type into the guest through the socket, so it ranks with a shared folder.
+            let path = VMBundle(id: id, in: AppPaths.machines).consoleSocket().path
+            items.append(Exposure(level: .medium, text: "A serial console is reachable from this Mac as a local socket at \(path)"))
+        }
         if memoryBalloon { items.append(Exposure(level: .low, text: "Memory balloon device present.")) }
         items.append(
             allowsSuspend && !ephemeral
