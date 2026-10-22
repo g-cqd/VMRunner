@@ -29,10 +29,7 @@ extension UserNetCore {
             let endpoint = DenialSuppression.Endpoint(transport: .dns, address: answer.server, port: 53, name: answer.name)
             publishDenied(endpoint, name: answer.name, .policy(reason), bytesToGuest: UInt64(answer.message.count))
         } else {
-            ctx.host.publish(
-                FlowEvent(
-                    flowID: ctx.makeToken(), transport: .dns, phase: .answered(responseCode: answer.responseCode),
-                    remote: (answer.server, 53), name: answer.name, time: ctx.now, bytesToGuest: UInt64(answer.message.count)))
+            publishAnswered(answer)
         }
         switch answer.route {
         case .udp(let guestPort, let server):
@@ -51,6 +48,29 @@ extension UserNetCore {
             ctx.stats.dnsAnswersLost += 1
             flow.terminate(.guestReset, resetGuest: true, ctx: ctx)
         }
+    }
+
+    /// Publishes the answer unless an equal one went out within the interval; then it is only counted (``AnswerFolding``).
+    private func publishAnswered(_ answer: DNSAnswer) {
+        let key = AnswerFolding.Key(name: answer.name, type: answer.type, responseCode: answer.responseCode, server: answer.server)
+        guard case .publish(let held) = answers.admit(key, now: ctx.now) else { return }
+        if let held { publishHeldAnswer(held) }
+        ctx.host.publish(
+            FlowEvent(
+                flowID: ctx.makeToken(), transport: .dns, phase: .answered(responseCode: answer.responseCode),
+                remote: (answer.server, 53), name: answer.name, time: ctx.now, bytesToGuest: UInt64(answer.message.count)))
+    }
+
+    /// Publishes what was held back for answers whose interval is over, or all of it when the stack stops (`everything`).
+    func publishHeldAnswers(everything: Bool = false) {
+        for held in answers.expire(now: everything ? .infinity : ctx.now) { publishHeldAnswer(held) }
+    }
+
+    private func publishHeldAnswer(_ held: AnswerFolding.Held) {
+        ctx.host.publish(
+            FlowEvent(
+                flowID: ctx.makeToken(), transport: .dns, phase: .answered(responseCode: held.key.responseCode),
+                remote: (held.key.server, 53), name: held.key.name, time: ctx.now, count: held.count))
     }
 
     /// Extracts complete length-prefixed queries from a DNS-over-TCP flow's inbox (its ring: taking one out moves the

@@ -29,6 +29,8 @@ final class UserNetCore<Host: UserNetHost, ClockType: Clock> where ClockType.Dur
     var datagramByToken: [UInt64: DatagramFlow] = [:]
     /// Refusals published recently, so a guest hammering a denied destination yields one event, not thousands.
     var denials = DenialSuppression()
+    /// Answers published recently, so a guest that asks the same question in a loop yields one event, not thousands.
+    var answers = AnswerFolding()
     /// Opening a UDP or ICMP flow costs a host socket, so how fast the guest may open them is limited.
     var datagramFlowBudget: TokenBucket
     var pendingBatchEnd: [TCPFlow] = []

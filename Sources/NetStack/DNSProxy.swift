@@ -14,6 +14,8 @@ struct DNSAnswer {
     let route: DNSReplyRoute
     let message: [UInt8]
     let name: String
+    /// The record type the guest asked for.
+    let type: UInt16
     let responseCode: UInt8
     /// Set when the policy refused the name.
     let denial: NetworkPolicy.Reason?
@@ -85,7 +87,7 @@ final class DNSProxy {
             .answered(
                 DNSAnswer(
                     route: route, message: DNSWire.response(to: query, code: code, records: records, truncateOverUDP: route.isUDP),
-                    name: query.name, responseCode: code, denial: denial, server: server))
+                    name: query.name, type: query.type, responseCode: code, denial: denial, server: server))
         }
         guard query.opcode == 0 else { return answer(DNSCode.notImplemented) }
         guard query.queryClass == DNSCode.classIN else { return answer(DNSCode.refused) }
@@ -111,7 +113,7 @@ final class DNSProxy {
             DNSAnswer(
                 route: entry.route,
                 message: DNSWire.response(to: query, code: code, records: records, truncateOverUDP: entry.route.isUDP),
-                name: query.name, responseCode: code, denial: denial, server: entry.server)
+                name: query.name, type: query.type, responseCode: code, denial: denial, server: entry.server)
         }
         func blocked(_ reason: NetworkPolicy.Reason) -> DNSAnswer {
             ctx.stats.dnsBlocked += 1
@@ -137,7 +139,7 @@ final class DNSProxy {
             pending[token] = nil
             return DNSAnswer(
                 route: entry.route, message: DNSWire.response(to: entry.query, code: DNSCode.serverFailure),
-                name: entry.query.name, responseCode: DNSCode.serverFailure, denial: nil, server: entry.server)
+                name: entry.query.name, type: entry.query.type, responseCode: DNSCode.serverFailure, denial: nil, server: entry.server)
         }
     }
 

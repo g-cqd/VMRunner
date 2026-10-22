@@ -14,6 +14,7 @@ extension UserNetCore {
         sweepIdleDatagramFlows()
         for answer in dns.expire(now: ctx.now) { deliver(answer) }
         publishExpiredDenials()
+        publishHeldAnswers()
         if let state = ctx.vpn.tick(at: ctx.now) { ctx.host.publish(vpnState: state) }
         if ctx.now - lastHousekeeping >= 30 {
             lastHousekeeping = ctx.now
@@ -93,6 +94,7 @@ extension UserNetCore {
     func shutdown() {
         ctx.now = currentTime()
         publishAndForgetDenials()
+        publishHeldAnswers(everything: true)
         for flow in tcpFlows.values where flow.isLive { flow.terminate(.stackStopped, resetGuest: false, ctx: ctx) }
         tcpFlows.removeAll()
         tcpByToken.removeAll()

@@ -68,8 +68,9 @@ package struct FlowEvent: Sendable, Hashable {
     package let bytesToGuest: UInt64
     /// Lifetime of the flow; set on `closed`, zero otherwise.
     package let duration: TimeInterval
-    /// How many attempts the event stands for: 1, except for a denial event that sums up the identical refusals held
-    /// back since the last one for the same destination (see ``DenialSuppression``). A UI shows "x N" for more than one.
+    /// How many attempts the event stands for: 1, except for an event that sums up the identical refusals
+    /// (``DenialSuppression``) or the identical DNS answers (``AnswerFolding``) held back since the last one. A UI shows "x N"
+    /// for more than one.
     package let count: Int
 }
 

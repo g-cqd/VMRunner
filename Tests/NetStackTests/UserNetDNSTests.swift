@@ -35,6 +35,19 @@ struct UserNetDNSProxyTests {
         #expect(rig.events { $0 == .answered(responseCode: 0) }.first?.destinationName == "host.test")
     }
 
+    @Test func repeatedAnswersToOneQuestionAreOneEventWithACount() throws {
+        let rig = start()
+        for index in 0..<5 {
+            query(rig, "host.test", port: UInt16(41_000 + index))
+            let request = try #require(rig.host.resolutions.last)
+            rig.core.nameResolved(token: request.token, result: DNSLookupResult(responseCode: 0, records: [address("10.1.2.3")]))
+        }
+        #expect(rig.host.takeFrames().count == 5, "every query is still answered")
+        #expect(rig.events { $0 == .answered(responseCode: 0) }.map(\.count) == [1])
+        rig.advance(6)
+        #expect(rig.events { $0 == .answered(responseCode: 0) }.map(\.count) == [1, 4], "the four held back go out as one event")
+    }
+
     @Test func aaaaIsAnsweredEmptyWithoutAskingTheHost() throws {
         let rig = start()
         query(rig, "host.test", type: 28)
