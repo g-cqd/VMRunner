@@ -259,6 +259,17 @@ extension VMConfig {
     }
 }
 
+extension VMConfig {
+    /// Whether a memory image saved by a machine with the `previous` configuration can be restored into one built from this
+    /// one. Secure Boot lives in the firmware's variable store, which the framework cannot compare; the network device (NAT,
+    /// none or the user-mode stack), the disk's interface and serial number, and the host-information share (an extra
+    /// file-system device while anything is shared) are part of the device configuration a saved state must match.
+    func restoresSavedState(of previous: Self) -> Bool {
+        secureBoot == previous.secureBoot && networkMode == previous.networkMode && diskInterface == previous.diskInterface
+            && diskSerial == previous.diskSerial && hostInfo.isEmpty == previous.hostInfo.isEmpty
+    }
+}
+
 struct DisplayPreset: Identifiable, Hashable, Sendable {
     var width: Int
     var height: Int

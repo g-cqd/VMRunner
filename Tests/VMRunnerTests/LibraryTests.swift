@@ -114,6 +114,32 @@ struct LibraryTests {
         #expect(!library.bundle(config.id).hasSavedState)
     }
 
+    @Test func changingTheDiskOrTurningHostInformationOnOrOffDropsSavedState() throws {
+        let (library, directory) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var config = try addMachine(to: library)
+        let bundle = library.bundle(config.id)
+
+        config.diskInterface = .nvme
+        library.update(config)
+        #expect(!bundle.hasSavedState, "an NVMe disk is another device than a virtio one")
+
+        try Data("memory".utf8).write(to: bundle.savedState)
+        config.diskSerial = "VMR0001"
+        library.update(config)
+        #expect(!bundle.hasSavedState, "the serial number is part of the disk device")
+
+        try Data("memory".utf8).write(to: bundle.savedState)
+        config.hostInfo.timeZone = true
+        library.update(config)
+        #expect(!bundle.hasSavedState, "sharing host information adds a file-system device")
+
+        try Data("memory".utf8).write(to: bundle.savedState)
+        config.hostInfo.battery = true
+        library.update(config)
+        #expect(bundle.hasSavedState, "sharing one more fact keeps the same device")
+    }
+
     @Test func turningSuspendOffOrDisposableOnDropsSavedState() throws {
         let (library, directory) = try makeLibrary()
         defer { try? FileManager.default.removeItem(at: directory) }

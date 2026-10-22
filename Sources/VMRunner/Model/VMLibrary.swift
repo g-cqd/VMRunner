@@ -208,13 +208,11 @@ final class VMLibrary {
         let config = managed.clamp(proposed)
         guard let index = machines.firstIndex(where: { $0.id == config.id }) else { return }
         let previous = machines[index]
-        // Secure Boot lives in the firmware variable store, not in the VZ configuration, so the framework
-        // can't tell that saved state no longer matches. Drop it. A different network device (NAT, none, or the
-        // user-mode stack) is a different device configuration, which saved state can't be restored into.
-        // Turning suspend off or disposable on promises that no memory image is kept (the exposure summary says so), so
-        // the image already on disk goes too.
+        // A memory image that cannot be restored into the changed machine is dropped (`restoresSavedState(of:)`), so the next
+        // start is a cold boot rather than a failed restore. Turning suspend off or disposable on promises that no memory image
+        // is kept (the exposure summary says so), so the image already on disk goes too.
         let forbidsSavedState = (previous.allowsSuspend && !config.allowsSuspend) || (!previous.ephemeral && config.ephemeral)
-        if previous.secureBoot != config.secureBoot || previous.networkMode != config.networkMode || forbidsSavedState {
+        if !config.restoresSavedState(of: previous) || forbidsSavedState {
             bundle(config.id).discardSavedState()
         }
         machines[index] = config
