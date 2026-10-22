@@ -111,6 +111,8 @@ Work delegated to agents follows one convention:
   diff do what the card says and nothing else? are the tests meaningful?).
 - Each role uses the latest version of its model (the `opus`, `haiku` and `sonnet` aliases of the agent tool resolve to the
   current generation).
+- Thinking effort is set per task and never above medium: `low` for an atomic task with a complete card, `medium` for
+  orchestration, reviews and anything that needs judgment.
 - The integrator merges only reviewed work, runs the gate on the merged tree, and removes the worktree
   (see "Worktrees and cleanup").
 
