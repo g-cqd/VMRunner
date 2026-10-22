@@ -111,13 +111,23 @@ struct AnalyzerService: Sendable {
         return Resolved(binary: try await installer.install(pin), version: pin.version)
     }
 
-    /// `analyze Sources Tests ...`, the part shared by a normal run and by writing a baseline.
+    /// `analyze <roots> ...`, the part shared by a normal run and by writing a baseline.
     private func analysisArguments(for tool: AnalyzerTool) -> [String] {
         let name = tool.rawValue
-        return [
-            "analyze", "Sources", "Tests", "--relative-to", ".", "--config", ".\(name).json",
-            "--cache-path", "\(Self.cachePath)/\(name)-facts.json",
+        return ["analyze"] + analysisRoots() + [
+            "--relative-to", ".", "--config", ".\(name).json", "--cache-path", "\(Self.cachePath)/\(name)-facts.json",
         ]
+    }
+
+    /// `Sources` and `Tests`, then the `Sources` and `Tests` of each nested package `.vmr.json` lists, where they exist. An
+    /// unreadable `.vmr.json`, or a listed package without a `Package.swift`, leaves the root's roots only; `vmr check` fails on
+    /// the first and the build and test steps on the second.
+    private func analysisRoots() -> [String] {
+        let packages = (try? ProjectConfig.load(root: root).resolvedPackages(root: root)) ?? []
+        let nested = packages.flatMap { ["\($0.path)/Sources", "\($0.path)/Tests"] }.filter { directory in
+            (try? root.appending(path: directory).resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+        return ["Sources", "Tests"] + nested
     }
 
     private func analyze(_ tool: AnalyzerTool, with resolved: Resolved) async -> Bool {
