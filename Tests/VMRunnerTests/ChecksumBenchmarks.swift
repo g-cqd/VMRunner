@@ -16,18 +16,14 @@ struct ChecksumBenchmarks {
         (0..<count).map { UInt8(truncatingIfNeeded: ($0 &* 31) &+ ($0 >> 8)) }
     }
 
-    @Test(arguments: [("sha256", Checksum.Algorithm.sha256), ("sha1", .sha1)])
+    @Test(arguments: [("sha256", Checksum.Algorithm.sha256)])
     func digestThroughput(name: String, algorithm: Checksum.Algorithm) async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let bytes = Data(Self.pattern(Self.size))
         let file = directory.appending(path: "buffer.bin")
         try bytes.write(to: file)
-        let expected =
-            switch algorithm {
-            case .sha256: SHA256.hash(data: bytes).hexString
-            case .sha1: Insecure.SHA1.hash(data: bytes).hexString
-            }
+        let expected = SHA256.hash(data: bytes).hexString
 
         var digest = ""
         let rate = try await measureRate(units: Double(Self.size / (1 << 20))) {

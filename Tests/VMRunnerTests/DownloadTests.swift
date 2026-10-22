@@ -196,6 +196,16 @@ struct ChecksumTests {
             try await Checksums.hexDigest(of: file, algorithm: .sha256)
                 == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
     }
+
+    @Test func sha1IsRefusedBeforeTheFileIsOpened() async throws {
+        let missing = FileManager.default.temporaryDirectory.appending(path: "absent-\(UUID().uuidString).bin")
+        let error = await #expect(throws: SetupError.self) { try await Checksums.hexDigest(of: missing, algorithm: .sha1) }
+        guard case .weakChecksum(let name) = error else {
+            Issue.record("expected weakChecksum, got \(String(describing: error))")
+            return
+        }
+        #expect(name == missing.lastPathComponent)
+    }
 }
 
 struct CatalogTests {

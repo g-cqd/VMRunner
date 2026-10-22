@@ -91,7 +91,8 @@ enum Checksums {
     private static func digest(of url: URL, algorithm: Checksum.Algorithm) throws -> String {
         switch algorithm {
         case .sha256: try streamedDigest(of: url, using: SHA256.self)
-        case .sha1: try streamedDigest(of: url, using: Insecure.SHA1.self)
+        // SHA-1 cannot vouch for a file (`verify` refuses it first); nothing is hashed with it.
+        case .sha1: throw SetupError.weakChecksum(url.lastPathComponent)
         }
     }
 

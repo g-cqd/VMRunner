@@ -91,20 +91,6 @@
       "unit" : "allocations",
       "value" : 0
     },
-    "checksum.sha1.instructionsPerMiB" : {
-      "direction" : "lower",
-      "enforced" : true,
-      "tolerance" : 0.03,
-      "unit" : "instructions/MiB",
-      "value" : 2209825.39
-    },
-    "checksum.sha1.throughput" : {
-      "direction" : "higher",
-      "enforced" : false,
-      "tolerance" : 0.3,
-      "unit" : "MiB/s",
-      "value" : 2047.41
-    },
     "checksum.sha256.instructionsPerMiB" : {
       "direction" : "lower",
       "enforced" : true,
