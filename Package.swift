@@ -56,11 +56,14 @@ let package = Package(
             swiftSettings: hardening),
 
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
-        // engine chosen by `vmr sandbox`. It links the system frameworks and VMHelperCore only, never the app.
+        // engine chosen by `vmr sandbox`. It links the system frameworks, VMHelperCore and the network library targets
+        // (NetStack, NetPolicy, so the helper can host the user-mode stack for a real guest), never the app.
         // VMHelperCore holds the descriptor, the events and the Seatbelt profile generator; DevTools links it too, so the
         // launcher and the helper agree on them.
         .target(name: "VMHelperCore", path: "Sources/VMHelperCore", swiftSettings: hardening),
-        .executableTarget(name: "VMHelper", dependencies: ["VMHelperCore"], path: "Sources/VMHelper", swiftSettings: hardening),
+        .executableTarget(
+            name: "VMHelper", dependencies: ["VMHelperCore", "NetStack", "NetPolicy"], path: "Sources/VMHelper",
+            swiftSettings: hardening),
         .testTarget(name: "VMHelperCoreTests", dependencies: ["VMHelperCore"], path: "Tests/VMHelperCoreTests", swiftSettings: hardening),
 
         // Deterministic and allocation-aware test support, vendored:
