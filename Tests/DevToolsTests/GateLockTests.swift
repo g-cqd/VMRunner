@@ -62,18 +62,39 @@ struct GateLockTests {
             try await GateLock.hold(root: directory) {
                 _ = await #expect(throws: ToolError.self) { try await GateLock.hold(root: directory) {} }
             }
-            // Another test's `posix_spawn` can still carry a copy of the closed descriptor for a moment (it is
-            // close-on-exec), and `flock` is held until every copy is closed: retry briefly instead of failing.
-            try await retryingWhileBusy { try await GateLock.hold(root: directory) {} }
+            // `hold` unlocks before it closes, so the lock is free at once even while a concurrent spawn still holds a copy
+            // of the descriptor (see the next test).
+            try await GateLock.hold(root: directory) {}
         }
     }
 
-    private func retryingWhileBusy(attempts: Int = 100, _ body: () async throws -> Void) async throws {
-        for _ in 1..<attempts {
-            do { return try await body() } catch let error as ToolError where error.status == GateLock.busyStatus {
-                try await Task.sleep(for: .milliseconds(20))
-            }
-        }
-        try await body()
+    /// Why `hold` unlocks before it closes: `flock` belongs to the open file, so a copy of the descriptor (the one a concurrent
+    /// spawn holds until its exec closes it) keeps the lock after a `close`, and only an explicit unlock releases it at once.
+    @Test
+    func anExplicitUnlockReleasesTheLockWhileACopyOfTheDescriptorIsStillOpen() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "gate-lock-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let other = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
+        try #require(other >= 0)
+        defer { close(other) }
+
+        let closedOnly = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
+        try #require(closedOnly >= 0 && flock(closedOnly, LOCK_EX | LOCK_NB) == 0)
+        let firstCopy = dup(closedOnly)
+        close(closedOnly)
+        #expect(flock(other, LOCK_EX | LOCK_NB) != 0, "a close leaves the lock with the copy")
+        close(firstCopy)
+        #expect(flock(other, LOCK_EX | LOCK_NB) == 0, "the last copy's close releases it")
+        #expect(flock(other, LOCK_UN) == 0)
+
+        let unlocked = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
+        try #require(unlocked >= 0 && flock(unlocked, LOCK_EX | LOCK_NB) == 0)
+        let secondCopy = dup(unlocked)
+        defer { close(secondCopy) }
+        #expect(flock(unlocked, LOCK_UN) == 0)
+        close(unlocked)
+        #expect(flock(other, LOCK_EX | LOCK_NB) == 0, "an explicit unlock releases it whatever copies remain")
     }
 }
