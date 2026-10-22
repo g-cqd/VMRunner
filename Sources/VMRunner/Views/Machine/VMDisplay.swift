@@ -1,5 +1,6 @@
 import SwiftUI
 import Virtualization
+import os
 
 /// Shows a running machine's screen and forwards keyboard and pointer input to it.
 struct VMDisplay: NSViewRepresentable {
@@ -27,42 +28,44 @@ struct VMDisplay: NSViewRepresentable {
         // macOS guests honour the configured pixel density, so the framework's resizing is right for them.
         // For Linux it would hand over Retina-scaled pixels and shrink text, so resize at `scale` ourselves.
         view.automaticallyReconfiguresDisplay = settings.followsWindow && settings.guest == .macOS
-        resizer.configure(machine: machine, scale: settings.scale, enabled: settings.followsWindow && settings.guest == .linux)
+        resizer.configure(
+            machine: machine, scale: settings.scale, enabled: settings.followsWindow && settings.guest == .linux,
+            holdFor: settings.firmwareHoldRemaining)
     }
 }
 
-/// Keeps a Linux guest's framebuffer at `scale` pixels per point of the view, preserving its aspect ratio.
+extension VZGraphicsDisplay: ResizableDisplay {}
+
+/// Connects a Linux guest's graphics display to the view that shows it. The policy is `DisplayFollower`.
 @MainActor
 final class DisplayResizer {
     private var machine: VZVirtualMachine?
-    private var scale = 1.0
-    private var enabled = false
+    private var follower: DisplayFollower?
     private var lastViewSize = CGSize.zero
-    private var lastApplied = CGSize.zero
-    /// Debounces live resize: the guest re-modesets on every call.
-    private lazy var debouncer = Debouncer<CGSize>(quietPeriod: .milliseconds(150), clock: ContinuousClock()) { [weak self] size in
-        self?.apply(size)
-    }
 
-    func configure(machine: VZVirtualMachine, scale: Double, enabled: Bool) {
-        let changed = self.scale != scale || self.enabled != enabled || self.machine !== machine
-        self.machine = machine
-        self.scale = scale
-        self.enabled = enabled
-        if changed { viewResized(to: lastViewSize) }
+    /// `holdFor` is how much of the firmware hold (`DisplayFollower.firmwareHold`) is left when a machine is first seen.
+    func configure(machine: VZVirtualMachine, scale: Double, enabled: Bool, holdFor: Duration) {
+        if self.machine !== machine {
+            self.machine = machine
+            follower = DisplayFollower(
+                scale: scale, enabled: enabled, hold: holdFor, clock: ContinuousClock(),
+                display: { [weak machine] in machine?.graphicsDevices.first?.displays.first },
+                report: Self.log)
+            if lastViewSize != .zero { follower?.viewResized(to: lastViewSize) }
+        }
+        follower?.configure(scale: scale, enabled: enabled)
     }
 
     func viewResized(to size: CGSize) {
         lastViewSize = size
-        guard enabled, size.width >= 64, size.height >= 64 else { return }
-        debouncer.submit(size)
+        follower?.viewResized(to: size)
     }
 
-    private func apply(_ size: CGSize) {
-        guard let display = machine?.graphicsDevices.first?.displays.first else { return }
-        let pixels = CGSize(width: CGFloat(Int(size.width * scale) & ~1), height: CGFloat(Int(size.height * scale) & ~1))
-        guard pixels != lastApplied, pixels != display.sizeInPixels else { return }
-        if (try? display.reconfigure(sizeInPixels: pixels)) != nil { lastApplied = pixels }
+    private static func log(_ event: DisplayFollower.Event) {
+        switch event {
+        case .refused: Log.display.error("Display resize: \(event.description, privacy: .public)")
+        default: Log.display.debug("Display resize: \(event.description, privacy: .public)")
+        }
     }
 }
 

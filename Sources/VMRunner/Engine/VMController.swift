@@ -27,6 +27,9 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
 
     var isActive: Bool { virtualMachine != nil }
 
+    /// When the current run began its firmware (a cold boot); `nil` while stopped and for a run restored from saved state.
+    private(set) var firmwareStartedAt: ContinuousClock.Instant?
+
     // MARK: Start
 
     /// Boots the machine, restoring saved state when present.
@@ -80,6 +83,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
                 }
             }
 
+            firmwareStartedAt = .now
             let machine = attach(VZVirtualMachine(configuration: built.configuration))
             switch config.guest {
             case .macOS:
@@ -253,6 +257,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         observation = nil
         virtualMachine = nil
         LatencyActivity.shared.release(for: ObjectIdentifier(self))
+        firmwareStartedAt = nil
         state = .stopped
     }
 

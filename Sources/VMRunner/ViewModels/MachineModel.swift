@@ -16,6 +16,14 @@ final class MachineModel {
         var followsWindow: Bool
         var guest: GuestOS
         var scale: Double
+        /// When the firmware of this run started; `nil` for a run restored from saved state, which is past its firmware.
+        var firmwareStartedAt: ContinuousClock.Instant?
+
+        /// How much of `DisplayFollower.firmwareHold` is left now: a view made later in the run (full screen swaps it) has none.
+        var firmwareHoldRemaining: Duration {
+            guard guest == .linux, let firmwareStartedAt else { return .zero }
+            return max(.zero, DisplayFollower.firmwareHold - firmwareStartedAt.duration(to: .now))
+        }
     }
 
     enum Phase {
@@ -55,7 +63,8 @@ final class MachineModel {
                 capturesSystemKeys: config.capturesSystemKeys,
                 followsWindow: config.automaticallyReconfiguresDisplay,
                 guest: config.guest,
-                scale: config.displayScale
+                scale: config.displayScale,
+                firmwareStartedAt: controller.firmwareStartedAt
             )
             return .running(machine, settings)
         }

@@ -14,6 +14,7 @@ enum Log {
     static let network = Logger(subsystem: subsystem, category: "network")
     static let machine = Logger(subsystem: subsystem, category: "machine")
     static let input = Logger(subsystem: subsystem, category: "input")
+    static let display = Logger(subsystem: subsystem, category: "display")
 }
 
 extension Error {
