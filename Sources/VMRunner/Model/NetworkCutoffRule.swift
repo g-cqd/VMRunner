@@ -8,6 +8,13 @@ struct HostNetworkPath: Equatable, Sendable {
     var isExpensive = false
     /// Low Data Mode is on for the path.
     var isConstrained = false
+    /// The path can carry traffic. Read by the host-information share.
+    var isSatisfied = false
+    /// The kind of link the path uses. Read by the host-information share.
+    var interface = Interface.offline
+
+    /// The kinds of link the host-information share names.
+    enum Interface: String, Sendable { case wifi, ethernet, cellular, other, offline }
 }
 
 /// Why the kill switch has disconnected the guest's network card.

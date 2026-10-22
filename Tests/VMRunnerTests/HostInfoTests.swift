@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Testing
 import Virtualization
 
@@ -111,5 +112,43 @@ struct HostInfoShareTests {
 
     @Test func theHelpNamesTheTag() {
         #expect(HelpTopic.hostInformation.entry.paragraphs.joined(separator: " ").contains(ConfigurationBuilder.hostInfoTag))
+    }
+}
+
+/// The files the share holds: one per category that is on, `key=value` lines, and `none` or `unknown` for what is not known.
+struct HostFactsTests {
+    private let facts = HostFacts(
+        batteryPercent: 82, powerSource: .battery, lowPowerMode: true, thermal: .serious,
+        network: HostNetworkPath(vpn: .inactive, isExpensive: true, isConstrained: false, isSatisfied: true, interface: .wifi),
+        timeZone: "Europe/Paris")
+    private let everything = HostInfoSharing(battery: true, power: true, thermal: true, networkPath: true, timeZone: true)
+
+    @Test func eachCategoryThatIsOnHasItsFileAndNoOtherHasOne() {
+        var sharing = HostInfoSharing()
+        #expect(facts.files(for: sharing).isEmpty)
+        sharing.battery = true
+        sharing.timeZone = true
+        #expect(facts.files(for: sharing) == ["battery": "percent=82\n", "timezone": "identifier=Europe/Paris\n"])
+    }
+
+    @Test func everyFileReadsAsKeyValueLines() {
+        let files = facts.files(for: everything)
+        #expect(Set(files.keys) == Set(HostFacts.fileNames))
+        #expect(files["power"] == "source=battery\nlowPowerMode=1\n")
+        #expect(files["thermal"] == "state=serious\n")
+        #expect(files["network"] == "status=satisfied\ninterface=wifi\nexpensive=1\nconstrained=0\n")
+    }
+
+    @Test func whatIsNotKnownSaysNoneOrUnknown() {
+        let files = HostFacts().files(for: everything)
+        #expect(files["battery"] == "percent=none\n")
+        #expect(files["power"] == "source=unknown\nlowPowerMode=0\n")
+        #expect(files["network"] == "status=unknown\n")
+    }
+
+    @Test func theMacsOwnFactsNameItsTimeZone() {
+        let current = HostFacts.current(network: nil)
+        #expect(current.timeZone == TimeZone.current.identifier)
+        #expect(current.network == nil)
     }
 }
