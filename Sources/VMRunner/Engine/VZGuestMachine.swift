@@ -17,17 +17,20 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     let networkCutoff: NetworkCutoff?
     /// The attachment the kill switch took off the network card, kept to put back.
     private var detachedAttachment: VZNetworkDeviceAttachment?
+    /// Keeps the host-information share current while the machine lives, when the machine shares anything.
+    private let hostInfo: HostInfoPublisher?
 
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
 
     init(
         machine: VZVirtualMachine, console: ConsoleBridge? = nil, networkCutoff: NetworkCutoff? = nil,
-        startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
+        hostInfo: HostInfoPublisher? = nil, startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
     ) {
         self.machine = machine
         self.console = console
         self.networkCutoff = networkCutoff
+        self.hostInfo = hostInfo
         self.startOptions = startOptions
         super.init()
         machine.delegate = self
@@ -37,6 +40,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     var canStop: Bool { machine.canStop }
 
     func start() async throws {
+        hostInfo?.start()
         console?.start()
         if let options = try startOptions() {
             try await machine.start(options: options)
@@ -47,6 +51,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     }
 
     func restoreState(from url: URL) async throws {
+        hostInfo?.start()
         console?.start()
         try await machine.restoreMachineStateFrom(url: url)
         startNetworkCutoff()
@@ -101,6 +106,7 @@ struct VZMachineFactory: MachineFactory {
             machine: VZGuestMachine(
                 machine: machine, console: built.consoleBridge,
                 networkCutoff: config.hasNetworkCutoff ? NetworkCutoff(config: config) : nil,
+                hostInfo: config.hostInfo.isEmpty ? nil : HostInfoPublisher(directory: bundle.hostInfoFolder, sharing: config.hostInfo),
                 startOptions: { try Self.startOptions(for: config) }),
             network: network,
             suspend: suspend

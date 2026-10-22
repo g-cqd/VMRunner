@@ -62,7 +62,25 @@ extension HostNetworkPath {
             let up = path.status == .satisfied
             let interfaces = path.availableInterfaces.map { InterfaceSnapshot(name: $0.name, isUp: up, addresses: nil) }
             return HostNetworkPath(
-                vpn: VPNState.classify(interfaces), isExpensive: path.isExpensive, isConstrained: path.isConstrained)
+                vpn: VPNState.classify(interfaces), isExpensive: path.isExpensive, isConstrained: path.isConstrained,
+                isSatisfied: up, interface: HostNetworkPath.Interface(path))
+        }
+    }
+}
+
+extension HostNetworkPath.Interface {
+    /// The kind of link `path` uses, in the order macOS prefers them; `offline` when there is no usable path.
+    init(_ path: NWPath) {
+        if path.status != .satisfied {
+            self = .offline
+        } else if path.usesInterfaceType(.wifi) {
+            self = .wifi
+        } else if path.usesInterfaceType(.wiredEthernet) {
+            self = .ethernet
+        } else if path.usesInterfaceType(.cellular) {
+            self = .cellular
+        } else {
+            self = .other
         }
     }
 }
