@@ -13,6 +13,7 @@ most three builds run at once.
 |---|---|---|
 | 0 | **Input latency, before everything else**: audit the input path, add the latency monitor, hold a latency-critical activity while a machine runs, remove main-thread work; the owner measures one macOS and one Linux guest | 0037 |
 | 0 | **The Linux boot display, right after**: the firmware and boot loader text is tiny; the starting scanout must respect the cap whatever was remembered | 0038 |
+| 0 | **The window and the shown screen**: resizing must realign, rescale and recenter the guest picture and never corrupt it | 0039 |
 | A | Land the branches in flight (network, downloads, container runner), one at a time, with the gate after each; repackage the container runner as its own package before it merges; fix the contradictions between documents and code; write the diary entry | 0034, 0024, 0032 |
 | B | Test support: improve the shared library first, then sync the vendored copy; confirm the suspected defects; port the facilities; adopt the provider seam | 0031, 0035 |
 | C | Naming ADR and renames, then the packages in order | 0032 |
