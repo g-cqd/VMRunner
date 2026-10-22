@@ -18,7 +18,8 @@ struct NewMachineSheet: View {
             }
             MediaSection(model: model)
             ResourcesSection(
-                cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB, diskGiB: $model.config.diskGiB)
+                guest: model.config.guest, cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB,
+                diskGiB: $model.config.diskGiB)
             if let error = model.creationError { Text(error).foregroundStyle(.red) }
         }
         .formStyle(.grouped)
@@ -40,6 +41,7 @@ struct NewMachineSheet: View {
 }
 
 private struct ResourcesSection: View {
+    let guest: GuestOS
     @Binding var cpuCount: Int
     @Binding var memoryMiB: Int
     @Binding var diskGiB: Int
@@ -47,7 +49,7 @@ private struct ResourcesSection: View {
     var body: some View {
         Section {
             CoreAndMemorySteppers(cpuCount: $cpuCount, memoryMiB: $memoryMiB, memoryStepMiB: EditorLimits.newMemoryStepMiB)
-            Stepper(value: $diskGiB, in: EditorLimits.newDiskGiB, step: EditorLimits.diskStepGiB) {
+            Stepper(value: $diskGiB, in: EditorLimits.newDiskGiB(for: guest), step: EditorLimits.diskStepGiB) {
                 LabeledContent("Disk", value: "\(diskGiB) GiB")
             }
             .settingHelp(.diskSize)

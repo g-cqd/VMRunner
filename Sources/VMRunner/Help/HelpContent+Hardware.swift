@@ -56,6 +56,7 @@ extension HelpCatalog {
                 "• **Linux**: grow the partition and filesystem (for example `growpart` then `resize2fs` or `xfs_growfs`).",
                 "• **macOS**: use Disk Utility, or `diskutil apfs resizeContainer`.",
                 "Growing a disk discards a suspended state.",
+                "A new macOS machine needs at least \(EditorLimits.newMacDiskGiB.lowerBound) GiB: an install into 16 GiB failed.",
             ],
             advanced: [
                 "The disk is a raw image (`Disk.img`). Raw sparse files stay small on APFS but don't return space when the guest "

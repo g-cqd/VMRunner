@@ -277,6 +277,16 @@ struct NewMachineModelTests {
         #expect(model.makeConfig().source == .linuxCatalog(id: first.id))
     }
 
+    @Test func theDiskRangeStartsAt40ForMacOSAnd16ForLinux() {
+        #expect(EditorLimits.newDiskGiB(for: .macOS).lowerBound == 40)
+        #expect(EditorLimits.newDiskGiB(for: .linux).lowerBound == 16)
+    }
+
+    @Test func aDefaultMacConfigIsInsideTheMacDiskRange() {
+        let config = VMConfig.new(name: "macOS", guest: .macOS)
+        #expect(EditorLimits.newDiskGiB(for: .macOS).contains(config.diskGiB))
+    }
+
     @Test func createAddsTheMachineAndFailsCleanlyOtherwise() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "vmrunner-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: directory) }

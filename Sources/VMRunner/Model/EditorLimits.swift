@@ -4,7 +4,10 @@ import NetPolicy
 enum EditorLimits {
     static let maxDiskGiB = 4096
     static let diskStepGiB = 8
-    static let newDiskGiB = 16...2048
+    static let newLinuxDiskGiB = 16...2048
+    /// The smallest disk a macOS install was seen to succeed on (a real run); 16 GiB failed. Not probed in between.
+    static let newMacDiskGiB = 40...2048
+    static func newDiskGiB(for guest: GuestOS) -> ClosedRange<Int> { guest == .macOS ? newMacDiskGiB : newLinuxDiskGiB }
     static let memoryStepMiB = 512
     static let newMemoryStepMiB = 1024
     static let displayWidth = 640...7680
