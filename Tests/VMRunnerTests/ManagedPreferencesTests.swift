@@ -53,7 +53,7 @@ struct ManagedPreferencesTests {
     @Test func aValueTheUserWroteIsNotPolicy() throws {
         let name = "ManagedPreferencesTests-\(UUID().uuidString)"
         let suite = try #require(UserDefaults(suiteName: name))
-        defer { UserDefaults.standard.removePersistentDomain(forName: name) }
+        defer { suite.removePersistentDomain(forName: name) }
         for key in ManagedKey.allCases { suite.set(false, forKey: key.rawValue) }
         #expect(ManagedPreferences(reading: suite) == ManagedPreferences(forcedValue: { _ in nil }))
     }
