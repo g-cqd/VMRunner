@@ -38,15 +38,20 @@ enum ToolLocator {
                 + "that binary is run without any check")
     }
 
-    /// `SWIFTLINT_BIN` when set, otherwise the SwiftLint release pinned in `Scripts/analyzers.lock`, downloaded and
-    /// verified on first use (never taken from `PATH`, so every checkout lints with the same version).
-    static func swiftlint(root: URL, environment: [String: String]) async throws -> String {
-        if let override = environment[ReleaseSpec.swiftlint.binaryOverrideVariable], !override.isEmpty {
-            noteOverride(variable: ReleaseSpec.swiftlint.binaryOverrideVariable, path: override, environment: environment)
+    /// `<TOOL>_BIN` when set, otherwise the release pinned in `Scripts/analyzers.lock`, downloaded and verified on first use
+    /// (never taken from `PATH`, so every checkout runs the same version).
+    static func pinned(_ release: ReleaseSpec, root: URL, environment: [String: String]) async throws -> String {
+        if let override = environment[release.binaryOverrideVariable], !override.isEmpty {
+            noteOverride(variable: release.binaryOverrideVariable, path: override, environment: environment)
             return try resolve(override, searchPath: environment["PATH"]).path
         }
-        let pin = try AnalyzerLock.load(root: root).pin(for: .swiftlint)
+        let pin = try AnalyzerLock.load(root: root).pin(for: release)
         let installer = try AnalyzerInstaller(root: root, environment: environment)
         return try await installer.install(pin).path
+    }
+
+    /// SwiftLint as `pinned` resolves it.
+    static func swiftlint(root: URL, environment: [String: String]) async throws -> String {
+        try await pinned(.swiftlint, root: root, environment: environment)
     }
 }

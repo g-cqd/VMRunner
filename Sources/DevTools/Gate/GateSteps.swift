@@ -22,6 +22,20 @@ enum GateSteps {
         try await context.run(tool, ["lint", "--quiet"])
     }
 
+    /// actionlint, then zizmor, over `.github`, both pinned in `Scripts/analyzers.lock`. zizmor only warns about a file it
+    /// cannot parse, so it runs with `--strict-collection`, which makes that a failure; `--offline` keeps it off the GitHub
+    /// API. actionlint runs without its shellcheck and pyflakes integrations, so the result does not depend on `PATH`.
+    @Sendable
+    static func workflows(_ context: StepContext) async throws {
+        guard FileManager.default.fileExists(atPath: context.root.appending(path: ".github").path) else {
+            throw ToolError("workflows: no .github directory to check")
+        }
+        let actionlint = try await ToolLocator.pinned(.actionlint, root: context.root, environment: context.environment)
+        let zizmor = try await ToolLocator.pinned(.zizmor, root: context.root, environment: context.environment)
+        try await context.run(actionlint, ["-no-color", "-oneline", "-shellcheck=", "-pyflakes="])
+        try await context.run(zizmor, ["--offline", "--strict-collection", "--no-progress", "--format", "plain", ".github"])
+    }
+
     @Sendable
     static func build(_ context: StepContext) async throws {
         try await context.run("swift", ["build", resolvedOnly])

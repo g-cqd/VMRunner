@@ -6,6 +6,7 @@ enum GateCatalog {
         GateStep(name: "format", run: GateSteps.format),
         GateStep(name: "swiftlint", run: GateSteps.swiftlint),
         GateStep(name: "docs", run: GateSteps.docs),
+        GateStep(name: "workflows", run: GateSteps.workflows),
         GateStep(name: "policy", run: Policy.run),
         GateStep(name: "build", run: GateSteps.build),
         GateStep(name: "test", run: GateSteps.test),
