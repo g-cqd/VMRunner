@@ -52,6 +52,9 @@ extension VMConfig {
         try Self.requireLength(provisioning.username, "provisioning.username")
         if let guestVersion { try Self.requireLength(guestVersion, "guestVersion") }
         if let macAddress { try Self.requireLength(macAddress, "macAddress") }
+        if diskSerial.utf8.count > EditorLimits.maxDiskSerialLength || !diskSerial.allSatisfy(\.isASCII) {
+            throw Self.corrupted("diskSerial", "must be at most \(EditorLimits.maxDiskSerialLength) ASCII characters")
+        }
     }
 
     private func validateHostPaths() throws {

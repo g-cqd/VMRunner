@@ -10,7 +10,7 @@ import Testing
 struct ConfigBoundsTests {
     /// A value of a configuration that has a bound, and how to put it at the bound or one past it.
     enum Bound: String, CaseIterable, CustomTestStringConvertible, Sendable {
-        case name, fullName, username, guestVersion, macAddress
+        case name, fullName, username, guestVersion, macAddress, diskSerial
         case sharedFolderCount, extraDiskCount
         case sharedFolderPath, extraDiskPath, installerPath, localSourcePath
 
@@ -26,6 +26,7 @@ struct ConfigBoundsTests {
             case .username: config.provisioning.username = text
             case .guestVersion: config.guestVersion = text
             case .macAddress: config.macAddress = text
+            case .diskSerial: config.diskSerial = String(repeating: "s", count: EditorLimits.maxDiskSerialLength + (past ? 1 : 0))
             case .sharedFolderCount: config.sharedFolders = (0..<items).map { SharedFolder(path: "/tmp/f\($0)") }
             case .extraDiskCount: config.extraDisks = (0..<items).map { ExtraDisk(path: "/tmp/d\($0).img") }
             case .sharedFolderPath: config.sharedFolders = [SharedFolder(path: path)]

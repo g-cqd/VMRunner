@@ -28,6 +28,8 @@ enum EditorLimits {
     static let maxPathLength = 1024
     /// Shared folders, and extra disks, one machine may have.
     static let maxHostItems = 64
+    /// The framework's limit on a virtio disk's identifier, in ASCII characters.
+    static let maxDiskSerialLength = 20
     /// Lines the live connection log keeps; older ones fall off.
     static let recentFlowLimit = 200
 }

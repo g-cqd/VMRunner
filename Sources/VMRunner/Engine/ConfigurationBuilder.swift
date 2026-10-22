@@ -202,7 +202,7 @@ enum ConfigurationBuilder {
         }
 
         var devices: [VZStorageDeviceConfiguration] = [
-            VZVirtioBlockDeviceConfiguration(attachment: try attachment(bundle.activeDisk(ephemeral: config.ephemeral), readOnly: false))
+            try mainDisk(try attachment(bundle.activeDisk(ephemeral: config.ephemeral), readOnly: false), for: config)
         ]
         for disk in config.extraDisks {
             guard !AppPaths.isInside(URL(filePath: disk.path), AppPaths.machines) else {
@@ -220,6 +220,22 @@ enum ConfigurationBuilder {
             devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
         }
         return devices
+    }
+
+    /// The machine's own disk: an NVMe drive when a Linux machine asks for one, otherwise a virtio disk that reports the
+    /// machine's serial number, if it has one.
+    private static func mainDisk(
+        _ attachment: VZDiskImageStorageDeviceAttachment, for config: VMConfig
+    ) throws -> VZStorageDeviceConfiguration {
+        if config.guest == .linux, config.diskInterface == .nvme {
+            return VZNVMExpressControllerDeviceConfiguration(attachment: attachment)
+        }
+        let disk = VZVirtioBlockDeviceConfiguration(attachment: attachment)
+        if !config.diskSerial.isEmpty {
+            try VZVirtioBlockDeviceConfiguration.validateBlockDeviceIdentifier(config.diskSerial)
+            disk.blockDeviceIdentifier = config.diskSerial
+        }
+        return disk
     }
 
     private static func network(for config: VMConfig) throws -> (devices: [VZNetworkDeviceConfiguration], stack: UserNetStack?) {

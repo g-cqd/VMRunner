@@ -69,4 +69,41 @@ struct StorageDevicesTests {
 
         #expect(try ConfigurationBuilder.storage(for: config, bundle: makeBundle(in: directory)).count == 1)
     }
+
+    @Test func aLinuxMachineCanHaveItsDiskOnNVMeAndAMacCannot() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var linux = VMConfig.new(name: "x", guest: .linux)
+        linux.diskInterface = .nvme
+        let linuxDisks = try ConfigurationBuilder.storage(for: linux, bundle: makeBundle(in: directory))
+        #expect(linuxDisks[0] is VZNVMExpressControllerDeviceConfiguration)
+        var mac = VMConfig.new(name: "m", guest: .macOS)
+        mac.diskInterface = .nvme
+        #expect(try ConfigurationBuilder.storage(for: mac, bundle: makeBundle(in: directory))[0] is VZVirtioBlockDeviceConfiguration)
+    }
+
+    @Test func aVirtioDiskReportsTheSerialNumber() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundle = try makeBundle(in: directory)
+        var config = VMConfig.new(name: "x", guest: .linux)
+        let plain = try #require(try ConfigurationBuilder.storage(for: config, bundle: bundle)[0] as? VZVirtioBlockDeviceConfiguration)
+        #expect(plain.blockDeviceIdentifier.isEmpty)
+        config.diskSerial = "VMR0000000001"
+        let disk = try #require(try ConfigurationBuilder.storage(for: config, bundle: bundle)[0] as? VZVirtioBlockDeviceConfiguration)
+        #expect(disk.blockDeviceIdentifier == "VMR0000000001")
+    }
+
+    @Test func aSerialNumberThatIsNotASCIIIsRefusedWhereTheConfigIsRead() throws {
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.diskSerial = "é"
+        #expect(throws: DecodingError.self) { try VMConfig.decode(from: config.encoded()) }
+    }
+
+    @Test func aConfigWrittenBeforeTheDiskSettingsKeepsTheDefaults() throws {
+        let old =
+            #"{"id":"3B873409-1F62-435C-A557-0040D55FBE19","name":"legacy","guest":"linux","cpuCount":2,"memoryMiB":2048,"diskGiB":32}"#
+        let config = try VMConfig.decode(from: Data(old.utf8))
+        #expect(config.diskInterface == .virtio && config.diskSerial.isEmpty)
+    }
 }

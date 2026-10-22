@@ -48,6 +48,11 @@ enum DiskSync: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// How the machine's own disk is attached. NVMe is honoured for Linux guests only.
+enum DiskInterface: String, Codable, Sendable {
+    case virtio, nvme
+}
+
 enum PointingDevice: String, Codable, CaseIterable, Identifiable, Sendable {
     case trackpad, mouse
 
@@ -104,6 +109,11 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var diskGiB: Int
     var diskCaching = DiskCaching.automatic
     var diskSync = DiskSync.full
+    /// Linux only: how the machine's own disk is attached. NVMe shows the guest no virtio storage device.
+    var diskInterface = DiskInterface.virtio
+    /// The serial number the virtio disk reports to the guest, at most `EditorLimits.maxDiskSerialLength` ASCII
+    /// characters; empty reports none.
+    var diskSerial = ""
     var extraDisks: [ExtraDisk] = []
     var installerISO: String?
     var installerAttached = true
