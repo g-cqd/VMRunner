@@ -146,15 +146,21 @@ extension PGP {
             return payload
         }
 
-        /// The CRC-24 of RFC 4880 section 6.1.
+        /// The CRC-24 of RFC 4880 section 6.1, a byte at a time through `crc24Table`.
         static func crc24(_ bytes: [UInt8]) -> UInt32 {
             var crc: UInt32 = 0xB7_04CE
             for byte in bytes {
-                crc ^= UInt32(byte) << 16
-                for _ in 0..<8 {
-                    crc <<= 1
-                    if crc & 0x100_0000 != 0 { crc ^= 0x186_4CFB }
-                }
+                crc = ((crc << 8) & 0xFF_FFFF) ^ crc24Table[Int(((crc >> 16) ^ UInt32(byte)) & 0xFF)]
+            }
+            return crc
+        }
+
+        /// Entry `i` is what eight steps of the bitwise CRC-24 leave of the byte `i` in the top byte of the register.
+        private static let crc24Table: [UInt32] = (0..<256).map { index in
+            var crc = UInt32(index) << 16
+            for _ in 0..<8 {
+                crc <<= 1
+                if crc & 0x100_0000 != 0 { crc ^= 0x186_4CFB }
             }
             return crc & 0xFF_FFFF
         }
