@@ -14,6 +14,11 @@ install, and the app never parses anything the guest sends. The folder is `HostI
 made again, private, at each start, so nothing a copied bundle left there (a link included) is served. One `key=value`
 file per category, written at the start, every minute, and when the Mac's network path changes.
 
+Each file is rewritten in place (truncated, then written in one call), never replaced. A real Linux guest that read a
+file every 0.1 s found it missing for about a second at a rewrite while the files were replaced by rename, most likely
+because its virtio-fs entry cache still held the old file. A reader can still find a file empty for a moment, so a guest
+reads a file that is empty or missing again a second later. That writing in place ends the gaps is owed to a real guest.
+
 ## Built
 
 `VMConfig.hostInfo` (battery, power, thermal state, network path, time zone; all off by default), cleared by Isolated

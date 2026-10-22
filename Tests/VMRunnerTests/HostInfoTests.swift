@@ -63,6 +63,7 @@ struct HostInfoSharingTests {
         for phrase in ["read-only", "mount -t virtiofs", "mount_virtiofs", "Isolated and Hardened", "percent="] {
             #expect(text.contains(phrase), "missing: \(phrase)")
         }
+        #expect(text.contains("read it again"), "a file found empty or missing during a rewrite is read again")
         #expect(SecurityProfile.isolated.summary.contains("host information"))
     }
 }

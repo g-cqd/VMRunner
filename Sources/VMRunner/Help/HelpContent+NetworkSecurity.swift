@@ -109,6 +109,8 @@ extension HelpCatalog {
                     + "`unknown`, `lowPowerMode=0` or `1`), `thermal` (`state=`), `network` (`status=`, `interface=`, "
                     + "`expensive=`, `constrained=`) and `timezone` (`identifier=`). A fact that is off has no file. The "
                     + "folder is `HostInfo` in the machine's folder, emptied at every start.",
+                "VMRunner rewrites each file in place. A program that reads one just as it is rewritten can find it empty, or "
+                    + "on some guests missing for a moment: read it again a second later rather than take that as a fact.",
                 "The guest cannot write to the share. Reading it is still a channel from your Mac into the guest, so "
                     + "\"What this machine can reach\" lists it.",
             ],

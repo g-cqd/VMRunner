@@ -39,6 +39,30 @@ struct HostInfoPublisherTests {
         feed.finish()
     }
 
+    @Test func aRewriteKeepsTheSameFileSoAGuestNeverFindsItMissing() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = TestClock()
+        let box = FactsBox()
+        box.facts.timeZone = "America/Argentina/Buenos_Aires"
+        let (paths, feed) = AsyncStream.makeStream(of: HostNetworkPath.self)
+        let publisher = HostInfoPublisher(
+            directory: directory, sharing: HostInfoSharing(timeZone: true), clock: clock, paths: { paths },
+            read: { _ in box.facts })
+        publisher.start()
+        let file = directory.appending(path: "timezone").path
+        let before = try #require(FileManager.default.attributesOfItem(atPath: file)[.systemFileNumber] as? NSNumber)
+
+        try await clock.waitForSleepers(atLeast: 1)
+        box.facts.timeZone = "UTC"
+        clock.advance(by: HostInfoPublisher.interval)
+        try await clock.waitForSleepers(atLeast: 1)
+        #expect(text("timezone", in: directory) == "identifier=UTC\n", "a shorter text leaves nothing of the longer one")
+        let after = try #require(FileManager.default.attributesOfItem(atPath: file)[.systemFileNumber] as? NSNumber)
+        #expect(after == before, "the file is written in place, not replaced by another one")
+        feed.finish()
+    }
+
     @Test func aNetworkChangeIsWrittenAtOnce() async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

@@ -66,7 +66,7 @@ final class HostInfoPublisher {
             let file = directory.appending(path: name)
             do {
                 if let text = files[name] {
-                    try Data(text.utf8).write(to: file, options: .atomic)
+                    try Self.overwrite(file, with: Data(text.utf8))
                 } else if FileManager.default.fileExists(atPath: file.path) {
                     try FileManager.default.removeItem(at: file)
                 }
@@ -74,5 +74,20 @@ final class HostInfoPublisher {
                 Log.machine.error("Couldn't write host information (\(error.logKind, privacy: .public))")
             }
         }
+    }
+
+    /// Writes `data` over `file` in place: the file keeps its name and inode, and is truncated and then written with its
+    /// whole content in one call. A guest reading it through the share sees the old text, the new text or, for a moment, an
+    /// empty file, never a missing one: a replace by rename made the name vanish for about a second in a Linux guest, whose
+    /// virtio-fs entry cache still held the old file. A file that is not there yet is created, never through a link.
+    private static func overwrite(_ file: URL, with data: Data) throws {
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            try data.write(to: file, options: .withoutOverwriting)
+            return
+        }
+        let handle = try FileHandle(forWritingTo: file)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: 0)
+        try handle.write(contentsOf: data)
     }
 }
