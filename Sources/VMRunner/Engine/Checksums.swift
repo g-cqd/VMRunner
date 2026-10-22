@@ -62,15 +62,31 @@ enum Checksums {
         let handle = try openRegularFile(url)
         defer { try? handle.close() }
         var digest = check.makeDigest()
-        while let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty {
-            try Task.checkCancellation()
-            digest.update(chunk)
-        }
+        try forEachChunk(of: handle) { digest.update($0) }
         return digest
     }
 
     // 4 MiB chunks measured fastest for FileHandle reads (1 MiB: -16%, 16 MiB: -78% on an M3, 1 GB file).
     private static let chunkSize = 4 << 20
+
+    /// Reads `handle` from where it stands to its end through one buffer of `chunkSize` bytes, reused for every read, and
+    /// hands each filled part to `body`. Checks for cancellation before each read.
+    private static func forEachChunk(of handle: FileHandle, _ body: (ArraySlice<UInt8>) throws -> Void) throws {
+        var buffer = [UInt8](repeating: 0, count: chunkSize)
+        let descriptor = handle.fileDescriptor
+        while true {
+            try Task.checkCancellation()
+            // `bytes` spans the whole buffer for the duration of the call; `read` writes at most `bytes.count` bytes into it.
+            let count = buffer.withUnsafeMutableBytes { bytes in unsafe read(descriptor, bytes.baseAddress, bytes.count) }
+            if count == 0 { return }
+            if count < 0 {
+                let code = errno
+                if code == EINTR { continue }
+                throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+            }
+            try body(buffer[..<count])
+        }
+    }
 
     private static func digest(of url: URL, algorithm: Checksum.Algorithm) throws -> String {
         let handle = try openRegularFile(url)
@@ -78,17 +94,11 @@ enum Checksums {
         switch algorithm {
         case .sha256:
             var hasher = SHA256()
-            while let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty {
-                try Task.checkCancellation()
-                hasher.update(data: chunk)
-            }
+            try forEachChunk(of: handle) { hasher.update(data: $0) }
             return hasher.finalize().hexString
         case .sha1:
             var hasher = Insecure.SHA1()
-            while let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty {
-                try Task.checkCancellation()
-                hasher.update(data: chunk)
-            }
+            try forEachChunk(of: handle) { hasher.update(data: $0) }
             return hasher.finalize().hexString
         }
     }

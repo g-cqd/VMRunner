@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 
@@ -172,6 +173,23 @@ struct ChecksumTests {
         await #expect(throws: SetupError.self) {
             try await Checksums.verify(file, against: Checksum(algorithm: .sha256, value: "00"))
         }
+    }
+
+    @Test func aFileLongerThanOneReadIsHashedWhole() async throws {
+        let file = temporaryFile()
+        let bytes = Data((0..<(9 << 20) + 5).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+        try bytes.write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(try await Checksums.hexDigest(of: file, algorithm: .sha256) == SHA256.hash(data: bytes).hexString)
+    }
+
+    @Test func anEmptyFileHashesToTheDigestOfNothing() async throws {
+        let file = temporaryFile()
+        try Data().write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(
+            try await Checksums.hexDigest(of: file, algorithm: .sha256)
+                == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
     }
 }
 
