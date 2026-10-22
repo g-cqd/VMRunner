@@ -16,10 +16,10 @@ struct FlowLogEntry: Identifiable, Hashable, Sendable {
     let destination: String
     /// Why: the matching rule for a denial, or the plain outcome for an allowed connection.
     let detail: String
-    /// How many attempts the line stands for: more than one when identical refusals were folded together ("x 40").
+    /// How many attempts the line stands for: more than one when identical refusals or DNS answers were folded ("x 40").
     let count: Int
 
-    /// How many attempts an event stands for: more than one when identical refusals were folded together.
+    /// How many attempts an event stands for: more than one when identical refusals or DNS answers were folded together.
     static func attempts(of event: FlowEvent) -> Int { max(event.count, 1) }
 
     /// What the log says about a phase, or `nil` when it has no line. Decided without building the line, so a flood of events
@@ -47,7 +47,7 @@ struct FlowLogEntry: Identifiable, Hashable, Sendable {
             detail = count > 1 ? "\(denial.explanation) × \(count)" : denial.explanation
         case .answered(let code):
             outcome = .allowed
-            detail = FlowEvent.answerText(responseCode: code)
+            detail = count > 1 ? "\(FlowEvent.answerText(responseCode: code)) × \(count)" : FlowEvent.answerText(responseCode: code)
         case .closed(.policyRevoked(let reason)):
             outcome = .denied
             detail = "Closed after a policy change: \(reason.explanation)"

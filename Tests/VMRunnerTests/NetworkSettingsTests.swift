@@ -263,6 +263,17 @@ struct FlowLogTests {
         #expect(missing.destination == "93.184.216.34:53")
     }
 
+    @Test func aDNSAnswerThatStandsForSeveralSaysHowMany() throws {
+        let folded = FlowEvent(
+            flowID: 1, transport: .dns, phase: .answered(responseCode: 0), remote: (IPv4.make(93, 184, 216, 34), 53),
+            name: "a.example.com", time: 0, count: 12)
+        let entry = try #require(FlowLogEntry(event: folded, id: 3))
+        #expect(entry.count == 12 && entry.detail == "Name resolved × 12")
+        let single = try #require(
+            FlowLogEntry(event: event(.answered(responseCode: 0), transport: .dns, name: "a.example.com", port: 53), id: 4))
+        #expect(single.detail == "Name resolved")
+    }
+
     @Test func anIcmpFlowHasNoPort() throws {
         let entry = try #require(FlowLogEntry(event: event(.opened, transport: .icmp, port: 0), id: 0))
         #expect(entry.destination == "93.184.216.34")
