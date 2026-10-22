@@ -5,29 +5,6 @@ import Testing
 
 @testable import VMRunner
 
-/// A graphics display that records what it is asked for. It can refuse, and it can ignore a request the way a guest does that
-/// has no driver yet.
-@MainActor
-private final class FakeDisplay: ResizableDisplay {
-    struct Refused: Error {}
-
-    var sizeInPixels: CGSize
-    var requests: [CGSize] = []
-    var refusals = 0
-    var followsRequests = true
-
-    init(sizeInPixels: CGSize = CGSize(width: 1280, height: 782)) { self.sizeInPixels = sizeInPixels }
-
-    func reconfigure(sizeInPixels size: CGSize) throws {
-        requests.append(size)
-        if refusals > 0 {
-            refusals -= 1
-            throw Refused()
-        }
-        if followsRequests { sizeInPixels = size }
-    }
-}
-
 @MainActor @Suite(.timeLimit(.minutes(1)))
 struct DisplayFollowerTests {
     private let quiet = DisplayFollower.quietPeriod
@@ -38,7 +15,12 @@ struct DisplayFollowerTests {
     private func makeFollower(scale: Double = 1, enabled: Bool = true, hold: Duration = .zero) -> DisplayFollower {
         DisplayFollower(
             scale: scale, enabled: enabled, hold: hold, clock: clock, display: { [display] in display },
-            report: { [events] in events.record($0) })
+            report: { [events] event in
+                switch event {
+                case .guestResponded, .guestIgnored: break  // `DisplayResponseTests`
+                default: events.record(event)
+                }
+            })
     }
 
     private func size(_ width: CGFloat, _ height: CGFloat) -> CGSize { CGSize(width: width, height: height) }
@@ -154,13 +136,15 @@ struct DisplayFollowerTests {
 
     @Test func aGuestThatIgnoresARequestIsNotAskedForTheSameSizeAgain() async throws {
         display.followsRequests = false
+        display.answers = false
         let follower = makeFollower()
         follower.viewResized(to: size(1200, 800))
         try await letQuietPass()
         _ = try await events.wait(forAtLeast: 1)
 
         follower.viewResized(to: size(1200.5, 800.5))
-        try await letQuietPass()
+        try await clock.waitForSleepers(atLeast: 2)  // the response clock and the quiet period
+        clock.advance(by: quiet)
         _ = try await events.wait(forAtLeast: 2)
 
         #expect(display.requests == [size(1200, 800)], "the guest re-modesets on every request, so repeating one only flickers")
@@ -383,6 +367,14 @@ struct DisplayDiagnosticsTests {
         #expect(DisplayDiagnostics.isRequested(in: ["VMRunner", "--start", "Alpine", "--display-diagnostics"]))
     }
 
+    @Test func theNoticeForAnIgnoredResizeIsShortHonestAndInTheResolutionHelp() {
+        let notice = DisplayFollower.ignoredNotice
+        #expect(notice == "The guest ignored the display resize (firmware and boot loader screens cannot follow the window).")
+        #expect(!notice.localizedCaseInsensitiveContains("will"), "it never promises that the guest follows")
+        let help = HelpTopic.resolution.entry
+        #expect(help.paragraphs.contains { $0.contains(notice) })
+    }
+
     @Test func theLaunchArgumentIsDocumentedInTheHelp() {
         let help = HelpTopic.launchArguments.entry
         #expect((help.paragraphs + help.advanced).joined(separator: " ").contains(DisplayDiagnostics.argument))
@@ -395,6 +387,8 @@ struct DisplayDiagnosticsTests {
     @Test func everyEventNamesTheSizesInvolved() {
         let target = CGSize(width: 1200, height: 800)
         let events: [DisplayFollower.Event] = [
+            .guestResponded(target: target, displayIs: CGSize(width: 1200, height: 800)),
+            .guestIgnored(target: target, displayIs: CGSize(width: 1280, height: 782)),
             .ignored(points: CGSize(width: 30, height: 30)),
             .skipped(target: target),
             .requested(points: CGSize(width: 1200.5, height: 800.5), target: target, displayWas: CGSize(width: 1280, height: 782)),
@@ -402,10 +396,12 @@ struct DisplayDiagnosticsTests {
             .refused(target: target, errorKind: "VZErrorDomain 1", attempt: 6, retryIn: nil),
         ]
         let text = events.map(\.description)
-        #expect(text[0].contains("30×30"))
-        #expect(text[1].contains("1200×800"))
-        #expect(text[2].contains("1200×800") && text[2].contains("1280×782"))
-        #expect(text[3].contains("VZErrorDomain 1") && text[3].contains("attempt 2") && text[3].contains("retrying"))
-        #expect(text[4].contains("giving up"))
+        #expect(text[0].hasPrefix("guest responded") && text[0].contains("1200×800"))
+        #expect(text[1].hasPrefix("guest did not respond") && text[1].contains("1200×800") && text[1].contains("1280×782"))
+        #expect(text[2].contains("30×30"))
+        #expect(text[3].contains("1200×800"))
+        #expect(text[4].contains("1200×800") && text[4].contains("1280×782"))
+        #expect(text[5].contains("VZErrorDomain 1") && text[5].contains("attempt 2") && text[5].contains("retrying"))
+        #expect(text[6].contains("giving up"))
     }
 }

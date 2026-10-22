@@ -26,6 +26,9 @@ final class VMController {
     /// When the current run began its firmware (a cold boot); `nil` while stopped and for a run restored from saved state.
     private(set) var firmwareStartedAt: ContinuousClock.Instant?
     var errorMessage: String?
+    /// The guest left the last resize of its display unanswered. The framework reports no error for that; it clears with the
+    /// next answer and when the run ends.
+    private(set) var guestIgnoresDisplayResize = false
 
     /// Bumped each time a machine is released: a report that carries an older number is stale.
     @ObservationIgnored private var run: UInt64 = 0
@@ -86,6 +89,8 @@ final class VMController {
             config: config, bundle: bundle, library: library, display: decision, windowSize: windowSize, suspendAllowed: mayResume)
         await drive(.startRequested, run: run)
     }
+
+    func guestAnswered(displayResize responded: Bool) { guestIgnoresDisplayResize = !responded }
 
     /// Asks the guest to shut down cleanly (like pressing the power button).
     func requestStop() { _ = receive(.shutdownRequested, run: run) }
@@ -271,6 +276,7 @@ final class VMController {
         letGoOfAttempt()
         runtimeLimit.cancel()
         deadline = nil
+        guestIgnoresDisplayResize = false
         launch?.bundle.discardEphemeral()
         launch = nil
         notice = nil

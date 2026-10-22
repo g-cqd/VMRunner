@@ -114,6 +114,10 @@ final class MachineModel {
     /// The detail pane's size in points, used to size the guest display when the machine starts.
     func reportPaneSize(_ size: CGSize) { library.displayHint = size }
 
+    /// Whether the guest left the display's last resize unanswered; see `VMController.guestIgnoresDisplayResize`.
+    var guestIgnoresDisplayResize: Bool { controller.guestIgnoresDisplayResize }
+    func displayResizeAnswered(_ responded: Bool) { controller.guestAnswered(displayResize: responded) }
+
     // MARK: Actions
 
     func start() { library.startMachine(id) }

@@ -6,6 +6,8 @@ import os
 struct VMDisplay: NSViewRepresentable {
     let machine: VZVirtualMachine
     let settings: MachineModel.DisplaySettings
+    /// Told, for each resize the app asks of the guest, whether the guest answered it.
+    let guestAnswered: (Bool) -> Void
 
     func makeCoordinator() -> DisplayResizer { DisplayResizer() }
 
@@ -39,7 +41,7 @@ struct VMDisplay: NSViewRepresentable {
         }
         resizer.configure(
             machine: machine, scale: settings.scale, enabled: settings.resizer == .app,
-            holdFor: settings.firmwareHoldRemaining(at: .now))
+            holdFor: settings.firmwareHoldRemaining(at: .now), guestAnswered: guestAnswered)
     }
 }
 
@@ -52,16 +54,20 @@ final class DisplayResizer {
     private var follower: DisplayFollower?
     private var trace: DisplayTrace?
     private var lastViewSize = CGSize.zero
+    private var guestAnswered: (Bool) -> Void = { _ in }
 
     /// `holdFor` is how much of the firmware hold (`DisplayFollower.firmwareHold`) is left when a machine is first seen.
-    func configure(machine: VZVirtualMachine, scale: Double, enabled: Bool, holdFor: Duration) {
+    func configure(
+        machine: VZVirtualMachine, scale: Double, enabled: Bool, holdFor: Duration, guestAnswered: @escaping (Bool) -> Void
+    ) {
+        self.guestAnswered = guestAnswered
         if self.machine !== machine {
             self.machine = machine
             trace = DisplayTrace(machine: machine)
             follower = DisplayFollower(
                 scale: scale, enabled: enabled, hold: holdFor, clock: ContinuousClock(),
                 display: { [weak machine] in machine?.graphicsDevices.first?.displays.first },
-                report: Self.log)
+                report: { [weak self] in self?.handle($0) })
             if lastViewSize != .zero { follower?.viewResized(to: lastViewSize) }
         }
         follower?.configure(scale: scale, enabled: enabled)
@@ -72,9 +78,17 @@ final class DisplayResizer {
         follower?.viewResized(to: size)
     }
 
-    private static func log(_ event: DisplayFollower.Event) {
+    /// Whether the guest answered a resize is always logged (a notice: it is rare and the one fact the owner needs); the rest
+    /// of the follower's events only with `--display-diagnostics`.
+    private func handle(_ event: DisplayFollower.Event) {
         switch event {
         case .refused: Log.display.error("Display resize: \(event.description, privacy: .public)")
+        case .guestResponded:
+            Log.display.notice("Display resize: \(event.description, privacy: .public)")
+            guestAnswered(true)
+        case .guestIgnored:
+            Log.display.notice("Display resize: \(event.description, privacy: .public)")
+            guestAnswered(false)
         default: DisplayDiagnostics.note("resize: \(event.description)")
         }
     }

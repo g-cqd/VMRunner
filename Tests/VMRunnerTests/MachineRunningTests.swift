@@ -8,6 +8,25 @@ import Virtualization
 /// A running machine: pausing, resuming, asking the guest to shut down, and reports that arrive late.
 @MainActor
 struct MachineRunningTests {
+    @Test func aGuestThatIgnoredADisplayResizeIsNotedUntilItAnswersOrTheRunEnds() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        await rig.start()
+        let model = rig.library.model(for: rig.id)
+        #expect(!model.guestIgnoresDisplayResize)
+
+        model.displayResizeAnswered(false)
+        #expect(model.guestIgnoresDisplayResize)
+        model.displayResizeAnswered(true)
+        #expect(!model.guestIgnoresDisplayResize, "the next answer clears it")
+
+        model.displayResizeAnswered(false)
+        guest.powerOff()
+        rig.expectReleased()
+        #expect(!model.guestIgnoresDisplayResize, "a note about one run does not outlive it")
+    }
+
     @Test func pausingAndResumingShowEachStepWithoutHelpFromTheFramework() async throws {
         let rig = try ControllerRig()
         defer { rig.cleanUp() }

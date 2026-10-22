@@ -160,6 +160,10 @@ extension HelpCatalog {
                     + "then the guest keeps exactly the size you chose.",
                 "A suspended machine resumes at the size it started with, whatever you change here. Discard the suspended state to "
                     + "use a new size.",
+                "When the window changes size, VMRunner asks the guest for a new screen size. The guest may not use it, and the "
+                    + "framework reports no error then. If the guest does not respond, the machine view says: "
+                    + "\"\(DisplayFollower.ignoredNotice)\" The screen then keeps its size and is scaled to the window. A "
+                    + "running guest follows only if its own display driver does.",
             ],
             advanced: [
                 "\"Match window\" gives Linux 1 pixel per point (2 if you choose it) and macOS pixels-per-inch ÷ 72 pixels per point, "

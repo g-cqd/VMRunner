@@ -48,7 +48,7 @@ private struct MachinePane: View {
                 HelpButton(.setup)
             }
         case .running(let machine, let settings):
-            VMDisplay(machine: machine, settings: settings)
+            VMDisplay(machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered)
                 .overlay { MachineStatusOverlay(model: model) }
         case .editing:
             if let config = model.configBinding {

@@ -12,8 +12,10 @@ struct MachineStatusOverlay: View {
         switch state {
         case .paused:
             PausedLayer(resume: model.resume)
-        case .stopped, .running:
+        case .stopped:
             EmptyView()
+        case .running:
+            if model.guestIgnoresDisplayResize { DisplayNote(text: DisplayFollower.ignoredNotice) }
         default:
             if let status = state.statusText {
                 StepBadge(status: status, offersForceStop: state == .shuttingDown || state == .stopping, forceStop: model.forceStop)
@@ -40,6 +42,23 @@ private struct PausedLayer: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Paused")
+    }
+}
+
+/// One short line at the foot of the display. Only the text shows; the guest keeps the pointer and the keys.
+private struct DisplayNote: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.regularMaterial, in: .capsule)
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .allowsHitTesting(false)
+            .accessibilityLabel(text)
     }
 }
 
