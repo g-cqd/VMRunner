@@ -52,4 +52,26 @@ struct DisplayContainerTests {
         container.setFrameSize(sizes[1])
         #expect(reported.last == sizes[1])
     }
+
+    @Test func theMachineViewTakesTheKeyboardWhenTheDisplayFirstAppearsInAWindow() throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled, .resizable], backing: .buffered, defer: true)
+        let container = DisplayContainer()
+        try #require(container.machineView.acceptsFirstResponder, "VZVirtualMachineView refuses the keyboard")
+        try #require(window.contentView).addSubview(container)
+        #expect(window.firstResponder === container.machineView)
+    }
+
+    @Test func theDisplayTakesTheKeyboardOnlyOnce() throws {
+        let first = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: true)
+        let second = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: true)
+        let container = DisplayContainer()
+        try #require(first.contentView).addSubview(container)
+        try #require(first.firstResponder === container.machineView, "the first window must give the view the keyboard")
+        container.removeFromSuperview()
+        try #require(second.contentView).addSubview(container)
+        #expect(second.firstResponder !== container.machineView)
+    }
 }

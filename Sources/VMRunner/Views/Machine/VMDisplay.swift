@@ -100,6 +100,7 @@ final class DisplayResizer {
 final class DisplayContainer: NSView {
     let machineView = VZVirtualMachineView()
     var onLayout: ((CGSize) -> Void)?
+    private var gaveKeyboard = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -138,6 +139,15 @@ final class DisplayContainer: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         DisplayDiagnostics.note("backing properties changed: \(windowDescription)")
+    }
+
+    /// The machine's view takes the keyboard the first time the display is in a window, so typing reaches the guest without a
+    /// click first. Only once: a later move must not take the keyboard from wherever the user put it.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // AppKit declares `window` unowned(unsafe); it is alive for the duration of this callback and not kept.
+        guard !gaveKeyboard, let window = unsafe self.window else { return }
+        gaveKeyboard = window.makeFirstResponder(machineView)
     }
 
     private func report(_ cause: String) {
