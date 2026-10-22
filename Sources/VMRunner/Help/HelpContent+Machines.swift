@@ -54,6 +54,8 @@ extension HelpCatalog {
                 "A restore image is 20–27 GB. The download can be cancelled and resumes where it stopped. A downloaded file that "
                     + "is already in the download folder is checked against its checksum again before it is reused, when it has one. "
                     + "After a successful install it is deleted to save space (change this in Settings).",
+                "The system writes a download to a temporary file first, in the temporary folder, so that folder's volume needs as "
+                    + "much free space as the image (about 19 GB for macOS).",
             ],
             advanced: [
                 "Restore images are universal (`UniversalMac_*`), so the Mac model you type for ipsw.me does not change the list. "

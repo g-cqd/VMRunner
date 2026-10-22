@@ -191,6 +191,11 @@ and keep to these conditions, which the tool also enforces where it can:
 - **Signed image.** `fetch` takes the newest Alpine netboot release that has a signature and checks its `.sha256` and, when
   `gpg` is installed, its `.asc` against the release key (accepted only with the fingerprint pinned in the source); it says
   when the signature could not be checked.
+- **macOS exception.** The run of 2026-10-22 used a macOS guest with the framework's minimum, 2 CPUs and 4096 MiB, and a disk of at
+  least 40 GiB (a smaller one failed), within at most 4 CPUs and 8 GiB. Check with `df` that at least 48 GiB is free before the
+  download.
+- **Download space.** A download is first written to a temporary file in `$TMPDIR`, outside `--directory`. A run checks the free
+  space there too, and removes the `CFNetworkDownload_*` leftovers it created.
 
 ```sh
 swift run vmr guest fetch alpine-netboot --directory /tmp/vmr-guest          # about 430 MB, a minute or two
