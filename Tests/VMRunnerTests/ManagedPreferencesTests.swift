@@ -67,6 +67,22 @@ struct ManagedPreferencesTests {
         let nothing = ManagedPreferences(forcedValue: { _ in nil })
         #expect(ManagedKey.allCases.allSatisfy { !nothing.isLocked($0) })
     }
+
+    @Test func anAppSettingIsLockedOnlyWhenItsValueIsForced() {
+        let policy = forced(["keepsRestoreImages": true, "AllowMicrophone": false])
+        #expect(policy.isLocked(.keepsRestoreImages))
+        #expect(!policy.isLocked(.hidesToolbarInFullScreen))
+        #expect(AppSetting.allCases.allSatisfy { !ManagedPreferences(forcedValue: { _ in nil }).isLocked($0) })
+    }
+
+    @Test func theHelpNamesEveryKeyThatCanBeManaged() {
+        let entry = HelpTopic.managedSettings.entry
+        let text = (entry.paragraphs + entry.advanced).joined(separator: " ")
+        for key in ManagedKey.allCases.map(\.rawValue) + AppSetting.allCases.map(\.rawValue) {
+            #expect(text.contains("`\(key)`"), "missing: \(key)")
+        }
+        #expect(HelpTopic.settings.entry.related.contains(.managedSettings))
+    }
 }
 
 /// The library brings every configuration it adds, changes or loads within the policy.

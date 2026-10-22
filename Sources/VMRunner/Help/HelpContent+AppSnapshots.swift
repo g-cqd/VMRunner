@@ -32,7 +32,7 @@ extension HelpCatalog {
                 "• **Keep input responsive**: stops macOS from slowing the app while a machine runs, at some cost in battery. On by "
                     + "default.",
             ],
-            related: [.macRestoreImage, .duplicateDelete, .inputResponsiveness]
+            related: [.macRestoreImage, .duplicateDelete, .inputResponsiveness, .managedSettings]
         ),
         .shortcuts: HelpEntry(
             area: .app,
@@ -102,6 +102,34 @@ extension HelpCatalog {
                 "• Suspend only works when the machine's devices support it, and the saved memory is not encrypted.",
             ],
             related: [.guestSystems, .networkMode, .secureBoot, .graphics]
+        ),
+        .managedSettings: HelpEntry(
+            area: .app,
+            title: "Settings your organisation manages",
+            summary: "Settings your organisation set through a configuration profile. They are locked in the app.",
+            paragraphs: [
+                "An organisation can manage VMRunner with a configuration profile (managed preferences for the app). A "
+                    + "setting it manages shows a lock and cannot be changed here; ask your administrator.",
+                "For every machine:",
+                "• `AllowSharedFolders`, `AllowClipboardSharing`, `AllowMicrophone`, `AllowSuspend` and `AllowHostInformation`: "
+                    + "set to false, the feature is off on every machine and its control is locked.",
+                "• `RequireDisposableMachines`: set to true, every machine is disposable.",
+                "• `MaxRuntimeMinutes`: every machine stops after at most that many minutes (from 15 to 1440).",
+                "For the app itself, any of `hidesToolbarInFullScreen`, `keepsRestoreImages`, `holdsLatencyActivity` and "
+                    + "`ipswDeviceIdentifier` can be set; the matching control is locked.",
+                "A machine is brought within the policy when VMRunner loads it and whenever it changes, so it cannot start "
+                    + "outside it.",
+            ],
+            advanced: [
+                "Only values macOS reports as managed count: a value written with `defaults write` does not. A managed value "
+                    + "of the wrong type restricts: an `Allow…` key that is not a Boolean turns the feature off, and a "
+                    + "`MaxRuntimeMinutes` that is not a whole number from 15 to 1440 becomes 15.",
+                "The policy is read from the app's own domain, also when `VMRUNNER_DATA_DIR` gives the settings a domain of "
+                    + "their own. Machines are checked against the policy read at launch: quit and reopen VMRunner after a "
+                    + "profile changes.",
+                "Managed preferences govern this app only: a profile on your Mac does not reach inside a guest.",
+            ],
+            related: [.settings, .securityProfiles]
         ),
     ]
 }

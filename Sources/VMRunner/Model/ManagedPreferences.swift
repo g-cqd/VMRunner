@@ -21,6 +21,8 @@ struct ManagedPreferences: Equatable, Sendable {
     private(set) var requiresDisposable = false
     /// The longest run `MaxRuntimeMinutes` allows, when it is forced.
     private(set) var maxRuntimeMinutes: Int?
+    /// The app's own settings whose value the organisation forced.
+    private(set) var forcedSettings: Set<AppSetting> = []
 
     /// Reads the keys forced in `defaults`: by default the app's own domain, which a configuration profile targets, so a
     /// run that keeps its settings in a domain of its own (`VMRUNNER_DATA_DIR`) obeys the same policy.
@@ -43,6 +45,7 @@ struct ManagedPreferences: Equatable, Sendable {
                 if (value as? Bool) != true { denied.insert(key) }
             }
         }
+        forcedSettings = Set(AppSetting.allCases.filter { forcedValue($0.rawValue) != nil })
     }
 
     /// The policy forced in the app's own domain now. Cheap enough to read when a view is drawn.
@@ -59,6 +62,9 @@ struct ManagedPreferences: Equatable, Sendable {
         default: denied.contains(key)
         }
     }
+
+    /// Whether the control for one of the app's own settings is locked: the organisation forced its value.
+    func isLocked(_ setting: AppSetting) -> Bool { forcedSettings.contains(setting) }
 
     /// `config` with every forced restriction applied; whatever the policy allows is left as it is.
     func clamp(_ config: VMConfig) -> VMConfig {

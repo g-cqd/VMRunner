@@ -12,8 +12,10 @@ struct SettingsView: View {
     var body: some View {
         Form {
             TextField("Default Mac model for ipsw.me", text: $storedDevice, prompt: Text(IPSWCatalog.hostModelIdentifier))
+                .managedLock(.ipswDeviceIdentifier)
             Section {
                 Toggle("Keep macOS restore images after installing", isOn: $keepsRestoreImages)
+                    .managedLock(.keepsRestoreImages)
                 Text(
                     "A restore image is 20–27 GB and only needed once. "
                         + "Duplicate an installed machine instead: clones are instant and share disk blocks."
@@ -32,6 +34,7 @@ struct SettingsView: View {
             }
             Section {
                 Toggle("Keep input responsive while a machine runs", isOn: $holdsLatencyActivity)
+                    .managedLock(.holdsLatencyActivity)
                 Text(
                     "Stops macOS from slowing this app down while a machine runs, so keys and the mouse reach the guest promptly. "
                         + "It costs some battery."

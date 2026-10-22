@@ -33,6 +33,7 @@ struct VMRunnerApp: App {
             }
             CommandGroup(after: .toolbar) {
                 Toggle("Hide Toolbar in Full Screen", isOn: $hidesToolbarInFullScreen)
+                    .disabled(ManagedPreferences.current.isLocked(.hidesToolbarInFullScreen))
             }
             MachineCommands(library: library)
         }
