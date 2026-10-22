@@ -55,6 +55,15 @@ struct SeatbeltProfileTests {
     }
 
     @Test
+    func theProfileLetsTheFrameworkReadWhatAMachineNeedsToStart() throws {
+        let text = try profile(machine())
+        // Found by booting a guest: without it the start fails with "The boot loader is invalid".
+        #expect(text.contains(#"(sysctl-name "hw.pagesize_compat")"#))
+        // Without it the start fails with "Internal Virtualization error".
+        #expect(text.contains(#"(global-name "com.apple.Virtualization.VirtualMachine")"#))
+    }
+
+    @Test
     func theStrictLevelAndMachinesWithoutAHostedNetworkGetNoSocketRules() throws {
         for (level, network) in [
             (SandboxLevel.strict, HelperDescriptor.Network.fileHandle), (.standard, .none), (.standard, .nat), (.strict, .none),

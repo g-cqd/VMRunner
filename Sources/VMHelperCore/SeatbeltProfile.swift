@@ -20,8 +20,11 @@ public enum SeatbeltProfile {
     /// Links in the root that programs name paths through (`/etc/hosts`, `/tmp/x`); a lookup stats them before it follows them.
     static let systemMetadata = ["/etc", "/tmp", "/var"]
 
+    /// Kernel values the framework reads. `hw.pagesize_compat` was found by a boot: with it denied (log line `Sandbox:
+    /// VMHelper(pid) deny(1) sysctl-read hw.pagesize_compat`) the start fails with "The boot loader is invalid", and
+    /// allowing it alone is what lets the machine start.
     static let sysctls = [
-        "hw.ephemeral_storage", "hw.memsize", "kern.bootargs", "kern.hv_support", "kern.iossupportversion",
+        "hw.ephemeral_storage", "hw.memsize", "hw.pagesize_compat", "kern.bootargs", "kern.hv_support", "kern.iossupportversion",
         "kern.maxfilesperproc", "kern.osproductversion", "kern.osvariant_status", "security.mac.lockdown_mode_state",
     ]
 
@@ -29,8 +32,9 @@ public enum SeatbeltProfile {
     /// framework asks to validate an image.
     static let machServices = ["com.apple.diskimagescontroller", "com.apple.logd", "com.apple.system.notification_center"]
 
-    /// Mach services the per-machine service is reached through. Unverified: a machine was never started so far,
-    /// so these are the names the framework is expected to look up, and the owner's boot run shows which are missing.
+    /// Mach services the per-machine service is reached through. Verified by a boot: without it the start fails with
+    /// "Internal Virtualization error. The virtual machine failed to start." and the log shows `deny(1) mach-lookup
+    /// com.apple.Virtualization.VirtualMachine (xpc)`.
     static let virtualizationServices = ["com.apple.Virtualization.VirtualMachine"]
 
     /// The profile text for `grants`. `helperExecutable` is the canonical path of the helper binary, which `sandbox-exec`
