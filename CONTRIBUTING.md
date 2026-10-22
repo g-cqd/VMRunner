@@ -109,6 +109,8 @@ Work delegated to agents follows one convention:
 - **sonnet checks and reviews.** A sonnet reviewer reads every task card before it is dispatched (can it be misread? is
   every path and command real? is the acceptance command runnable?) and reads every result before it is merged (does the
   diff do what the card says and nothing else? are the tests meaningful?).
+- Each role uses the latest version of its model (the `opus`, `haiku` and `sonnet` aliases of the agent tool resolve to the
+  current generation).
 - The integrator merges only reviewed work, runs the gate on the merged tree, and removes the worktree
   (see "Worktrees and cleanup").
 
