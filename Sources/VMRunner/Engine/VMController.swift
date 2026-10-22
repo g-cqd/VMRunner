@@ -74,8 +74,8 @@ final class VMController {
         let storedMACAddress = config.macAddress
         if config.networkMode.hasNetworkDevice, config.needsNewMACAddress {
             config.macAddress = config.macVendor.makeAddress()
-            // The fresh address of a disposable machine is for this run only, so it is not saved here.
-            if !(config.ephemeral && config.freshIdentityPerStart) { library.update(config) }
+            // A disposable machine's fresh address is for this run only: persistable puts the stored one back.
+            library.update(config.persistable(storedMACAddress: storedMACAddress))
         }
         // A memory snapshot is only valid for the exact disk it was taken against, and disposable or
         // locked-down machines must never leave one behind.
@@ -243,6 +243,7 @@ final class VMController {
         var updated = config
         updated.hasBooted = true
         updated.provisioning.password = ""
+        // Putting the stored address back is an invariant guard: ephemeral starts never reach this today.
         library.update(updated.persistable(storedMACAddress: storedMACAddress))
     }
 

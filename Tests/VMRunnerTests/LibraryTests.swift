@@ -282,6 +282,16 @@ struct NewMachineModelTests {
         #expect(EditorLimits.newDiskGiB(for: .linux).lowerBound == 16)
     }
 
+    @Test func switchingGuestKeepsTheDiskInsideThatGuestsRange() throws {
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
+        model.guestChanged(to: .macOS)
+        #expect(EditorLimits.newDiskGiB(for: .macOS).contains(model.config.diskGiB))
+        model.guestChanged(to: .linux)
+        #expect(EditorLimits.newDiskGiB(for: .linux).contains(model.config.diskGiB))
+    }
+
     @Test func aDefaultMacConfigIsInsideTheMacDiskRange() {
         let config = VMConfig.new(name: "macOS", guest: .macOS)
         #expect(EditorLimits.newDiskGiB(for: .macOS).contains(config.diskGiB))

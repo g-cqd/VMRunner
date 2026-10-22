@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import Virtualization
 
 @testable import VMRunner
 
@@ -48,7 +49,7 @@ struct FreshAddressTests {
         rig.expectReleased()
     }
 
-    @Test func aMachineWithoutAStoredAddressGetsOneThatIsSavedAndKept() async throws {
+    @Test func aMachineWithoutAStoredAddressGetsOneThatIsSaved() async throws {
         let rig = try ControllerRig()
         defer { rig.cleanUp() }
         let store = RecordingStore(rig.library)
@@ -58,9 +59,64 @@ struct FreshAddressTests {
 
         let booted = try #require(rig.factory.bootedConfigs.first?.macAddress)
         #expect(store.updates.first?.macAddress == booted, "the new address is saved")
-        #expect(!rig.config.needsNewMACAddress, "the next start reuses the saved address")
 
         guest.powerOff()
+        rig.expectReleased()
+    }
+
+    @Test func aMachineWithAnInvalidStoredAddressGetsAValidOneThatIsSaved() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        var config = rig.config
+        config.macAddress = "garbage"
+        rig.library.update(config)
+        let store = RecordingStore(rig.library)
+        let guest = rig.factory.add()
+
+        await rig.controller.start(rig.config, bundle: rig.bundle, library: store)
+
+        let booted = try #require(rig.factory.bootedConfigs.first?.macAddress)
+        #expect(VZMACAddress(string: booted) != nil, "the new address is a valid one")
+        #expect(store.updates.first?.macAddress == booted, "the new address replaces the invalid one in the store")
+
+        guest.powerOff()
+        rig.expectReleased()
+    }
+
+    @Test func anEphemeralMachineWithoutAFreshIdentityGetsAnAddressThatIsSaved() async throws {
+        let rig = try ControllerRig(ephemeral: true)
+        defer { rig.cleanUp() }
+        let store = RecordingStore(rig.library)
+        let guest = rig.factory.add()
+
+        await rig.controller.start(rig.config, bundle: rig.bundle, library: store)
+
+        let booted = try #require(rig.factory.bootedConfigs.first?.macAddress)
+        #expect(store.updates.first?.macAddress == booted, "without a fresh identity the address is kept, so it is saved")
+
+        guest.powerOff()
+        rig.expectReleased()
+    }
+
+    @Test func aMachineStartedTwiceBootsWithTheSameAddress() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let store = RecordingStore(rig.library)
+
+        let first = rig.factory.add()
+        await rig.controller.start(rig.config, bundle: rig.bundle, library: store)
+        first.powerOff()
+        rig.expectReleased()
+
+        let second = rig.factory.add()
+        await rig.controller.start(rig.config, bundle: rig.bundle, library: store)
+        let booted = rig.factory.bootedConfigs.map(\.macAddress)
+
+        #expect(booted.count == 2)
+        #expect(booted.first.flatMap { $0 } != nil)
+        #expect(booted.count == 2 && booted[0] == booted[1], "the second start reuses the saved address")
+
+        second.powerOff()
         rig.expectReleased()
     }
 

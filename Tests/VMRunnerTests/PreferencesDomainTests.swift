@@ -41,9 +41,11 @@ struct WindowStateTests {
         wrapper.addSubview(outer)
         outer.addSubview(inner)
         inner.addSubview(deeper)
+        #expect(outer.autosaveName == "VMRunnerTests-outer", "the precondition")
+        #expect(deeper.autosaveName == "VMRunnerTests-deeper", "the precondition")
         root.stopSavingSplitViewState()
-        #expect(outer.autosaveName == nil)
-        #expect(deeper.autosaveName == nil)
+        #expect((outer.autosaveName ?? "").isEmpty)
+        #expect((deeper.autosaveName ?? "").isEmpty)
     }
 }
 

@@ -22,6 +22,7 @@ struct MachineLaunch {
         display.log(config: config, window: windowSize, restoring: false)
         config.lastDisplayWidth = display.width
         config.lastDisplayHeight = display.height
+        // Putting the stored address back is an invariant guard: ephemeral starts never reach this today.
         library?.update(config.persistable(storedMACAddress: storedMACAddress))
     }
 }
