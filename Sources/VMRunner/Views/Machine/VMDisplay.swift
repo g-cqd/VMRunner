@@ -103,9 +103,17 @@ final class DisplayContainer: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        machineView.frame = bounds
-        machineView.autoresizingMask = [.width, .height]
+        // The framework's view turns off `translatesAutoresizingMaskIntoConstraints` itself, so an autoresizing mask does
+        // nothing for it: inside a container that Auto Layout sizes (SwiftUI's hosting does) the view stayed at the size of
+        // its first layout. The picture was then scaled to that oversized view and cropped by the window. Pin the four edges.
+        machineView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(machineView)
+        NSLayoutConstraint.activate([
+            machineView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            machineView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            machineView.topAnchor.constraint(equalTo: topAnchor),
+            machineView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
     }
 
     @available(*, unavailable)
