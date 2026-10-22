@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 
 /// The host's own resolver, which asks the system resolver (mDNSResponder), so scoped and split-DNS
 /// configurations, VPN-provided DNS servers, `/etc/hosts` and search domains all apply exactly as they do for
@@ -8,32 +7,28 @@ import Synchronization
 /// - A questions use `getaddrinfo` (which also consults `/etc/hosts` and returns the canonical name).
 /// - Every other type (CNAME, MX, TXT, SRV, HTTPS, PTR...) uses `DNSServiceQueryRecord` (``DNSServiceQuery``).
 ///
-/// Both block, so each lookup runs on its own short-lived thread (at most ``maximumConcurrent`` at a time; excess
-/// lookups answer SERVFAIL immediately) and the caller awaits a continuation: no cooperative-pool thread is ever
-/// blocked.
+/// Both block, so lookups run on ``ResolverWorkers``: at most ``maximumConcurrent`` threads, each taking queued lookups one
+/// after another until none is left, so a burst does not start a thread per lookup. A lookup that finds ``maximumQueued``
+/// others waiting answers SERVFAIL at once. The caller awaits a continuation: no cooperative-pool thread is ever blocked.
 package struct SystemNameResolver: HostNameResolver {
     static let maximumConcurrent = 32
+    /// Lookups that may wait for a free worker; the next one is answered SERVFAIL at once.
+    static let maximumQueued = 256
     private static let queryTimeout: TimeInterval = 4
-    private static let inFlight = Mutex(0)
+    private static let workers = ResolverWorkers(maximumWorkers: maximumConcurrent, maximumQueued: maximumQueued)
 
     package init() {}
 
     package func lookup(name: String, recordType: UInt16) async -> DNSLookupResult {
-        let admitted = Self.inFlight.withLock { count -> Bool in
-            guard count < Self.maximumConcurrent else { return false }
-            count += 1
-            return true
-        }
-        guard admitted else { return DNSLookupResult(responseCode: DNSCode.serverFailure) }
         let qualified = Self.fullyQualified(name)
         return await withCheckedContinuation { continuation in
-            Thread.detachNewThread {
+            let admitted = Self.workers.submit {
                 let result =
                     recordType == DNSCode.typeA
                     ? Self.resolveIPv4(qualified) : DNSServiceQuery.run(name: qualified, recordType: recordType, timeout: Self.queryTimeout)
-                Self.inFlight.withLock { $0 -= 1 }
                 continuation.resume(returning: result)
             }
+            if !admitted { continuation.resume(returning: DNSLookupResult(responseCode: DNSCode.serverFailure)) }
         }
     }
 
