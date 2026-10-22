@@ -63,8 +63,8 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
 struct VZMachineFactory: MachineFactory {
     func prepare(
         _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
-    ) throws -> PreparedMachine {
-        let built = try ConfigurationBuilder.build(config, bundle: bundle, display: display)
+    ) async throws -> PreparedMachine {
+        let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend = Self.suspendSupport(
             of: built.configuration, allowed: suspendAllowed, filtered: config.networkMode == .filtered)

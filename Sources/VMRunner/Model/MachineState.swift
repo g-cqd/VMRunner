@@ -10,8 +10,8 @@
 /// - `ignored`: a late report for something this state no longer waits for (a callback that lost a race). It is dropped
 ///   without a word.
 enum MachineState: Hashable, Sendable {
-    /// What a start is doing. Preparation (the configuration, the network stack, the disposable copy) is synchronous, so
-    /// `preparing` is only ever seen between two events of the same turn, and by the tests.
+    /// What a start is doing. Preparation (the configuration, the network stack, the disposable copy) builds the configuration away
+    /// from the main actor, so `preparing` can be seen while that runs, and the controller drops the result if the run ended meanwhile.
     enum StartPhase: Hashable, Sendable {
         /// `allowsRestore` is false after a restore failed: the retry is a cold boot whatever is on disk.
         case preparing(allowsRestore: Bool)

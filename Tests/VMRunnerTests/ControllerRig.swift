@@ -27,6 +27,16 @@ final class FakeFactory: MachineFactory {
     var failure: String?
     /// `begin#n` and `shutdown#n` for the n-th preparation's stack.
     let network = AsyncEventProbe<String>()
+    /// `held#n` when the n-th preparation starts waiting at the gate `holdPreparation()` set.
+    let held = AsyncEventProbe<String>()
+    private var preparationGate: AsyncGate?
+
+    /// The next `prepare` waits at the returned gate until the test opens it.
+    @discardableResult func holdPreparation() -> AsyncGate {
+        let gate = AsyncGate()
+        preparationGate = gate
+        return gate
+    }
 
     @discardableResult
     func add(_ name: String = "guest") -> FakeGuest {
@@ -37,9 +47,14 @@ final class FakeFactory: MachineFactory {
 
     func prepare(
         _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
-    ) throws -> PreparedMachine {
+    ) async throws -> PreparedMachine {
         preparations += 1
         displays.append(Size(width: display.width, height: display.height))
+        if let gate = preparationGate {
+            preparationGate = nil
+            held.record("held#\(preparations)")
+            try await gate.waitUntilOpen()
+        }
         if let failure {
             self.failure = nil
             throw FakeGuestError(message: failure)

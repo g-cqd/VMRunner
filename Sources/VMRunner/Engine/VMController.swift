@@ -206,8 +206,10 @@ final class VMController {
             }
             // A configuration that failed to restore can't be reused, and neither can its network stack: each attempt
             // gets its own.
-            let prepared = try factory.prepare(
+            let prepared = try await factory.prepare(
                 attempt.config, bundle: attempt.bundle, display: attempt.display.size, suspendAllowed: attempt.suspendAllowed)
+            // The run ended while the configuration was built (a forced stop): what was built never started, and is dropped.
+            guard token == run else { return nil }
             adopt(prepared, run: token)
             let canRestore = prepared.suspend == .available && attempt.bundle.hasSavedState
             if !canRestore && attempt.display.source == .savedState {
@@ -221,16 +223,6 @@ final class VMController {
             Log.machine.error("Start failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
             return .startFailed(error.localizedDescription)
         }
-    }
-
-    private func adopt(_ prepared: PreparedMachine, run token: UInt64) {
-        guest = prepared.machine
-        latency.hold(for: ObjectIdentifier(self))
-        suspendSupport = prepared.suspend
-        network = prepared.network
-        prepared.network?.start()
-        prepared.machine.onGuestStopped = { [weak self] in self?.notify(.guestStopped, run: token) }
-        prepared.machine.onStoppedWithError = { [weak self] message in self?.notify(.stoppedWithError(message), run: token) }
     }
 
     /// Provisioning is only consumed by a boot that keeps its result: a disposable clone or a recovery boot
@@ -403,5 +395,19 @@ final class VMController {
         } catch {
             return .stopCompleted(failure: error.localizedDescription)
         }
+    }
+}
+
+// MARK: Adopting a prepared machine
+
+extension VMController {
+    private func adopt(_ prepared: PreparedMachine, run token: UInt64) {
+        guest = prepared.machine
+        latency.hold(for: ObjectIdentifier(self))
+        suspendSupport = prepared.suspend
+        network = prepared.network
+        prepared.network?.start()
+        prepared.machine.onGuestStopped = { [weak self] in self?.notify(.guestStopped, run: token) }
+        prepared.machine.onStoppedWithError = { [weak self] message in self?.notify(.stoppedWithError(message), run: token) }
     }
 }

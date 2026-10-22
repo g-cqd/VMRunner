@@ -46,5 +46,5 @@ struct PreparedMachine {
 protocol MachineFactory {
     func prepare(
         _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
-    ) throws -> PreparedMachine
+    ) async throws -> PreparedMachine
 }

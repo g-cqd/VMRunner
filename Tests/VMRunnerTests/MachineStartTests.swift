@@ -274,4 +274,19 @@ struct MachineStartTests {
         #expect(rig.controller.network !== firstActivity)
         #expect(rig.controller.network?.isRunning == true)
     }
+
+    @Test func aForcedStopWhileTheConfigurationIsBuiltStartsNothing() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        let gate = rig.factory.holdPreparation()
+        let start = rig.starting()
+        _ = try await rig.factory.held.wait(forAtLeast: 1)
+        #expect(rig.controller.state == .starting(.preparing(allowsRestore: true)))
+        await rig.controller.forceStop()
+        gate.open()
+        await start.value
+        #expect(guest.count(.start) == 0, "the machine built for the stopped run never starts")
+        rig.expectReleased()
+    }
 }
