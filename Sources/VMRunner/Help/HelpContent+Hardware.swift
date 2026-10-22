@@ -192,6 +192,11 @@ extension HelpCatalog {
                 "When on, resizing the VMRunner window changes the guest's screen size to match, once the guest system is running. "
                     + "Boot menus before that cannot change size.",
                 "When off, the guest keeps one fixed screen size and the picture is scaled to fit the window.",
+                "A Linux text console (an installer, a server, a login prompt with no desktop) keeps the screen size it had when "
+                    + "the system started: Linux draws its console on a buffer it makes once. When this setting is on and you "
+                    + "resize the window, that console is then shown cropped or off-centre. For such a guest turn this setting "
+                    + "off: the picture is then always whole, centred and scaled to the window. A desktop usually follows the "
+                    + "window, because its display server changes the screen mode itself.",
             ],
             advanced: [
                 "macOS guests use the framework's automatic resizing. Linux guests are resized by VMRunner itself at the chosen "

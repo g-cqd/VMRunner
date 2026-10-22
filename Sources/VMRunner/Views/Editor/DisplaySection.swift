@@ -22,7 +22,8 @@ struct DisplaySection: View {
                 Text(
                     "Linux starts at no more than 1280 pixels wide, in the shape of the window, so UEFI and GRUB text stays "
                         + "legible, then follows the window once the system runs. A fixed size keeps the same aspect ratio only if "
-                        + "the window does. A suspended machine resumes at the size it started with."
+                        + "the window does. A suspended machine resumes at the size it started with. A text console (an installer or "
+                        + "a server) cannot follow the window: switch the resizing below off for it."
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 .settingHelp(.linuxBootText)
