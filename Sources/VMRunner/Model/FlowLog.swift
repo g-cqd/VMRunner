@@ -17,12 +17,25 @@ struct FlowLogEntry: Identifiable, Hashable, Sendable {
     /// How many attempts the line stands for: more than one when identical refusals were folded together ("x 40").
     let count: Int
 
+    /// How many attempts an event stands for: more than one when identical refusals were folded together.
+    static func attempts(of event: FlowEvent) -> Int { max(event.count, 1) }
+
+    /// What the log says about a phase, or `nil` when it has no line. Decided without building the line, so a flood of events
+    /// can be counted cheaply.
+    static func outcome(of phase: FlowEvent.Phase) -> Outcome? {
+        switch phase {
+        case .opened, .answered: .allowed
+        case .denied, .closed(.policyRevoked): .denied
+        case .closed: nil
+        }
+    }
+
     /// The log line for `event`, or `nil` for events that are not worth a line (a connection ending normally).
     init?(event: FlowEvent, id: Int) {
         self.id = id
         transport = event.transport
         destination = Self.describe(event)
-        count = max(event.count, 1)
+        count = Self.attempts(of: event)
         switch event.phase {
         case .opened:
             outcome = .allowed
