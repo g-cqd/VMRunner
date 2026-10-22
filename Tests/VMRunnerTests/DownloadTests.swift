@@ -51,7 +51,7 @@ struct DownloadPolicyTests {
 
     @Test func aSmallDocumentFromAnUnpinnedHostIsRefusedBeforeAnyRequest() async throws {
         let url = try #require(URL(string: "https://salsa.debian.org/user/project/-/raw/main/SHA256SUMS"))
-        await #expect(throws: SetupError.self) { try await Network.fetchSmall(url) }
+        await #expect(throws: SetupError.self) { try await Fetch.fetchSmall(url) }
     }
 
     @Test func onlyTheRestoreImageHostServesRestoreImages() throws {

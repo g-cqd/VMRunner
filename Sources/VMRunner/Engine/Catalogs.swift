@@ -57,7 +57,7 @@ enum IPSWCatalog {
         components.path = "/v4/device/\(model)"
         components.queryItems = [URLQueryItem(name: "type", value: "ipsw")]
         guard let url = components.url else { throw SetupError.invalidMachineModel(identifier) }
-        return try decode(await Network.fetchSmall(url))
+        return try decode(await Fetch.fetchSmall(url))
     }
 
     /// The signed, guest-capable builds whose file is on Apple's update server and has a SHA-256; any other entry is dropped.

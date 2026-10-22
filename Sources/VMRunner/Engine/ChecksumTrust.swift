@@ -1,6 +1,6 @@
 import Foundation
 
-/// Downloads a small file with a size cap. The app's fetcher is `Network.fetchSmall`; tests pass one that serves fixtures.
+/// Downloads a small file with a size cap. The app's fetcher is `Fetch.fetchSmall`; tests pass one that serves fixtures.
 typealias SmallFetch = @Sendable (_ url: URL, _ limit: Int) async throws -> Data
 
 /// What a provider takes from its checksum file once the file's trust is settled.

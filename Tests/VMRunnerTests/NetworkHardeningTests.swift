@@ -13,7 +13,7 @@ struct SessionConfigurationTests {
     }
 
     @Test func smallDocumentsAndDownloadsShareOneEphemeralCookielessConfiguration() {
-        let small = Network.makeConfiguration()
+        let small = Fetch.makeConfiguration()
         let download = FileDownloader.makeConfiguration()
 
         expectCookielessAndCacheless(small)
@@ -26,7 +26,7 @@ struct SessionConfigurationTests {
         let url = try #require(URL(string: "https://api.ipsw.me/stub-\(UUID().uuidString)/catalog"))
         StubURLProtocol.serve(Data("{\"firmwares\":[]}".utf8), at: url)
 
-        let data = try await Network.fetchSmall(url, configuration: StubURLProtocol.configuration())
+        let data = try await Fetch.fetchSmall(url, configuration: StubURLProtocol.configuration())
 
         #expect(String(bytes: data, encoding: .utf8) == "{\"firmwares\":[]}")
         #expect(StubURLProtocol.requestCount(for: url) == 1)
@@ -42,7 +42,7 @@ struct SessionConfigurationTests {
 
         for url in [announced, chunked] {
             do {
-                _ = try await Network.fetchSmall(url, limit: 400, configuration: configuration)
+                _ = try await Fetch.fetchSmall(url, limit: 400, configuration: configuration)
                 Issue.record("\(url.lastPathComponent) should have been refused")
             } catch SetupError.responseTooLarge {
                 // expected

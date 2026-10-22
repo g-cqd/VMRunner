@@ -247,7 +247,7 @@ struct LinuxProvider: Sendable {
     /// - Throws: `SetupError` if the directory has no matching ISO, the checksum file has no line for it, or the trust the
     ///   provider relies on refuses it (`SetupError.signatureRejected`).
     @concurrent
-    func resolve(now: Date = Date(), fetch: SmallFetch = { try await Network.fetchSmall($0, limit: $1) }) async throws -> ResolvedImage {
+    func resolve(now: Date = Date(), fetch: SmallFetch = { try await Fetch.fetchSmall($0, limit: $1) }) async throws -> ResolvedImage {
         let directory = try directoryURL()
         if case .newest(let prefix, let suffix) = iso, case .shared(let fileName) = checksum {
             return try await resolveFromSharedList(
@@ -258,7 +258,7 @@ struct LinuxProvider: Sendable {
         case .fixed(let path):
             candidates = [LinuxRelease(path: path, version: "")]
         case .newest(let prefix, let suffix):
-            let listing = try Self.text(of: try await fetch(directory, Network.smallLimit), at: directory)
+            let listing = try Self.text(of: try await fetch(directory, Fetch.smallLimit), at: directory)
             candidates = Self.releases(inListing: listing, prefix: prefix, suffix: suffix, series: series)
             guard !candidates.isEmpty else {
                 let others = Self.releases(inListing: listing, prefix: prefix, suffix: suffix)
@@ -302,7 +302,7 @@ struct LinuxProvider: Sendable {
     /// `release` with its checksum, fetched and vouched for by `trust`.
     private func vouchedImage(_ release: LinuxRelease, directory: URL, now: Date, fetch: SmallFetch) async throws -> ResolvedImage {
         let checksumURL = try checksumURL(for: release)
-        let file = try await fetch(checksumURL, Network.smallLimit)
+        let file = try await fetch(checksumURL, Fetch.smallLimit)
         let vouched = try await trust.vouch(
             for: file, at: checksumURL, image: directory.appending(path: release.path), now: now, fetch: fetch)
         return ResolvedImage(
@@ -316,7 +316,7 @@ struct LinuxProvider: Sendable {
         prefix: String, suffix: String, listName: String, directory: URL, now: Date, fetch: SmallFetch
     ) async throws -> ResolvedImage {
         let listURL = directory.appending(path: listName)
-        let file = try await fetch(listURL, Network.smallLimit)
+        let file = try await fetch(listURL, Fetch.smallLimit)
         let vouched = try await trust.vouch(for: file, at: listURL, image: directory, now: now, fetch: fetch)
         let names = format.entries(in: vouched.text).map { String($0.name) }
         guard let newest = Self.releases(among: names, prefix: prefix, suffix: suffix, series: series).first else {
