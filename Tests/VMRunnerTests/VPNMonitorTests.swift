@@ -123,8 +123,6 @@ struct VPNMonitorLifecycleTests {
 
     @Test func stopReturnsToUnknownAndIgnoresLaterSnapshots() async throws {
         let (stream, feed) = AsyncStream.makeStream(of: [InterfaceSnapshot].self)
-        let terminated = AsyncEventProbe<Void>()
-        feed.onTermination = { _ in terminated.record(()) }
         let monitor = VPNMonitor(source: { stream })
         var states = Observations { monitor.state }.makeAsyncIterator()
         _ = await states.next()
@@ -136,10 +134,13 @@ struct VPNMonitorLifecycleTests {
         feed.yield([unaddressed("utun5")])
         monitor.stop()
         #expect(await states.next() == .unknown)
-        _ = try await terminated.wait(forAtLeast: 1)
-        await Task.yield()  // the cancelled loop's resumption was queued on the main actor before this hop
-        #expect(monitor.state == .unknown)
+        // Finishing the stream ends the loop whichever way it was woken, with no wait on the stream's own bookkeeping. The main
+        // actor runs queued jobs in order, and the loop's resumption (from the yield or from the cancellation) was queued
+        // before this hop, so it has run when the hop returns.
         feed.finish()
+        await Task.yield()
+        await Task.yield()
+        #expect(monitor.state == .unknown)
     }
 
     @Test func theSystemSourceIsConstructibleAndStoppable() {
