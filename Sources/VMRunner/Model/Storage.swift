@@ -3,11 +3,46 @@ import os
 
 /// Where VMRunner keeps its data. Everything is private to the current user (mode 0700).
 enum AppPaths {
-    static let root = URL.applicationSupportDirectory.appending(path: "VMRunner", directoryHint: .isDirectory)
+    /// The environment variable that names another folder to keep everything in (the library, the images, the approvals file),
+    /// so that a run for testing never touches the user's own library. Unset or empty means the default folder.
+    static let dataDirectoryVariable = "VMRUNNER_DATA_DIR"
+    static let defaultRoot = URL.applicationSupportDirectory.appending(path: "VMRunner", directoryHint: .isDirectory)
+    /// Where a refused override puts the data: a place no folder can be created in, so that nothing falls back to the default.
+    static let refusedRoot = URL(filePath: "/dev/null/VMRunner", directoryHint: .isDirectory)
+
+    private static let chosenRoot = Result { try resolveRoot(environment: ProcessInfo.processInfo.environment) }
+    static let root = (try? chosenRoot.get()) ?? refusedRoot
     static let machines = root.appending(path: "Machines", directoryHint: .isDirectory)
     /// Downloaded IPSW / ISO files, shared between machines.
     static let images = root.appending(path: "Images", directoryHint: .isDirectory)
     static let partialDownloads = images.appending(path: ".partial", directoryHint: .isDirectory)
+
+    /// The folder the data goes in: the one `VMRUNNER_DATA_DIR` names, or the default when it is not set.
+    ///
+    /// The override must be an absolute path without `..`, not `/`, and a folder that is already there must pass
+    /// `verifyPrivateDirectory` (not a link, the current user's, closed to others). A missing one is created private, like
+    /// every other folder of the app.
+    /// - Throws: `UnsafeDirectory` when the variable is set and cannot be used. The default is never a fallback for it.
+    static func resolveRoot(environment: [String: String]) throws -> URL {
+        guard let text = environment[dataDirectoryVariable], !text.isEmpty else { return defaultRoot }
+        func refuse(_ reason: String) -> UnsafeDirectory { UnsafeDirectory(path: text, reason: "\(dataDirectoryVariable) \(reason)") }
+        guard text.hasPrefix("/") else { throw refuse("must be an absolute path") }
+        let url = URL(filePath: text, directoryHint: .isDirectory)
+        guard !url.pathComponents.contains("..") else { throw refuse("must not contain `..`") }
+        let standard = url.standardizedFileURL
+        guard standard.pathComponents.count > 1 else { throw refuse("must not be the root of the disk") }
+        _ = try verifyPrivateDirectory(standard)
+        return standard
+    }
+
+    /// Stops a launch whose `VMRUNNER_DATA_DIR` is unusable, before anything is read or written. Falling back to the default
+    /// would put a test run on the user's own library.
+    static func refuseUnusableOverride() {
+        guard case .failure(let problem) = chosenRoot else { return }
+        Log.storage.fault("\(problem.localizedDescription, privacy: .private)")
+        FileHandle.standardError.write(Data("\(problem.localizedDescription)\n".utf8))
+        exit(EX_CONFIG)
+    }
 
     /// Whether `url` is `directory` or something inside it, comparing whole path components: `Images2/a` is not inside `Images`.
     /// Links and `..` are resolved first, so a link into the directory counts as inside and a link out of it does not.

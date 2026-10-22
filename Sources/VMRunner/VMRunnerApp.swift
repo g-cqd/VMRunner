@@ -6,8 +6,13 @@ import os
 @main
 struct VMRunnerApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
-    private let library = VMLibrary.shared
+    private let library: VMLibrary
     @AppStorage("hidesToolbarInFullScreen") private var hidesToolbarInFullScreen = true
+
+    init() {
+        AppPaths.refuseUnusableOverride()
+        library = VMLibrary.shared
+    }
 
     var body: some Scene {
         WindowGroup {

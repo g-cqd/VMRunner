@@ -134,6 +134,13 @@ the resources of the guest capped, only the app's own window captured or driven 
 screen), and everything the run created (machines, downloaded images, processes) removed afterwards. Their results go into
 the diary with what was and was not observed.
 
+`VMRUNNER_DATA_DIR=/absolute/path` makes the app keep everything it stores (the machines, the images, the approvals file) in
+that folder instead of `~/Library/Application Support/VMRunner`, and is how a real-guest run stays off the owner's library:
+point it at a fresh folder under `/tmp`. The folder must be an absolute path without `..`; one that exists must be a real
+folder (not a link) of the current user and closed to others, and a missing one is created private. A value that cannot be
+used stops the launch with the reason (exit status 78); the app never falls back to the default folder for it. The setting
+does not move the app's preferences (`UserDefaults`) or the unified log.
+
 ## Developer tooling
 
 The scripts are Swift: `Sources/DevTools` (logic), `Sources/vmr` (the command line, `swift run vmr --help`) and
