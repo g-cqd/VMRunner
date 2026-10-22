@@ -42,4 +42,5 @@ user's private folder, and an attacker who can write there can already write the
 
 (Update 2026-10-22: a machine made before this decision is now migrated at launch. When its configuration names a file
 directly in the old flat cache and the user approved that path for it, the file is cloned into its bundle and the clone is
-approved in its place. A macOS install also reads its own clone of the restore image, never the cache file.)
+approved too. A macOS install also reads its own clone of the restore image, never the cache file, and a clone that a crash
+left behind is deleted at the next launch.)

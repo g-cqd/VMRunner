@@ -43,8 +43,10 @@ extension UserNetCore {
             let framed = [UInt8(length >> 8), UInt8(length & 0xFF)] + answer.message
             let queued = ByteView.withBytes(of: framed) { flow.enqueueLocalResponse($0, ctx: ctx) }
             guard !queued else { return }
-            // The guest stopped reading and earlier answers fill its buffer. Dropping this one would leave its resolver waiting
-            // for an answer that never comes; the reset makes it ask again at once, and the counter says it happened.
+            // Not queued: the guest stopped reading and earlier answers fill its buffer, or the session is live but past the
+            // states that send (any but established, close-wait and syn-received). Both are reset and counted alike: a dropped
+            // answer would leave the guest's resolver waiting, the reset makes it ask again at once. The flow log already
+            // shows this answer (`publishAnswered` ran at the top, before the enqueue), so a lost answer is listed there too.
             ctx.stats.dnsAnswersLost += 1
             flow.terminate(.guestReset, resetGuest: true, ctx: ctx)
         }

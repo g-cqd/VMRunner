@@ -28,7 +28,8 @@ package struct UserNetStats: Sendable, Hashable {
     package var icmpEchoes: UInt64 = 0
     package var dnsQueries: UInt64 = 0
     package var dnsBlocked: UInt64 = 0
-    /// DNS-over-TCP answers that found the guest-bound buffer full (the guest stopped reading); each one reset its session.
+    /// DNS-over-TCP answers that could not be queued for the guest: its buffer was full (it stopped reading) or its session
+    /// could no longer send. Each one reset its session.
     package var dnsAnswersLost: UInt64 = 0
     package var dhcpAcks: UInt64 = 0
     package var activeTCPFlows = 0
