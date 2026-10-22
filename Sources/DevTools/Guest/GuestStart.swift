@@ -50,6 +50,7 @@ struct GuestStart {
 
         let descriptor = try plan.descriptor(files: files, scratch: scratch)
         try JSONEncoder.sorted.encode(descriptor).write(to: scratch.descriptorFile)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: scratch.descriptorFile.path)
         let loaded = try SandboxRun.load(descriptor: scratch.descriptorFile)
 
         let bundler = HelperBundler(root: root, configuration: configuration, prebuilt: prebuilt)
