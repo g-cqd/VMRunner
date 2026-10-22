@@ -70,6 +70,6 @@ struct DNSWireMutationTests {
             #expect(again?.count == data.count, "index \(index): the name takes the bytes it came from")
             #expect(again.flatMap(DNSWire.decodeName) == name, "index \(index): it decodes to itself")
         }
-        #expect(accepted > 0, "some mutants are still names, so the round trip was exercised")
+        #expect(accepted > 500, "\(accepted) mutants were still names: enough for the round trip to mean something")
     }
 }

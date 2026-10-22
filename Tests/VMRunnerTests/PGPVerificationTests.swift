@@ -429,7 +429,9 @@ struct PGPKeyExpiryTests {
         #expect(try pinned.publicKey().fingerprint == signer.key.fingerprint)
     }
 
-    /// Fails 90 days before a pinned key expires, so a release never ships a key that stops working soon after.
+    /// Fails 90 days before a pinned key expires, so a release never ships a key that stops working soon after. It reads the
+    /// wall clock on purpose, unlike the other tests here (`pgpTestNow`): it is a tripwire for the release, and the fix when
+    /// it fires is to pin the key's successor, never to freeze its date.
     @Test func noPinnedKeyExpiresWithinNinetyDays() {
         let horizon = Date().addingTimeInterval(90 * 86_400)
         for key in PGP.PinnedKeys.all {

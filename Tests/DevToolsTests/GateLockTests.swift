@@ -70,6 +70,7 @@ struct GateLockTests {
 
     /// Why `hold` unlocks before it closes: `flock` belongs to the open file, so a copy of the descriptor (the one a concurrent
     /// spawn holds until its exec closes it) keeps the lock after a `close`, and only an explicit unlock releases it at once.
+    /// The second half runs `GateLock.release`, the function `hold` ends with, while a copy of the descriptor stays open.
     @Test
     func anExplicitUnlockReleasesTheLockWhileACopyOfTheDescriptorIsStillOpen() throws {
         let directory = FileManager.default.temporaryDirectory.appending(
@@ -89,12 +90,14 @@ struct GateLockTests {
         #expect(flock(other, LOCK_EX | LOCK_NB) == 0, "the last copy's close releases it")
         #expect(flock(other, LOCK_UN) == 0)
 
-        let unlocked = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
-        try #require(unlocked >= 0 && flock(unlocked, LOCK_EX | LOCK_NB) == 0)
-        let secondCopy = dup(unlocked)
+        let held = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
+        try #require(held >= 0 && flock(held, LOCK_EX | LOCK_NB) == 0)
+        let secondCopy = dup(held)
         defer { close(secondCopy) }
-        #expect(flock(unlocked, LOCK_UN) == 0)
-        close(unlocked)
-        #expect(flock(other, LOCK_EX | LOCK_NB) == 0, "an explicit unlock releases it whatever copies remain")
+        GateLock.release(held)
+        let second = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
+        try #require(second >= 0)
+        defer { close(second) }
+        #expect(flock(second, LOCK_EX | LOCK_NB) == 0, "GateLock.release frees the lock whatever copies remain")
     }
 }

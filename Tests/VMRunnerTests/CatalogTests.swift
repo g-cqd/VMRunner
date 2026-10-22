@@ -303,14 +303,10 @@ struct LinuxCatalogContentTests {
         }
     }
 
-    @Test func candidatesStayBlockedUntilTheirHostIsAllowed() throws {
+    @Test func theOnlyCandidateLeftIsDebianNetinstOnAnAllowedHost() throws {
         let hosts = Set(LinuxCatalog.candidates.compactMap { try? $0.provider.directoryURL().host() })
         #expect(hosts == ["cdimage.debian.org"], "only Debian netinst is still a candidate")
-        for host in hosts where !host.hasSuffix("debian.org") {
-            #expect(throws: SetupError.self, "\(host) is not approved yet") {
-                try DownloadPolicy.validate(try #require(URL(string: "https://\(host)/x.iso")))
-            }
-        }
+        #expect(hosts.isSubset(of: DownloadPolicy.allowedHosts), "and its host is already allowed")
     }
 
     @Test func descriptionsAreFilledIn() {
@@ -351,6 +347,11 @@ struct DebianHostPolicyTests {
         "https://salsa.debian.org/user/project/-/raw/main/a.iso",  // hosts user content
         "https://people.debian.org/~someone/a.iso",
         "https://www.debian.org/a.iso",
+        "https://almalinux.org/a.iso",  // the vendor's own domain, not the host that serves the images
+        "https://repo.almalinux.org.evil.com/a.iso",  // suffix spoof of an allowed host
+        "https://rockylinux.org/a.iso",
+        "https://download.fedoraproject.org/a.iso",  // Fedora's redirector, not the pinned host
+        "https://dl.fedoraproject.org:8443/a.iso",  // an allowed host on another port
     ])
     func rejectsEverythingElse(url: String) throws {
         let parsed = try #require(URL(string: url))

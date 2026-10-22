@@ -23,12 +23,7 @@ enum GateLock {
         // Unsafe only in signature: `open` takes the path as a C string, which Swift bridges from a String for the call.
         let descriptor = unsafe open(directory.path, O_RDONLY | O_CLOEXEC)
         guard descriptor >= 0 else { throw ToolError("cannot open \(directory.path): \(describe(errno))") }
-        // `flock` locks the open file, not this descriptor: a copy that a concurrent spawn holds until its exec closes it
-        // would keep the lock after `close` alone, so the lock is released explicitly first.
-        defer {
-            flock(descriptor, LOCK_UN)
-            close(descriptor)
-        }
+        defer { release(descriptor) }
 
         if flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
             guard errno == EWOULDBLOCK else { throw ToolError("cannot lock \(directory.path): \(describe(errno))") }
@@ -39,6 +34,13 @@ enum GateLock {
         }
         try? Data("\(getpid())\n".utf8).write(to: directory.appending(path: holderFileName))
         return try await body()
+    }
+
+    /// Unlocks and closes `descriptor`. `flock` locks the open file, not this descriptor: a copy that a concurrent spawn holds
+    /// until its exec closes it would keep the lock after `close` alone, so the lock is released explicitly first.
+    static func release(_ descriptor: Int32) {
+        flock(descriptor, LOCK_UN)
+        close(descriptor)
     }
 
     /// The pid in the holder file, once it names a live process (the holder writes it just after locking).
