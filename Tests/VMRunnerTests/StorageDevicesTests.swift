@@ -111,4 +111,26 @@ struct StorageDevicesTests {
         let config = try VMConfig.decode(from: Data(old.utf8))
         #expect(config.diskInterface == .virtio && config.diskSerial.isEmpty)
     }
+
+    @Test func aSerialEditOnAnNVMeDiskKeepsTheSavedState() {
+        var previous = VMConfig.new(name: "x", guest: .linux)
+        previous.diskInterface = .nvme
+        var edited = previous
+        edited.diskSerial = "VMR0000000002"
+        #expect(edited.restoresSavedState(of: previous), "an NVMe drive takes no serial number")
+    }
+
+    @Test func anInterfaceChangeOnAMacKeepsTheSavedState() {
+        let previous = VMConfig.new(name: "m", guest: .macOS)
+        var edited = previous
+        edited.diskInterface = .nvme
+        #expect(edited.restoresSavedState(of: previous), "a macOS guest always gets a virtio disk")
+    }
+
+    @Test func aSerialEditOnAVirtioDiskDiscardsTheSavedState() {
+        let previous = VMConfig.new(name: "x", guest: .linux)
+        var edited = previous
+        edited.diskSerial = "VMR0000000002"
+        #expect(!edited.restoresSavedState(of: previous))
+    }
 }

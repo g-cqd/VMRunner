@@ -127,7 +127,7 @@ struct LibraryTests {
         try Data("memory".utf8).write(to: bundle.savedState)
         config.diskSerial = "VMR0001"
         library.update(config)
-        #expect(!bundle.hasSavedState, "the serial number is part of the disk device")
+        #expect(bundle.hasSavedState, "an NVMe drive takes no serial number, so the serial number does not change the device")
 
         try Data("memory".utf8).write(to: bundle.savedState)
         config.hostInfo.timeZone = true

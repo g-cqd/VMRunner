@@ -261,12 +261,19 @@ extension VMConfig {
 
 extension VMConfig {
     /// Whether a memory image saved by a machine with the `previous` configuration can be restored into one built from this
-    /// one. Secure Boot lives in the firmware's variable store, which the framework cannot compare; the network device (NAT,
-    /// none or the user-mode stack), the disk's interface and serial number, and the host-information share (an extra
-    /// file-system device while anything is shared) are part of the device configuration a saved state must match.
+    /// one. It compares the Secure Boot setting (its firmware variable store is not comparable here), the network device
+    /// (NAT, none or the user-mode stack), the disk as the machine builds it (see `effectiveDisk`), and whether the
+    /// host-information share is present (an extra file-system device while anything is shared). Other hardware changes
+    /// make the restore fail, and the machine then cold boots with an error message.
     func restoresSavedState(of previous: Self) -> Bool {
-        secureBoot == previous.secureBoot && networkMode == previous.networkMode && diskInterface == previous.diskInterface
-            && diskSerial == previous.diskSerial && hostInfo.isEmpty == previous.hostInfo.isEmpty
+        secureBoot == previous.secureBoot && networkMode == previous.networkMode && effectiveDisk == previous.effectiveDisk
+            && hostInfo.isEmpty == previous.hostInfo.isEmpty
+    }
+
+    /// The disk as the machine builds it: an NVMe drive only for a Linux guest, and a serial number only on a virtio disk.
+    private var effectiveDisk: (nvme: Bool, serial: String) {
+        let nvme = guest == .linux && diskInterface == .nvme
+        return (nvme, nvme ? "" : diskSerial)
     }
 }
 

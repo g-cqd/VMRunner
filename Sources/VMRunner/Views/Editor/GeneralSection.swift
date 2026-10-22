@@ -16,8 +16,12 @@ struct GeneralSection: View {
             LabeledContent("Disk usage", value: ByteCountFormatter.string(fromByteCount: allocatedBytes, countStyle: .file))
                 .settingHelp(.diskUsage)
             if isSuspended {
-                Label("Suspended — Start resumes where you left off. Changing hardware settings discards it.", systemImage: "moon.zzz")
-                    .foregroundStyle(.secondary)
+                Label(
+                    "Suspended — Start resumes where you left off. Changing the disk, the network device, Secure Boot or the "
+                        + "host-information sharing discards it; other hardware changes may make the restore fail, and the machine "
+                        + "then cold boots.", systemImage: "moon.zzz"
+                )
+                .foregroundStyle(.secondary)
             }
         } header: {
             HelpHeader("General", topic: .overview)
