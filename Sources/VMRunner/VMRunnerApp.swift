@@ -64,8 +64,13 @@ struct VMRunnerApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated { InputLatencyMonitor.startIfRequested() }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
+            InputLatencyMonitor.current?.finish()
             VMLibrary.shared.flushPendingWrites()
             VMLibrary.shared.discardAllEphemeral()
         }

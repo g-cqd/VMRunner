@@ -8,11 +8,12 @@ enum Log {
     static let fallbackSubsystem = "com.example.VMRunner"
     /// The built app logs under its own bundle identifier, so the subsystem follows whatever the plist says. Outside the
     /// built app (tests, `swift run`) there is no such identifier and the placeholder stands in.
-    private static let subsystem = Bundle.main.bundleIdentifier.flatMap { $0.hasPrefix("com.apple.") ? nil : $0 } ?? fallbackSubsystem
+    static let subsystem = Bundle.main.bundleIdentifier.flatMap { $0.hasPrefix("com.apple.") ? nil : $0 } ?? fallbackSubsystem
 
     static let storage = Logger(subsystem: subsystem, category: "storage")
     static let network = Logger(subsystem: subsystem, category: "network")
     static let machine = Logger(subsystem: subsystem, category: "machine")
+    static let input = Logger(subsystem: subsystem, category: "input")
 }
 
 extension Error {

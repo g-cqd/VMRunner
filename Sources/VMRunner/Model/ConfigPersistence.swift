@@ -42,6 +42,8 @@ final class ConfigPersistence {
     /// Writes everything pending now.
     func flush() {
         guard hasPendingWrites else { return }
+        let work = InputPath.begin("config write")
+        defer { InputPath.end(work) }
         let configs = pending
         pending = [:]
         for config in configs.values {
