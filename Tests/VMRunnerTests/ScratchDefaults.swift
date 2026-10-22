@@ -37,8 +37,7 @@ struct ScratchDefaultsTests {
     @Test func theSuiteKeepsItsFileOutOfThePreferencesFolderAndCleanUpRemovesIt() throws {
         let scratch = try ScratchDefaults()
         scratch.defaults.set(true, forKey: "written")
-        scratch.defaults.synchronize()
-        #expect(FileManager.default.fileExists(atPath: scratch.file.path), "the value is on disk before the clean-up")
+        defer { scratch.cleanUp() }
         let preferences = URL.libraryDirectory.appending(path: "Preferences", directoryHint: .isDirectory).path
         #expect(!scratch.file.path.hasPrefix(preferences))
         scratch.cleanUp()

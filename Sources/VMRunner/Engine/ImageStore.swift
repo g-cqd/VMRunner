@@ -161,7 +161,8 @@ enum ImageStore {
     /// Deletes the install clones (`installCopy(of:)`) that a setup left behind when the app stopped in the middle of it:
     /// each holds the blocks of a restore image the cache may since have dropped. Looks directly in `imagesDirectory` and in
     /// each real folder directly inside it, where the clones are made. Deletes only regular files whose name starts with
-    /// `.install-`; never follows a link and never deletes one. Run at launch, before any setup can have made a clone.
+    /// `.install-`; never follows a link and never deletes one. Run at launch, before any setup can have made a clone. One app
+    /// instance per data directory is assumed.
     static func sweepInstallClones(in imagesDirectory: URL = AppPaths.images) {
         let fileManager = FileManager.default
         func entries(of folder: URL) -> [URL] {

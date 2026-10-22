@@ -121,6 +121,7 @@ struct HostInfoShareTests {
         let bundle = VMBundle(url: directory)
         let stuck = bundle.hostInfoFolder.appending(path: "stale", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: stuck, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: bundle.hostInfoFolder.path)
         try Data("forged".utf8).write(to: stuck.appending(path: "battery"))
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: stuck.path)
         defer {

@@ -60,7 +60,7 @@ struct ManagedPreferencesTests {
     }
 
     @Test func anyOtherForcedRuntimeOutsideTheEditorRangeBecomesFifteenMinutes() {
-        let values: [Any] = [false, true, -5, 1, 1_441, "0"]
+        let values: [Any] = [false, NSNumber(value: false), true, -5, 1, 1_441, "0"]
         for value in values {
             let policy = forced(["MaxRuntimeMinutes": value])
             #expect(policy.maxRuntimeMinutes == EditorLimits.runtimeStepMinutes, "\(value)")
