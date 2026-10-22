@@ -208,6 +208,11 @@ struct MachineStateTests {
         }
     }
 
+    @Test func preparingWaitsSoTheMainActorIsFreeWhileTheConfigurationIsBuilt() {
+        #expect(MachineEffect.prepare.waits)
+        #expect(MachineEffect.fallBackToColdBoot(reason: "x").waits)
+    }
+
     @Test func aMachineIsReleasedExactlyWhenItReachesStoppedFromAnActiveState() {
         for move in allMoves() {
             let releases = move.effects.contains(.release)

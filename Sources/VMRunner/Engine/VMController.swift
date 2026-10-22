@@ -175,13 +175,6 @@ final class VMController {
 
     private func perform(_ effect: MachineEffect, run token: UInt64) -> MachineEvent? {
         switch effect {
-        case .prepare:
-            return prepare(run: token)
-        case .fallBackToColdBoot(let reason):
-            notice = "Couldn't restore the suspended state (\(reason)). Booted normally instead."
-            launch?.useColdStartDisplay()
-            letGoOfAttempt()
-            return prepare(run: token)
         case .discardSavedState:
             launch?.bundle.discardSavedState()
         case .recordFirstBoot:
@@ -197,14 +190,14 @@ final class VMController {
             errorMessage = message
         case .release:
             release()
-        case .restoreState, .bootMachine, .pauseMachine, .resumeMachine, .suspendMachine, .stopMachine:
+        case .prepare, .fallBackToColdBoot, .restoreState, .bootMachine, .pauseMachine, .resumeMachine, .suspendMachine, .stopMachine:
             break
         }
         return nil
     }
 
     /// Makes the machine and its network stack for the current attempt, and starts the stack before the machine.
-    private func prepare(run token: UInt64) -> MachineEvent {
+    private func prepare(run token: UInt64) async -> MachineEvent? {
         guard let attempt = launch else { return .startFailed("The machine has nothing to start.") }
         do {
             if attempt.config.ephemeral && !attempt.disposableCopyMade {
@@ -221,7 +214,7 @@ final class VMController {
                 // Built for a restore that cannot happen: boot cold on the display a cold start has.
                 launch?.useColdStartDisplay()
                 letGoOfAttempt()
-                return prepare(run: token)
+                return await prepare(run: token)
             }
             return .prepared(canRestore: canRestore)
         } catch {
@@ -290,7 +283,19 @@ final class VMController {
     // MARK: Effects that wait for the framework
 
     private func perform(waiting effect: MachineEffect, run token: UInt64) async -> MachineEvent? {
-        guard token == run, let machine = guest else { return nil }
+        guard token == run else { return nil }
+        switch effect {
+        case .prepare:
+            return await prepare(run: token)
+        case .fallBackToColdBoot(let reason):
+            notice = "Couldn't restore the suspended state (\(reason)). Booted normally instead."
+            launch?.useColdStartDisplay()
+            letGoOfAttempt()
+            return await prepare(run: token)
+        default:
+            break
+        }
+        guard let machine = guest else { return nil }
         let outcome: MachineEvent?
         switch effect {
         case .restoreState: outcome = await restore(machine)

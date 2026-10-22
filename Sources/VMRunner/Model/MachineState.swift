@@ -338,10 +338,6 @@ enum MachineEvent: Hashable, Sendable {
 
 enum MachineEffect: Hashable, Sendable {
     // Done at once.
-    /// Builds the configuration and the network stack and starts the stack; reports `prepared` or `startFailed`.
-    case prepare
-    /// Releases the failed attempt, then prepares a cold boot; reports `prepared` or `startFailed`.
-    case fallBackToColdBoot(reason: String)
     case discardSavedState
     case recordFirstBoot
     /// Shows the note a fallback to a cold boot left, if any.
@@ -354,7 +350,11 @@ enum MachineEffect: Hashable, Sendable {
     /// the machine from the view, and makes every report of this run stale.
     case release
 
-    // Wait for the framework; each reports its outcome as an event.
+    // Wait (for the configuration build or the framework); each reports its outcome as an event.
+    /// Builds the configuration and the network stack and starts the stack; reports `prepared` or `startFailed`.
+    case prepare
+    /// Releases the failed attempt, then prepares a cold boot; reports `prepared` or `startFailed`.
+    case fallBackToColdBoot(reason: String)
     case restoreState
     case bootMachine
     case pauseMachine
@@ -366,7 +366,7 @@ enum MachineEffect: Hashable, Sendable {
     /// Whether carrying the effect out waits for the framework. In a list of effects only the last may.
     var waits: Bool {
         switch self {
-        case .restoreState, .bootMachine, .pauseMachine, .resumeMachine, .suspendMachine, .stopMachine: true
+        case .prepare, .fallBackToColdBoot, .restoreState, .bootMachine, .pauseMachine, .resumeMachine, .suspendMachine, .stopMachine: true
         default: false
         }
     }
