@@ -75,7 +75,7 @@ final class MachineModel {
         guard let config else { return nil }
         if let job = library.jobs[id] { return .settingUp(job) }
         if !config.isProvisioned { return .setupIncomplete }
-        if let machine = controller.virtualMachine {
+        if state.hasMachine, let machine = controller.virtualMachine {
             let settings = DisplaySettings(
                 capturesSystemKeys: config.capturesSystemKeys,
                 followsWindow: config.automaticallyReconfiguresDisplay,
@@ -90,8 +90,9 @@ final class MachineModel {
 
     var guestSymbol: String { config?.guest.symbol ?? "questionmark" }
     var showsControls: Bool { library.jobs[id] == nil && config?.isProvisioned == true }
-    var isRunning: Bool { controller.isActive }
-    var isPaused: Bool { controller.state == .paused }
+    /// The machine's one state. Everything below that says what is offered is a reading of it.
+    var state: MachineState { controller.state }
+    var isRunning: Bool { state.isActive }
     var deadline: Date? { controller.deadline }
     /// The running machine's filtered-network log and VPN signals; `nil` unless the machine runs with filtered networking.
     var networkActivity: NetworkActivity? { controller.network }
@@ -143,7 +144,10 @@ final class MachineModel {
     func dismissSetup() { library.cancelJob(id) }
 
     func revealInFinder() { NSWorkspace.shared.activateFileViewerSelecting([bundle.url]) }
-    func discardSavedState() { bundle.discardSavedState() }
+    func discardSavedState() {
+        guard !isRunning else { return }
+        bundle.discardSavedState()
+    }
 
     func duplicate() {
         do {
@@ -153,5 +157,11 @@ final class MachineModel {
         }
     }
 
-    func delete() { library.delete(id) }
+    func delete() {
+        guard !isRunning else {
+            library.alertMessage = "Stop “\(title)” before deleting it."
+            return
+        }
+        library.delete(id)
+    }
 }

@@ -116,6 +116,10 @@ struct MachineStateTests {
         #expect(Set(keys).count == keys.count)
     }
 
+    @Test func theTableAndTheRemainderCoverEveryPairOfStateAndEvent() {
+        #expect(Self.legal.count + Self.illegalPairs.count == MachineState.all.count * Self.events.count)
+    }
+
     // MARK: Everything else changes nothing
 
     private struct Pair: Sendable, CustomTestStringConvertible {
@@ -245,8 +249,37 @@ struct MachineStateTests {
         }
         for state in MachineState.all {
             #expect(state.canStart == moves(state, on: .startRequested), "\(state)")
+            #expect(state.canPause == moves(state, on: .pauseRequested), "\(state)")
+            #expect(state.canResume == moves(state, on: .resumeRequested), "\(state)")
+            #expect(state.canShutDown == moves(state, on: .shutdownRequested), "\(state)")
+            #expect(state.canForceStop == moves(state, on: .forceStopRequested), "\(state)")
             #expect(state.allowsSuspend == moves(state, on: .suspendRequested(supported: true)), "\(state)")
         }
+    }
+
+    @Test func theInterfaceSaysWhatAMachineInTheMiddleOfAStepIsDoing() {
+        for state in MachineState.all {
+            let transitional = state != .stopped && state != .running
+            #expect((state.statusText != nil) == transitional, "\(state)")
+        }
+        #expect(MachineState.paused.statusText == "Paused")
+        #expect(MachineState.shuttingDown.statusText == "Shutting down…")
+        #expect(Self.restoring.statusText == "Resuming from suspended state…")
+        #expect(MachineState.paused.showsResume && MachineState.resuming.showsResume)
+        #expect(!MachineState.running.showsResume && !MachineState.pausing.showsResume)
+    }
+
+    @Test func aMachineIsBoundToTheDisplayFromTheEndOfPreparationUntilItIsReleased() {
+        for state in MachineState.all {
+            #expect(state.hasMachine == (state != .stopped && state != Self.preparing && state != Self.preparingCold), "\(state)")
+        }
+    }
+
+    @Test func theSidebarDotFollowsTheState() {
+        #expect(MachineState.stopped.indicator == .none)
+        #expect(MachineState.running.indicator == .running)
+        for state in [MachineState.paused, .pausing, .resuming] { #expect(state.indicator == .paused) }
+        for state in [Self.booting, .shuttingDown, .suspending, .stopping] { #expect(state.indicator == .busy) }
     }
 
     /// A walk through random events from stopped: whatever happens, the resources held match the state.

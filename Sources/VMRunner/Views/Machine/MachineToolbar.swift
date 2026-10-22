@@ -1,13 +1,17 @@
 import SwiftUI
 
-/// Start, pause, suspend, shut down, force stop, and the "More" menu.
+/// Start, pause, suspend, shut down, force stop, and the "More" menu. What each button offers is read from the machine's
+/// state: a button the state does not allow is disabled, and a step in progress is named next to them.
 struct MachineToolbar: ToolbarContent {
     let model: MachineModel
+    /// The state the controls are drawn for. The view that builds the toolbar reads it and passes it in, so a change of state
+    /// is a change of this value and the controls are drawn again, whether or not a toolbar tracks what its body reads.
+    let state: MachineState
 
     var body: some ToolbarContent {
         ToolbarItemGroup {
             if model.showsControls {
-                if model.isRunning {
+                if state.isActive {
                     runningControls
                 } else {
                     Button("Start", systemImage: "play.fill", action: model.start)
@@ -20,10 +24,15 @@ struct MachineToolbar: ToolbarContent {
 
     @ViewBuilder
     private var runningControls: some View {
-        if model.isPaused {
+        if state.showsResume {
             Button("Resume", systemImage: "play.fill", action: model.resume)
+                .disabled(!state.canResume)
         } else {
             Button("Pause", systemImage: "pause.fill", action: model.pause)
+                .disabled(!state.canPause)
+        }
+        if let status = state.statusText {
+            Text(status).foregroundStyle(.secondary)
         }
         if let deadline = model.deadline {
             Label {
@@ -38,21 +47,23 @@ struct MachineToolbar: ToolbarContent {
             .disabled(!model.canSuspend)
             .help(model.suspendHelp)
         Button("Shut Down", systemImage: "power", action: model.shutDown)
-            .help("Ask the guest to shut down")
+            .disabled(!state.canShutDown)
+            .help(state == .paused ? "Resume the machine first, or use Force Stop" : "Ask the guest to shut down")
         Button("Force Stop", systemImage: "xmark.octagon.fill", action: model.forceStop)
-            .help("Stop immediately, like pulling the power cord")
+            .disabled(!state.canForceStop)
+            .help(state == .stopping ? "Stop waiting and let the machine go" : "Stop immediately, like pulling the power cord")
     }
 
     private var moreMenu: some View {
         Menu("More", systemImage: "ellipsis.circle") {
             Button("Reveal in Finder", action: model.revealInFinder)
             Button("Duplicate", action: model.duplicate)
-                .disabled(model.isRunning)
+                .disabled(state.isActive)
             Button("Discard Suspended State", action: model.discardSavedState)
-                .disabled(model.isRunning || !model.hasSavedState)
+                .disabled(state.isActive || !model.hasSavedState)
             Divider()
             Button("Delete…", role: .destructive) { model.confirmingDelete = true }
-                .disabled(model.isRunning)
+                .disabled(state.isActive)
         }
         .help("Duplicate, delete, and other actions for this machine")
     }

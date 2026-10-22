@@ -72,6 +72,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             InputLatencyMonitor.current?.finish()
             VMLibrary.shared.flushPendingWrites()
+            // Let go of what the running machines hold (their network stacks, a half-written suspend image) before the
+            // sweep removes the disposable copies of every machine.
+            VMLibrary.shared.prepareToQuit()
             VMLibrary.shared.discardAllEphemeral()
         }
     }
@@ -96,29 +99,30 @@ struct MachineCommands: Commands {
         CommandMenu("Machine") {
             let id = library.selection
             let controller = library.selectedController
-            let active = controller?.isActive ?? false
+            let state = controller?.state ?? .stopped
 
             Button("Start") { if let id { library.startMachine(id) } }
                 .keyboardShortcut("r")
-                .disabled(id == nil || active || library.machine(id ?? UUID())?.isProvisioned != true)
-            if controller?.state == .paused {
+                .disabled(id == nil || !state.canStart || library.machine(id ?? UUID())?.isProvisioned != true)
+            if state.showsResume {
                 Button("Resume") { Task { await controller?.resume() } }
                     .keyboardShortcut("p", modifiers: [.command, .option])
+                    .disabled(!state.canResume)
             } else {
                 Button("Pause") { Task { await controller?.pause() } }
                     .keyboardShortcut("p", modifiers: [.command, .option])
-                    .disabled(!active)
+                    .disabled(!state.canPause)
             }
             Button("Suspend") { if let id { library.suspendMachine(id) } }
                 .keyboardShortcut("s", modifiers: [.command, .option])
-                .disabled(!active || controller?.canSuspend != true)
+                .disabled(controller?.canSuspend != true)
             Divider()
             Button("Shut Down") { controller?.requestStop() }
                 .keyboardShortcut(".", modifiers: [.command, .option])
-                .disabled(!active)
+                .disabled(!state.canShutDown)
             Button("Force Stop") { Task { await controller?.forceStop() } }
                 .keyboardShortcut(".", modifiers: [.command, .option, .shift])
-                .disabled(!active)
+                .disabled(!state.canForceStop)
         }
     }
 }

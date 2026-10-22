@@ -295,7 +295,7 @@ struct MachineModelTests {
             Issue.record("expected editing")
             return
         }
-        #expect(model.showsControls && !model.isRunning && !model.isPaused)
+        #expect(model.showsControls && !model.isRunning && model.state == .stopped)
     }
 
     @Test func modelsAreCachedPerMachineAndDroppedOnDelete() throws {

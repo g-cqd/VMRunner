@@ -5,11 +5,13 @@ struct MachineView: View {
     @Bindable var model: MachineModel
 
     var body: some View {
+        // Read here, in the body, so a change of state draws the toolbar again.
+        let state = model.state
         if model.config != nil {
             MachinePane(model: model)
                 .onGeometryChange(for: CGSize.self, of: \.size) { model.reportPaneSize($0) }
                 .navigationTitle(model.title)
-                .toolbar { MachineToolbar(model: model) }
+                .toolbar { MachineToolbar(model: model, state: state) }
                 .alert(
                     "Virtual Machine Error",
                     isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
@@ -47,9 +49,7 @@ private struct MachinePane: View {
             }
         case .running(let machine, let settings):
             VMDisplay(machine: machine, settings: settings)
-                .overlay {
-                    if model.isPaused { PausedBadge() }
-                }
+                .overlay { MachineStatusOverlay(model: model) }
         case .editing:
             if let config = model.configBinding {
                 ConfigEditor(model: model.editor, config: config)
@@ -57,14 +57,5 @@ private struct MachinePane: View {
         case nil:
             EmptyView()
         }
-    }
-}
-
-private struct PausedBadge: View {
-    var body: some View {
-        Label("Paused", systemImage: "pause.circle.fill")
-            .font(.title)
-            .padding()
-            .background(.regularMaterial, in: .capsule)
     }
 }

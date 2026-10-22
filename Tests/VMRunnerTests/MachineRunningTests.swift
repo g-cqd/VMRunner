@@ -13,14 +13,21 @@ struct MachineRunningTests {
         defer { rig.cleanUp() }
         let guest = rig.factory.add()
         await rig.start()
+        let model = rig.library.model(for: rig.id)
+        #expect(model.state.canPause && !model.state.showsResume)
         let pauseGate = guest.hold(.pause)
 
         let pausing = Task { await rig.controller.pause() }
         try await guest.waitFor(.pause)
         #expect(rig.controller.state == .pausing)
+        #expect(model.state.statusText == "Pausing…")
+        #expect(!model.state.canPause && !model.state.canResume, "nothing to click while it pauses")
         pauseGate.open()
         await pausing.value
         #expect(rig.controller.state == .paused)
+        #expect(model.state.showsResume && model.state.canResume && !model.state.canPause, "a paused machine offers Resume")
+        #expect(!model.state.canShutDown, "and a frozen guest cannot be asked to shut down")
+        #expect(model.isRunning)
 
         let resumeGate = guest.hold(.resume)
         let resuming = Task { await rig.controller.resume() }

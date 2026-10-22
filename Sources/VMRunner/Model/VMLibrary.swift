@@ -140,9 +140,15 @@ final class VMLibrary {
         }
     }
 
-    /// Removes disposable copies left behind by a crash or a forced quit.
+    /// Removes disposable copies left behind by a crash or a forced quit. A machine that runs keeps its copy: it is the disk
+    /// the guest is using, and a second window running the load task again must not pull it away.
     func discardAllEphemeral() {
-        for machine in machines { bundle(machine.id).discardEphemeral() }
+        for machine in machines where controllers[machine.id]?.isActive != true { bundle(machine.id).discardEphemeral() }
+    }
+
+    /// The app is quitting: every controller lets go of what its machine holds. The machines go with the process.
+    func prepareToQuit() {
+        for controller in controllers.values { controller.quit() }
     }
 
     // MARK: Machines
@@ -232,6 +238,8 @@ final class VMLibrary {
     /// are written, so a failure or a crash never leaves a half-made machine that shares the source's id.
     func duplicate(_ id: UUID) throws {
         guard var copy = machine(id) else { return }
+        // A clone of a disk the guest is writing is not a consistent disk.
+        guard controllers[id]?.isActive != true else { throw LibraryError.machineInUse }
         copy.id = UUID()
         copy.name += " Copy"
         copy.macAddress = nil
@@ -263,28 +271,39 @@ final class VMLibrary {
 
     // MARK: Setup jobs
 
+    /// Starts the setup of a machine. A job that is still in the table, running, failed or unwinding after a cancel, blocks it:
+    /// two runs on one bundle would write the same disk.
     func beginSetup(_ id: UUID) {
-        guard let config = machine(id), jobs[id]?.isRunning != true else { return }
+        guard let config = machine(id), jobs[id] == nil else { return }
         let job = SetupJob()
         jobs[id] = job
         job.task = Task { [weak self, weak job] in
             guard let self, let job else { return }
             do {
                 try await provision(config, self, job)
-                jobs[id] = nil
+                finish(job, for: id)
             } catch  where Task.isCancelled || error is CancellationError {
-                job.task = nil
-                jobs[id] = nil
+                finish(job, for: id)
             } catch {
                 Log.machine.error("Setup failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
                 job.error = error.localizedDescription
+                job.isFinished = true
             }
         }
     }
 
+    /// A job's work is over: it leaves the table, unless a later job has taken its place.
+    private func finish(_ job: SetupJob, for id: UUID) {
+        job.isFinished = true
+        if jobs[id] === job { jobs[id] = nil }
+    }
+
+    /// Asks a setup to stop. A job that is still unwinding stays in the table until its work ends, so Resume Setup cannot
+    /// start a second run on top of it; a job that already ended (it failed) goes at once.
     func cancelJob(_ id: UUID) {
-        jobs[id]?.cancel()
-        jobs[id] = nil
+        guard let job = jobs[id] else { return }
+        job.cancel()
+        if job.isFinished { jobs[id] = nil }
     }
 
     // MARK: Machine control (shared by the toolbar, menu, and launch arguments)
@@ -299,7 +318,7 @@ final class VMLibrary {
     /// Starts a machine, or, when its configuration names host paths the user has not approved, asks first (`interactive`)
     /// or refuses and logs (a launch argument has nobody to ask).
     func startMachine(_ id: UUID, interactive: Bool = true) {
-        guard let config = machine(id), config.isProvisioned, jobs[id] == nil else { return }
+        guard let config = machine(id), config.isProvisioned, jobs[id] == nil, controller(for: id).state.canStart else { return }
         let unapproved = unapprovedHostPaths(for: id)
         guard unapproved.isEmpty else {
             if interactive {
@@ -330,4 +349,15 @@ final class VMLibrary {
     }
 
     var runningCount: Int { controllers.values.filter(\.isActive).count }
+}
+
+/// Why the library refused to do something to a machine.
+enum LibraryError: LocalizedError {
+    case machineInUse
+
+    var errorDescription: String? {
+        switch self {
+        case .machineInUse: "Stop the machine first: a running machine's disk is changing."
+        }
+    }
 }

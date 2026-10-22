@@ -46,8 +46,37 @@ enum MachineState: Hashable, Sendable {
     var canStart: Bool { self == .stopped }
     /// Running, whether or not a shutdown was asked for.
     private var isRunningNormally: Bool { self == .running || self == .shuttingDown }
+    var canPause: Bool { isRunningNormally }
+    var canResume: Bool { self == .paused }
+    /// Whether the interface shows Resume in place of Pause.
+    var showsResume: Bool { self == .paused || self == .resuming }
+    var canShutDown: Bool { isRunningNormally }
+    var canForceStop: Bool { isActive }
     /// The state allows a suspend; whether this machine's configuration supports one is the controller's half of the answer.
     var allowsSuspend: Bool { isRunningNormally || self == .paused }
+
+    /// A virtual machine object exists and is bound to the display from preparation's end until the machine is released.
+    var hasMachine: Bool {
+        switch self {
+        case .stopped, .starting(.preparing): false
+        default: true
+        }
+    }
+
+    /// What the interface says about a machine that is not simply running, or `nil`.
+    var statusText: String? {
+        switch self {
+        case .stopped, .running: nil
+        case .starting(.restoring): "Resuming from suspended state…"
+        case .starting: "Starting…"
+        case .shuttingDown: "Shutting down…"
+        case .pausing: "Pausing…"
+        case .paused: "Paused"
+        case .resuming: "Resuming…"
+        case .suspending: "Suspending…"
+        case .stopping: "Stopping…"
+        }
+    }
 
     /// What the machine is doing, in a lower-case phrase for a sentence.
     var activity: String {
