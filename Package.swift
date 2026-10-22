@@ -55,6 +55,12 @@ let package = Package(
             name: "NetStackTests", dependencies: ["NetStack", "NetPolicy", "TestKit"], path: "Tests/NetStackTests",
             swiftSettings: hardening),
 
+        // The console of a guest (roadmap 0005): a byte bridge between a guest's serial port and a private local socket,
+        // and the client that runs commands through it. Foundation and the system's C library only, so the app, the helper
+        // and the tooling can all link it.
+        .target(name: "GuestConsole", path: "Sources/GuestConsole", swiftSettings: hardening),
+        .testTarget(name: "GuestConsoleTests", dependencies: ["GuestConsole"], path: "Tests/GuestConsoleTests", swiftSettings: hardening),
+
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
         // engine chosen by `vmr sandbox`. It links the system frameworks, VMHelperCore and the network library targets
         // (NetStack, NetPolicy, so the helper can host the user-mode stack for a real guest), never the app.
