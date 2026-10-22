@@ -48,7 +48,7 @@ final class DisplayFollower {
             }
         }
 
-        private static func text(_ size: CGSize) -> String { "\(Int(size.width))×\(Int(size.height))" }
+        private static func text(_ size: CGSize) -> String { DisplayDiagnostics.text(size) }
     }
 
     /// Shortest side, in points, the guest is asked to follow.

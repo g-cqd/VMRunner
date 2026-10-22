@@ -23,11 +23,22 @@ struct VMDisplay: NSViewRepresentable {
     }
 
     private func configure(_ view: VZVirtualMachineView, resizer: DisplayResizer) {
-        if view.virtualMachine !== machine { view.virtualMachine = machine }
-        view.capturesSystemKeys = settings.capturesSystemKeys
+        if view.virtualMachine !== machine {
+            DisplayDiagnostics.note("view attached to a \(settings.guest.label) machine")
+            view.virtualMachine = machine
+        }
+        // SwiftUI calls this on every update; write only what differs, and compare with what the view holds now rather than
+        // with what was written last, because the framework switches the property off on a view when another view of the
+        // same display switches it on (full screen swaps the view for a new one).
+        if view.capturesSystemKeys != settings.capturesSystemKeys { view.capturesSystemKeys = settings.capturesSystemKeys }
         // macOS guests honour the configured pixel density, so the framework's resizing is right for them.
         // For Linux it would hand over Retina-scaled pixels and shrink text, so resize at `scale` ourselves.
-        view.automaticallyReconfiguresDisplay = settings.followsWindow && settings.guest == .macOS
+        let frameworkResizes = settings.followsWindow && settings.guest == .macOS
+        if view.automaticallyReconfiguresDisplay != frameworkResizes {
+            DisplayDiagnostics.note(
+                "view.automaticallyReconfiguresDisplay was \(view.automaticallyReconfiguresDisplay), now \(frameworkResizes)")
+            view.automaticallyReconfiguresDisplay = frameworkResizes
+        }
         resizer.configure(
             machine: machine, scale: settings.scale, enabled: settings.followsWindow && settings.guest == .linux,
             holdFor: settings.firmwareHoldRemaining)
@@ -41,12 +52,14 @@ extension VZGraphicsDisplay: ResizableDisplay {}
 final class DisplayResizer {
     private var machine: VZVirtualMachine?
     private var follower: DisplayFollower?
+    private var trace: DisplayTrace?
     private var lastViewSize = CGSize.zero
 
     /// `holdFor` is how much of the firmware hold (`DisplayFollower.firmwareHold`) is left when a machine is first seen.
     func configure(machine: VZVirtualMachine, scale: Double, enabled: Bool, holdFor: Duration) {
         if self.machine !== machine {
             self.machine = machine
+            trace = DisplayTrace(machine: machine)
             follower = DisplayFollower(
                 scale: scale, enabled: enabled, hold: holdFor, clock: ContinuousClock(),
                 display: { [weak machine] in machine?.graphicsDevices.first?.displays.first },
@@ -64,7 +77,7 @@ final class DisplayResizer {
     private static func log(_ event: DisplayFollower.Event) {
         switch event {
         case .refused: Log.display.error("Display resize: \(event.description, privacy: .public)")
-        default: Log.display.debug("Display resize: \(event.description, privacy: .public)")
+        default: DisplayDiagnostics.note("resize: \(event.description)")
         }
     }
 }
@@ -91,6 +104,32 @@ final class DisplayContainer: NSView {
 
     override func layout() {
         super.layout()
+        report("layout")
+    }
+
+    /// AppKit lays a view out when it decides to; the size is also reported as soon as the frame changes, so a resize that
+    /// does not reach `layout()` still reaches the guest.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        report("frame")
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        DisplayDiagnostics.note("backing properties changed: \(windowDescription)")
+    }
+
+    private func report(_ cause: String) {
+        let containerSize = DisplayDiagnostics.text(bounds.size)
+        let viewSize = DisplayDiagnostics.text(machineView.frame.size)
+        DisplayDiagnostics.note("\(cause): container \(containerSize) pt, machine view \(viewSize) pt, \(windowDescription)")
         onLayout?(bounds.size)
+    }
+
+    private var windowDescription: String {
+        // AppKit declares `window` unowned(unsafe); it is alive for the duration of this call and not kept.
+        guard let window = unsafe self.window else { return "no window" }
+        return "window \(DisplayDiagnostics.text(window.frame.size)) pt, backing scale \(window.backingScaleFactor), "
+            + "full screen \(window.styleMask.contains(.fullScreen))"
     }
 }

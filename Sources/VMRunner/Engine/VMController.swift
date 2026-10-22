@@ -50,6 +50,9 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         if !mayResume { bundle.discardSavedState() }
         let restoring = bundle.hasSavedState
         let display = StartDisplay.size(for: config, window: windowSize, restoring: restoring)
+        let window = windowSize.map(DisplayDiagnostics.text) ?? "unknown size"
+        Log.display.info(
+            "Starting display \(display.width)×\(display.height) px for a window of \(window, privacy: .public) pt, restoring \(restoring)")
         if !restoring {
             config.lastDisplayWidth = display.width
             config.lastDisplayHeight = display.height

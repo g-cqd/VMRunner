@@ -78,7 +78,11 @@ extension HelpCatalog {
                     + "Add `--input-latency-threshold-ms 1`, `--input-latency-interval 10` and `--input-latency-file /absolute/path` to "
                     + "change what counts as a stall, the seconds between summaries and where they are also written. The environment "
                     + "variables `VMR_INPUT_LATENCY`, `VMR_INPUT_LATENCY_THRESHOLD_MS`, `VMR_INPUT_LATENCY_INTERVAL` and "
-                    + "`VMR_INPUT_LATENCY_FILE` do the same. Summaries also go to the system log, category `input`."
+                    + "`VMR_INPUT_LATENCY_FILE` do the same. Summaries also go to the system log, category `input`.",
+                "`--display-diagnostics` logs each step that decides what the guest screen looks like: the size the guest starts "
+                    + "with, every layout of the machine view, each request for a new size and its outcome, and the framework's own "
+                    + "reconfiguration of the display. Only sizes and flags are logged. Read it with "
+                    + "`log stream --level info --predicate 'category == \"display\"'`.",
             ],
             related: [.controls]
         ),

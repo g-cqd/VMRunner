@@ -325,3 +325,38 @@ struct DisplayFollowerTests {
         #expect(display.requests == [size(1290, 806), size(1800, 1100), size(2880, 1800), size(1800, 1100)])
     }
 }
+
+struct DisplayDiagnosticsTests {
+    @Test func tracingIsOffUnlessTheLaunchArgumentIsPresent() {
+        #expect(!DisplayDiagnostics.isRequested(in: ["/Applications/VMRunner.app/Contents/MacOS/VMRunner"]))
+        #expect(!DisplayDiagnostics.isRequested(in: ["VMRunner", "--start", "Alpine"]))
+        #expect(DisplayDiagnostics.isRequested(in: ["VMRunner", "--display-diagnostics"]))
+        #expect(DisplayDiagnostics.isRequested(in: ["VMRunner", "--start", "Alpine", "--display-diagnostics"]))
+    }
+
+    @Test func theLaunchArgumentIsDocumentedInTheHelp() {
+        let help = HelpTopic.launchArguments.entry
+        #expect((help.paragraphs + help.advanced).joined(separator: " ").contains(DisplayDiagnostics.argument))
+    }
+
+    @Test func aSizeIsLoggedAsWholeNumbers() {
+        #expect(DisplayDiagnostics.text(CGSize(width: 1800.4, height: 1100)) == "1800×1100")
+    }
+
+    @Test func everyEventNamesTheSizesInvolved() {
+        let target = CGSize(width: 1200, height: 800)
+        let events: [DisplayFollower.Event] = [
+            .ignored(points: CGSize(width: 30, height: 30)),
+            .skipped(target: target),
+            .requested(points: CGSize(width: 1200.5, height: 800.5), target: target, displayWas: CGSize(width: 1280, height: 782)),
+            .refused(target: target, errorKind: "VZErrorDomain 1", attempt: 2, retryIn: .seconds(1)),
+            .refused(target: target, errorKind: "VZErrorDomain 1", attempt: 6, retryIn: nil),
+        ]
+        let text = events.map(\.description)
+        #expect(text[0].contains("30×30"))
+        #expect(text[1].contains("1200×800"))
+        #expect(text[2].contains("1200×800") && text[2].contains("1280×782"))
+        #expect(text[3].contains("VZErrorDomain 1") && text[3].contains("attempt 2") && text[3].contains("retrying"))
+        #expect(text[4].contains("giving up"))
+    }
+}
