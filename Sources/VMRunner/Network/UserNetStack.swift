@@ -1,6 +1,5 @@
 import Foundation
 import Synchronization
-import os
 
 // DESIGN NOTE: the user-mode network stack
 //
@@ -104,9 +103,9 @@ private final class ExitSignal: Sendable {
 
 /// A running (or ready to run) user-mode network for one guest. See the design note at the top of this file.
 ///
-/// All methods are safe to call from any thread. Create with ``make(config:policy:resolver:pathChanges:)`` (or the
-/// Virtualization.framework factory the app adds in `Engine/UserNetStack+Virtualization.swift`), call ``start()``, and ``stop()``
-/// when the virtual machine ends.
+/// All methods are safe to call from any thread. Create with
+/// ``make(config:policy:resolver:pathChangeAction:pathChanges:logger:)`` (or the Virtualization.framework factory the app
+/// adds in `Engine/UserNetStack+Virtualization.swift`), call ``start()``, and ``stop()`` when the virtual machine ends.
 final class UserNetStack: Sendable {
     private enum Lifecycle {
         case ready, running, stopped
@@ -125,6 +124,7 @@ final class UserNetStack: Sendable {
     private let hostDescriptor: Int32
     private let policy: Mutex<NetworkPolicy>
     private let resolver: any HostNameResolver
+    private let logger: any UserNetLogger
     private let pathChanges: @Sendable () -> AsyncStream<Void>
     private let flowContinuation: AsyncStream<FlowEvent>.Continuation
     private let vpnContinuation: AsyncStream<GuestVPNState>.Continuation
@@ -137,13 +137,15 @@ final class UserNetStack: Sendable {
     /// Takes ownership of `hostDescriptor`, the host end of the datagram socket pair.
     private init(
         hostDescriptor: Int32, handle: KQueueHandle, config: UserNetConfig, policy: NetworkPolicy,
-        resolver: any HostNameResolver, pathChangeAction: ExistingFlowAction, pathChanges: @escaping @Sendable () -> AsyncStream<Void>
+        resolver: any HostNameResolver, logger: any UserNetLogger, pathChangeAction: ExistingFlowAction,
+        pathChanges: @escaping @Sendable () -> AsyncStream<Void>
     ) {
         self.hostDescriptor = hostDescriptor
         self.handle = handle
         self.config = config
         self.policy = Mutex(policy)
         self.resolver = resolver
+        self.logger = logger
         self.pathChangeAction = pathChangeAction
         self.pathChanges = pathChanges
         inbox = UserNetInbox(handle: handle)
@@ -159,7 +161,8 @@ final class UserNetStack: Sendable {
     static func make(
         config: UserNetConfig = UserNetConfig(), policy: NetworkPolicy = NetworkPolicy(),
         resolver: any HostNameResolver = SystemNameResolver(), pathChangeAction: ExistingFlowAction = .terminate,
-        pathChanges: @escaping @Sendable () -> AsyncStream<Void> = HostPathMonitor.changes
+        pathChanges: @escaping @Sendable () -> AsyncStream<Void> = HostPathMonitor.changes,
+        logger: any UserNetLogger = SilentUserNetLogger()
     ) throws(UserNetError) -> (guestDescriptor: Int32, stack: UserNetStack) {
         if let problem = config.problem { throw .invalidConfiguration(problem) }
         SocketCalls.raiseDescriptorLimit()  // each flow holds a host socket; the default of 256 is too low for 1000 flows
@@ -172,7 +175,7 @@ final class UserNetStack: Sendable {
         }
         let stack = UserNetStack(
             hostDescriptor: pair.hostSide, handle: handle, config: config, policy: policy, resolver: resolver,
-            pathChangeAction: pathChangeAction, pathChanges: pathChanges)
+            logger: logger, pathChangeAction: pathChangeAction, pathChanges: pathChanges)
         return (pair.guestSide, stack)
     }
 
@@ -198,7 +201,7 @@ final class UserNetStack: Sendable {
             return true
         }
         guard shouldStart else { return }
-        Log.network.info("user-mode network starting, mtu \(self.config.mtu, privacy: .public)")
+        logger.stackStarting(mtu: config.mtu)
         launchLoop()
         let changes = pathChanges
         let inbox = inbox
@@ -212,13 +215,13 @@ final class UserNetStack: Sendable {
     private func launchLoop() {
         let loopInputs = (
             config: config, policy: policy.withLock { $0 }, descriptor: hostDescriptor, handle: handle, inbox: inbox, shared: shared,
-            events: flowContinuation, vpn: vpnContinuation, resolver: resolver, exit: exitSignal
+            events: flowContinuation, vpn: vpnContinuation, resolver: resolver, logger: logger, exit: exitSignal
         )
         let thread = Thread {
             let loop = UserNetLoop(
                 config: loopInputs.config, policy: loopInputs.policy, guestDescriptor: loopInputs.descriptor,
                 handle: loopInputs.handle, inbox: loopInputs.inbox, shared: loopInputs.shared, flowEvents: loopInputs.events,
-                vpnChanges: loopInputs.vpn, resolver: loopInputs.resolver)
+                vpnChanges: loopInputs.vpn, resolver: loopInputs.resolver, logger: loopInputs.logger)
             loop.run()
             loopInputs.events.finish()
             loopInputs.vpn.finish()

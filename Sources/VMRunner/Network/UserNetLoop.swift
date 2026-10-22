@@ -27,7 +27,8 @@ final class UserNetLoop {
     init(
         config: UserNetConfig, policy: NetworkPolicy, guestDescriptor: Int32, handle: KQueueHandle, inbox: UserNetInbox,
         shared: UserNetSharedState, flowEvents: AsyncStream<FlowEvent>.Continuation,
-        vpnChanges: AsyncStream<GuestVPNState>.Continuation, resolver: any HostNameResolver
+        vpnChanges: AsyncStream<GuestVPNState>.Continuation, resolver: any HostNameResolver,
+        logger: any UserNetLogger = SilentUserNetLogger()
     ) {
         self.inbox = inbox
         self.shared = shared
@@ -38,7 +39,7 @@ final class UserNetLoop {
             vpnSink: { state in
                 published.vpnState.withLock { $0 = state }
                 vpnChanges.yield(state)
-            }, resolver: resolver, inbox: inbox)
+            }, resolver: resolver, inbox: inbox, logger: logger)
         // SuspendingClock: it stops while the Mac sleeps, as the paused guest does, so no flow "idles out" across a sleep.
         core = UserNetCore(config: config, policy: policy, host: bridge, clock: SuspendingClock())
         events.reserveCapacity(256)

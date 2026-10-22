@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 /// The real-socket implementation of ``UserNetHost``: the thin layer that turns the core's abstract requests into
 /// non-blocking BSD sockets registered with the loop's kernel queue.
@@ -39,16 +38,19 @@ final class UserNetBridge: UserNetHost {
     private let inbox: UserNetInbox
     private var resolutions: [UInt64: Task<Void, Never>] = [:]
     private var logLines = FlowLogThrottle()
+    private let logger: any UserNetLogger
 
     init(
         guestDescriptor: Int32, mtu: Int, flowEvents: AsyncStream<FlowEvent>.Continuation,
-        vpnSink: @escaping @Sendable (GuestVPNState) -> Void, resolver: any HostNameResolver, inbox: UserNetInbox
+        vpnSink: @escaping @Sendable (GuestVPNState) -> Void, resolver: any HostNameResolver, inbox: UserNetInbox,
+        logger: any UserNetLogger = SilentUserNetLogger()
     ) {
         self.guestDescriptor = guestDescriptor
         self.flowEvents = flowEvents
         self.vpnSink = vpnSink
         self.resolver = resolver
         self.inbox = inbox
+        self.logger = logger
         transmitQueue = GuestTxQueue(slotCapacity: mtu + EthernetHeader.length + 64, maximumSlots: 2_048)
         pendingChanges.reserveCapacity(64)
         pendingChanges.append(ReadinessChange(descriptor: guestDescriptor, token: 0, isRead: true, enabled: true))
@@ -222,15 +224,10 @@ final class UserNetBridge: UserNetHost {
 
     /// Logs denials and abnormal endings, one line per destination and reason per interval (``FlowLogThrottle``).
     /// Destinations are private data: address, port and name are redacted in collected logs; only the kind of event,
-    /// the outcome, the reason and the count of held-back lines are public.
+    /// the outcome, the reason and the count of held-back lines are public (the logger decides how each is written).
     private func logFailure(of event: FlowEvent) {
         guard let line = logLines.line(for: event) else { return }
-        let (summary, held, destination) = (line.summary, line.held, line.destination)
-        if held > 0 {
-            Log.network.info("\(summary, privacy: .public) +\(held, privacy: .public): \(destination, privacy: .private)")
-        } else {
-            Log.network.info("\(summary, privacy: .public): \(destination, privacy: .private)")
-        }
+        logger.flowFailed(summary: line.summary, held: line.held, destination: line.destination)
     }
 
     func publish(vpnState: GuestVPNState) {

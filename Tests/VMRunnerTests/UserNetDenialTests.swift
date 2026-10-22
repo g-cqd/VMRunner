@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import TestKit
 import Testing
 
@@ -267,5 +268,34 @@ struct FlowEventStreamTests {
             }
         }
         #expect(bridge.flowEventsDropped == 7)
+    }
+
+    /// The bridge reports through the logger it was given, one line per destination and reason, and names no logging framework.
+    @Test func aDeniedFlowIsReportedToTheInjectedLogger() throws {
+        final class Recorder: UserNetLogger {
+            let lines = Mutex<[String]>([])
+            func stackStarting(mtu: Int) {}
+            func flowFailed(summary: String, held: Int, destination: String) {
+                lines.withLock { $0.append("\(summary)|\(held)|\(destination)") }
+            }
+        }
+        let (stream, continuation) = AsyncStream.makeStream(of: FlowEvent.self, bufferingPolicy: .bufferingNewest(3))
+        let pair = try #require(SocketCalls.datagramPair(bufferSize: 1 << 16))
+        defer {
+            SocketCalls.close(pair.guestSide)
+            SocketCalls.close(pair.hostSide)
+        }
+        let handle = try #require(KQueueHandle())
+        let recorder = Recorder()
+        let bridge = UserNetBridge(
+            guestDescriptor: pair.hostSide, mtu: 1_500, flowEvents: continuation, vpnSink: { _ in }, resolver: StubResolver(),
+            inbox: UserNetInbox(handle: handle), logger: recorder)
+        withExtendedLifetime(stream) {
+            let remote = (ipv4("93.184.216.34"), UInt16(443))
+            bridge.publish(FlowEvent(flowID: 1, transport: .tcp, phase: .opened, remote: remote, name: nil, time: 0))
+            bridge.publish(FlowEvent(flowID: 2, transport: .tcp, phase: .denied(.flowLimit), remote: remote, name: nil, time: 1))
+            bridge.publish(FlowEvent(flowID: 3, transport: .tcp, phase: .denied(.flowLimit), remote: remote, name: nil, time: 2))
+        }
+        #expect(recorder.lines.withLock { $0 } == ["tcp denied (flow limit)|0|93.184.216.34:443 -"])
     }
 }

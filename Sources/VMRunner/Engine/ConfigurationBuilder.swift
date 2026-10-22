@@ -179,7 +179,8 @@ enum ConfigurationBuilder {
         var stack: UserNetStack?
         if config.networkMode == .filtered {
             let user = try UserNetStack.attachment(
-                config: config.userNetConfig, policy: config.networkPolicy, pathChangeAction: config.hostPathChangeAction)
+                config: config.userNetConfig, policy: config.networkPolicy, pathChangeAction: config.hostPathChangeAction,
+                logger: AppUserNetLogger())
             device.attachment = user.attachment
             stack = user.stack
         } else {

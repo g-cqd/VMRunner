@@ -18,9 +18,11 @@ extension UserNetStack {
     /// - Throws: ``UserNetError``.
     static func attachment(
         config: UserNetConfig = UserNetConfig(), policy: NetworkPolicy = NetworkPolicy(),
-        resolver: any HostNameResolver = SystemNameResolver(), pathChangeAction: ExistingFlowAction = .terminate
+        resolver: any HostNameResolver = SystemNameResolver(), pathChangeAction: ExistingFlowAction = .terminate,
+        logger: any UserNetLogger = SilentUserNetLogger()
     ) throws(UserNetError) -> Attachment {
-        let made = try make(config: config, policy: policy, resolver: resolver, pathChangeAction: pathChangeAction)
+        let made = try make(
+            config: config, policy: policy, resolver: resolver, pathChangeAction: pathChangeAction, logger: logger)
         let handle = FileHandle(fileDescriptor: made.guestDescriptor, closeOnDealloc: true)
         let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: handle)
         attachment.maximumTransmissionUnit = config.mtu
