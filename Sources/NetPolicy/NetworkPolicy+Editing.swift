@@ -65,7 +65,8 @@ package enum PolicyList: String, CaseIterable, Identifiable, Sendable {
         case .connection:
             return "A destination together with its ports that is \(verb): example.com:443, or 10.0.0.0/8:22 for SSH only."
         case .urlPrefix:
-            return "Plain http:// addresses that are \(verb), matched by path prefix. Encrypted https paths can't be seen."
+            return "Plain http:// addresses that are \(verb), matched by path prefix. Saved, but not applied to traffic yet: "
+                + "the filter does not read requests. Block the domain or its addresses instead."
         }
     }
 }

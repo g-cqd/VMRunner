@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import NetStack
 import Testing
 
@@ -60,6 +61,17 @@ struct HelpCatalogTests {
         #expect(text.contains("no acceleration") && text.contains("no 3D acceleration"))
         #expect(HelpCatalog.search("GRUB_GFXMODE").contains(.linuxBootText))
         #expect(HelpTopic.resolution.entry.related.contains(.linuxBootText))
+    }
+
+    /// A real guest showed that the stack decides per connection and never reads a request, so the help must not promise URL
+    /// rules (roadmap 0030, row 6). If the stack ever enforces them, this test and the wording change together.
+    @Test func theHelpSaysUrlPrefixRulesAreNotAppliedToTraffic() {
+        let limits = (HelpTopic.policyLimits.entry.paragraphs + HelpTopic.policyLimits.entry.advanced).joined(separator: " ")
+        let rules = (HelpTopic.policyRules.entry.paragraphs + HelpTopic.policyRules.entry.advanced).joined(separator: " ")
+        #expect(limits.contains("URL prefix rules do nothing yet"))
+        #expect(rules.contains("not applied to traffic yet"))
+        #expect(PolicyList.blockedURLPrefixes.tooltip.contains("not applied to traffic yet"))
+        #expect(PolicyList.allowedURLPrefixes.tooltip.contains("not applied to traffic yet"))
     }
 
     @Test func searchMatchesTitleBodyAndAdvancedText() {

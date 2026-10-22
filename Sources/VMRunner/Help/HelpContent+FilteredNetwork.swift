@@ -65,7 +65,9 @@ extension HelpCatalog {
                     + "list this means \"only HTTPS to GitHub\"; in the block list, \"no SSH to that network\". No ports means all "
                     + "ports.",
                 "• **URL prefixes**: plain `http://` addresses, matched by path (`http://example.com/downloads`). Encrypted "
-                    + "`https://` paths cannot be seen, so they are not accepted here: block the domain instead.",
+                    + "`https://` paths cannot be seen, so they are not accepted here: block the domain instead. These rules are "
+                    + "saved but **not applied to traffic yet**: the filter decides per connection and does not read requests, "
+                    + "so a path rule changes nothing today (see \"What filtering can and cannot do\").",
                 "Block rules apply in both modes. Allow rules only matter in allow-list mode.",
             ],
             advanced: [
@@ -85,6 +87,9 @@ extension HelpCatalog {
             summary: "Where the rules are strong, where they are only a hint, and what gets through.",
             paragraphs: [
                 "• **Address and port rules are firm.** VMRunner connects only to the exact address it checked.",
+                "• **URL prefix rules do nothing yet.** The filter judges each connection by its name, its address and its port; "
+                    + "it does not read the request inside it, so a rule for one path of a site leaves the whole site reachable "
+                    + "(checked on a real guest). To keep a site out, block its domain or its addresses.",
                 "• **Domain rules are advisory.** VMRunner learns names from the guest's DNS questions. When several names share "
                     + "one address (common with content networks), a rule for one name can affect the others, and a guest that "
                     + "already knows an address can connect without asking DNS. Use address rules when it must hold.",
