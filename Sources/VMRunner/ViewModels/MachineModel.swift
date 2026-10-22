@@ -96,6 +96,8 @@ final class MachineModel {
     var deadline: Date? { controller.deadline }
     /// The running machine's filtered-network log and VPN signals; `nil` unless the machine runs with filtered networking.
     var networkActivity: NetworkActivity? { controller.network }
+    /// Why the kill switch has disconnected the running machine's network card; nil while it is connected or has no rule.
+    var networkCutoff: NetworkCutoffReason? { controller.guest?.networkCutoff?.reason }
     var canSuspend: Bool { controller.canSuspend }
     var suspendHelp: String {
         controller.canSuspend ? "Save state to disk and stop" : (controller.suspendUnavailableReason ?? "Suspend isn't available")

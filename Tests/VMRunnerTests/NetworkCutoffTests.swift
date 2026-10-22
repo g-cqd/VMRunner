@@ -145,3 +145,24 @@ struct NetworkCutoffWatchTests {
         feed.finish()
     }
 }
+
+/// What the toolbar reads: no cut for a machine without a kill switch, and a reason that says what cut the network.
+@MainActor
+struct NetworkCutoffIndicatorTests {
+    @Test func aMachineWithoutAKillSwitchShowsNoCut() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        await rig.start()
+        #expect(rig.controller.guest?.networkCutoff == nil)
+        #expect(rig.library.model(for: rig.id).networkCutoff == nil)
+        guest.powerOff()
+        rig.expectReleased()
+    }
+
+    @Test func eachReasonSaysWhatCutTheNetwork() {
+        #expect(NetworkCutoffReason.vpnRequired.text.contains("needs a VPN"))
+        #expect(NetworkCutoffReason.vpnForbidden.text.contains("must not use"))
+        #expect(NetworkCutoffReason.meteredPath.text.contains("Low Data Mode"))
+    }
+}

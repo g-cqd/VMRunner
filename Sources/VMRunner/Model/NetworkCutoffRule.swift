@@ -18,6 +18,15 @@ enum NetworkCutoffReason: Equatable, Sendable {
     case vpnForbidden
     /// The Mac's path is metered or in Low Data Mode, and the machine's switch says to cut then.
     case meteredPath
+
+    /// The toolbar's tooltip.
+    var text: String {
+        switch self {
+        case .vpnRequired: "Network cut: this machine needs a VPN on your Mac, and none is up."
+        case .vpnForbidden: "Network cut: this machine must not use your Mac's VPN, and one is up or not ruled out."
+        case .meteredPath: "Network cut: your Mac's connection is metered or in Low Data Mode."
+        }
+    }
 }
 
 extension VMConfig {

@@ -42,6 +42,11 @@ struct MachineToolbar: ToolbarContent {
             }
             .help("Time until the runtime limit shuts this machine down")
         }
+        if let cutoff = model.networkCutoff {
+            Label("Network cut", systemImage: "wifi.slash")
+                .foregroundStyle(.orange)
+                .help(cutoff.text)
+        }
         if let activity = model.networkActivity { NetworkActivityButton(activity: activity) }
         Button("Suspend", systemImage: "moon.zzz.fill", action: model.suspend)
             .disabled(!model.canSuspend)

@@ -14,6 +14,8 @@ protocol GuestMachine: AnyObject {
     /// never copies the framework's: it follows the outcome of each call and these two reports.
     var onGuestStopped: (@MainActor () -> Void)? { get set }
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)? { get set }
+    /// The kill switch of this run, when the machine has one, for the toolbar.
+    var networkCutoff: NetworkCutoff? { get }
 
     func start() async throws
     func restoreState(from url: URL) async throws

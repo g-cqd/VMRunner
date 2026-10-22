@@ -29,6 +29,8 @@ final class FakeGuest: GuestMachine {
     var canStop: Bool { state == .running || state == .paused }
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
+    /// A fake has no kill switch.
+    var networkCutoff: NetworkCutoff? { nil }
 
     private var gates: [GuestCall: AsyncGate] = [:]
     private var failures: [GuestCall: String] = [:]
