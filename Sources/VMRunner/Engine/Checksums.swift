@@ -89,24 +89,34 @@ enum Checksums {
     }
 
     private static func digest(of url: URL, algorithm: Checksum.Algorithm) throws -> String {
-        let handle = try openRegularFile(url)
-        defer { try? handle.close() }
         switch algorithm {
-        case .sha256:
-            var hasher = SHA256()
-            try forEachChunk(of: handle) { hasher.update(data: $0) }
-            return hasher.finalize().hexString
-        case .sha1:
-            var hasher = Insecure.SHA1()
-            try forEachChunk(of: handle) { hasher.update(data: $0) }
-            return hasher.finalize().hexString
+        case .sha256: try streamedDigest(of: url, using: SHA256.self)
+        case .sha1: try streamedDigest(of: url, using: Insecure.SHA1.self)
         }
     }
+
+    /// The lowercase hex digest of the file under `H`, read through `forEachChunk`.
+    private static func streamedDigest<H: HashFunction>(of url: URL, using _: H.Type) throws -> String {
+        let handle = try openRegularFile(url)
+        defer { try? handle.close() }
+        var hasher = H()
+        try forEachChunk(of: handle) { hasher.update(data: $0) }
+        return hasher.finalize().hexString
+    }
 }
+
+/// The lowercase hexadecimal digits, indexed by their value.
+private let hexDigits = Array("0123456789abcdef".utf8)
 
 extension Sequence<UInt8> {
     /// Lowercase hexadecimal, two digits per byte.
     var hexString: String {
-        map { ($0 < 0x10 ? "0" : "") + String($0, radix: 16) }.joined()
+        var digits: [UInt8] = []
+        digits.reserveCapacity(underestimatedCount * 2)
+        for byte in self {
+            digits.append(hexDigits[Int(byte >> 4)])
+            digits.append(hexDigits[Int(byte & 0x0F)])
+        }
+        return String(decoding: digits, as: UTF8.self)  // swiftlint:disable:this optional_data_string_conversion
     }
 }

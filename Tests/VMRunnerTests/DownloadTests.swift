@@ -149,6 +149,11 @@ struct DownloadMechanicsTests {
     @Test func hexStringPadsEveryByteToTwoDigits() {
         #expect([0x00, 0x0F, 0xFF, 0xA0].hexString == "000fffa0")
     }
+
+    @Test func hexStringWritesTwoLowercaseDigitsForEveryByte() {
+        let bytes = (0...255).map { UInt8($0) }
+        #expect(bytes.hexString == bytes.map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined())
+    }
 }
 
 struct ChecksumTests {
