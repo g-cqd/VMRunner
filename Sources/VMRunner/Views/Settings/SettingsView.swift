@@ -2,9 +2,11 @@ import SwiftUI
 
 /// App-wide options.
 struct SettingsView: View {
-    @AppStorage("ipswDeviceIdentifier", store: PreferencesDomain.defaults) private var storedDevice = ""
-    @AppStorage("keepsRestoreImages", store: PreferencesDomain.defaults) private var keepsRestoreImages = false
-    @AppStorage(LatencyActivity.settingKey, store: PreferencesDomain.defaults) private var holdsLatencyActivity = true
+    @AppStorage(AppSetting.ipswDeviceIdentifier.rawValue, store: PreferencesDomain.defaults) private var storedDevice = ""
+    @AppStorage(AppSetting.keepsRestoreImages.rawValue, store: PreferencesDomain.defaults)
+    private var keepsRestoreImages = false
+    @AppStorage(AppSetting.holdsLatencyActivity.rawValue, store: PreferencesDomain.defaults)
+    private var holdsLatencyActivity = true
     @State private var model = SettingsModel()
 
     var body: some View {

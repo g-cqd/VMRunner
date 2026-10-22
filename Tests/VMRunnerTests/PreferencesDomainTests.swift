@@ -41,3 +41,15 @@ struct LaunchDefaultsTests {
         #expect(suite.persistentDomain(forName: name)?[PreferencesDomain.launchKey] == nil, "registered, not written")
     }
 }
+
+@MainActor
+struct AppSettingTests {
+    @Test func theKeysAreTheOnesEveryVersionHasStored() {
+        #expect(
+            AppSetting.allCases.map(\.rawValue) == [
+                "hidesToolbarInFullScreen", "keepsRestoreImages", "holdsLatencyActivity", "ipswDeviceIdentifier",
+            ])
+        #expect(LatencyActivity.settingKey == AppSetting.holdsLatencyActivity.rawValue)
+        #expect(NewMachineModel.deviceDefaultsKey == AppSetting.ipswDeviceIdentifier.rawValue)
+    }
+}

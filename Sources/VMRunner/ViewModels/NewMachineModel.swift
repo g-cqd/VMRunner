@@ -16,7 +16,7 @@ final class NewMachineModel {
         case file
     }
 
-    static let deviceDefaultsKey = "ipswDeviceIdentifier"
+    static let deviceDefaultsKey = AppSetting.ipswDeviceIdentifier.rawValue
 
     var config = VMConfig.new(name: "macOS", guest: .macOS)
     var macSource = MacSource.latest

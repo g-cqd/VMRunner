@@ -35,3 +35,9 @@ enum PreferencesDomain {
     /// The AppKit key `registerLaunchDefaults` registers.
     static let launchKey = "ApplePersistenceIgnoreState"
 }
+
+/// The keys of the app's own settings, in the domain `PreferencesDomain.defaults` names. The raw values are what every
+/// version so far has stored, so they never change.
+enum AppSetting: String, CaseIterable, Sendable {
+    case hidesToolbarInFullScreen, keepsRestoreImages, holdsLatencyActivity, ipswDeviceIdentifier
+}

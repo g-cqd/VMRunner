@@ -19,7 +19,7 @@ extension ProcessInfo: ActivityHost {}
 @MainActor
 final class LatencyActivity {
     /// The `UserDefaults` key of the setting in Settings.
-    static let settingKey = "holdsLatencyActivity"
+    static let settingKey = AppSetting.holdsLatencyActivity.rawValue
 
     static let options: ProcessInfo.ActivityOptions = [.userInitiatedAllowingIdleSystemSleep, .latencyCritical]
 
