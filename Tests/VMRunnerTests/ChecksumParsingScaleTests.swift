@@ -1,5 +1,6 @@
 import Foundation
 import Synchronization
+import TestKit
 import Testing
 
 @testable import VMRunner
@@ -19,6 +20,10 @@ private func syntheticChecksums(bytes: Int, entry: String, digest: String, entry
 
 private let wantedDigest = String(repeating: "ab", count: 32)
 
+/// What a parse of a few megabytes may take. The tests exist to catch a hang or quadratic blow-up (minutes), not to measure speed:
+/// a debug build on a busy machine is slow, and a sanitizer build several times slower again.
+private var scaleBudget: Duration { sanitizerRuntimeLoaded ? .seconds(150) : .seconds(30) }
+
 struct ChecksumParsingScaleTests {
     @Test func aFourMebibyteChecksumFileIsReadWithinAGenerousBudget() {
         let text = syntheticChecksums(bytes: 4 << 20, entry: "wanted.iso", digest: wantedDigest, entryLine: 3)
@@ -34,7 +39,7 @@ struct ChecksumParsingScaleTests {
 
         #expect(gnu == wantedDigest)
         #expect(missing == nil)
-        #expect(elapsed < .seconds(5), "reading a 4 MiB checksum file took \(elapsed)")
+        #expect(elapsed < scaleBudget, "reading a 4 MiB checksum file took \(elapsed)")
     }
 
     @Test func aBSDFileOfTheSameSizeIsReadWithinTheSameBudget() {
@@ -48,7 +53,7 @@ struct ChecksumParsingScaleTests {
 
         // The entry is past the line cap, which is the point of the cap.
         #expect(found == nil)
-        #expect(elapsed < .seconds(5), "reading a BSD checksum file took \(elapsed)")
+        #expect(elapsed < scaleBudget, "reading a BSD checksum file took \(elapsed)")
     }
 
     @Test func onlyTheFirstLinesAreRead() {
@@ -67,7 +72,7 @@ struct ChecksumParsingScaleTests {
         let elapsed = clock.measure { found = LinuxProvider.ChecksumFormat.gnu.sha256(for: "a", in: text) }
 
         #expect(found == nil)
-        #expect(elapsed < .seconds(5), "a 4 MiB line took \(elapsed)")
+        #expect(elapsed < scaleBudget, "a 4 MiB line took \(elapsed)")
     }
 
     @Test func aLineLongerThanAnyFileNameIsNotRead() {
@@ -95,7 +100,7 @@ struct ChecksumParsingScaleTests {
         }
 
         #expect(newest?.version == "13.10.0")
-        #expect(elapsed < .seconds(5), "searching a large listing took \(elapsed)")
+        #expect(elapsed < scaleBudget, "searching a large listing took \(elapsed)")
     }
 }
 
