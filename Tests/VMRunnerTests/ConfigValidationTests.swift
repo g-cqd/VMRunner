@@ -158,7 +158,7 @@ struct NumericSinkTests {
         config.pixelsPerInch = Int.max
         config.pixelsPerPoint = Int.max
 
-        let size = ConfigurationBuilder.displaySize(for: config, windowSize: CGSize(width: 2000, height: 1200), restoring: false)
+        let size = StartDisplay.size(for: config, window: CGSize(width: 2000, height: 1200), restoring: false)
 
         #expect(EditorLimits.displayWidth.contains(size.width) && EditorLimits.displayHeight.contains(size.height))
     }

@@ -40,7 +40,10 @@ struct LibraryTests {
     @Test func duplicateIsAnIndependentMachineWithItsOwnIdentity() throws {
         let (library, directory) = try makeLibrary()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let original = try addMachine(to: library)
+        var original = try addMachine(to: library)
+        original.lastDisplayWidth = 3200
+        original.lastDisplayHeight = 2000
+        library.update(original)
 
         try library.duplicate(original.id)
 
@@ -53,6 +56,7 @@ struct LibraryTests {
         #expect(!copyBundle.hasSavedState, "memory state belongs to the original")
         #expect(library.bundle(original.id).hasSavedState)
         #expect(copy.macAddress == nil)
+        #expect(copy.lastDisplayWidth == nil && copy.lastDisplayHeight == nil, "the copy starts on the window, not on the source's size")
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasPrefix(".") }
         #expect(leftovers.isEmpty, "staging folders must not outlive duplicate(): \(leftovers)")

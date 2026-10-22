@@ -17,35 +17,6 @@ enum ConfigurationBuilder {
                 VZVirtualMachineConfiguration.maximumAllowedMemorySize >> 20)
     }
 
-    /// Widest framebuffer a Linux guest is started with. UEFI and GRUB draw fixed-size glyphs, so on a
-    /// large window a framebuffer that matches it pixel for pixel makes their text tiny. A capped one with
-    /// the window's aspect ratio is scaled up by the view instead; the guest OS then follows the window.
-    static let legibleStartWidth = 1280
-
-    /// Guest framebuffer size in pixels for this boot.
-    ///
-    /// With `fitsWindowAtStart` the guest gets the window's aspect ratio at `displayScale` pixels per point,
-    /// capped for Linux at `legibleStartWidth` so firmware text stays readable. A suspended machine keeps the
-    /// size it was suspended with, because saved state only restores into an identical configuration.
-    static func displaySize(for config: VMConfig, windowSize: CGSize?, restoring: Bool) -> (width: Int, height: Int) {
-        if restoring, let width = config.lastDisplayWidth, let height = config.lastDisplayHeight { return (width, height) }
-        guard config.fitsWindowAtStart, let windowSize, windowSize.width >= 320, windowSize.height >= 200 else {
-            return (config.displayWidth, config.displayHeight)
-        }
-        var width = windowSize.width * config.displayScale
-        var height = windowSize.height * config.displayScale
-        if config.guest == .linux, width > Double(legibleStartWidth) {
-            height *= Double(legibleStartWidth) / width
-            width = Double(legibleStartWidth)
-        }
-        // Clamp as a Double first: Int(value) traps for a value that is NaN or past Int.max.
-        func even(_ value: Double, _ range: ClosedRange<Int>) -> Int {
-            let bounded = min(max(value.isNaN ? 0 : value, Double(range.lowerBound)), Double(range.upperBound))
-            return min(max(Int(bounded) & ~1, range.lowerBound), range.upperBound)
-        }
-        return (even(width, 640...7680), even(height, 480...4320))
-    }
-
     /// A validated configuration, and the user-mode network stack its NIC talks to when the machine is `.filtered`.
     ///
     /// The stack is created but **not started**: the caller starts it before the machine and must stop it on every path

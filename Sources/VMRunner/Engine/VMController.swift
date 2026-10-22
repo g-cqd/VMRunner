@@ -46,7 +46,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         let mayResume = config.allowsSuspend && !config.ephemeral
         if !mayResume { bundle.discardSavedState() }
         let restoring = bundle.hasSavedState
-        let display = ConfigurationBuilder.displaySize(for: config, windowSize: windowSize, restoring: restoring)
+        let display = StartDisplay.size(for: config, window: windowSize, restoring: restoring)
         if !restoring {
             config.lastDisplayWidth = display.width
             config.lastDisplayHeight = display.height
