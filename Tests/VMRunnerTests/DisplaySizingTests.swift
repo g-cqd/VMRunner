@@ -78,4 +78,65 @@ struct DisplayTests {
         let size = StartDisplay.size(for: config, window: retinaWindow, restoring: true)
         #expect(size.width == 3200 && size.height == 2000, "saved state restores only into an identical configuration")
     }
+
+    // MARK: A fixed size is capped at the start too, because the guest follows the window afterwards
+
+    private struct FixedSize: CustomTestStringConvertible {
+        var width: Int
+        var height: Int
+        var startWidth: Int
+        var startHeight: Int
+        var testDescription: String { "\(width)x\(height) starts at \(startWidth)x\(startHeight)" }
+    }
+
+    @Test(arguments: [
+        FixedSize(width: 2560, height: 1600, startWidth: 1280, startHeight: 800),
+        FixedSize(width: 1920, height: 1080, startWidth: 1280, startHeight: 720),
+        FixedSize(width: 3200, height: 2000, startWidth: 1280, startHeight: 800),
+        FixedSize(width: 7680, height: 4320, startWidth: 1280, startHeight: 720),
+    ])
+    private func aFixedSizeWiderThanTheCapStartsLinuxAtTheCapWithItsOwnAspectRatio(fixed: FixedSize) {
+        var config = VMConfig.new(name: "l", guest: .linux)
+        config.fitsWindowAtStart = false
+        config.displayWidth = fixed.width
+        config.displayHeight = fixed.height
+        let size = StartDisplay.size(for: config, window: retinaWindow, restoring: false)
+        #expect(size.width == fixed.startWidth && size.height == fixed.startHeight, "\(size)")
+    }
+
+    @Test func aFixedSizeIsKeptWhenTheUserAlsoTurnedFollowingOff() {
+        var config = VMConfig.new(name: "l", guest: .linux)
+        config.fitsWindowAtStart = false
+        config.automaticallyReconfiguresDisplay = false
+        config.displayWidth = 2560
+        config.displayHeight = 1600
+        let size = StartDisplay.size(for: config, window: retinaWindow, restoring: false)
+        #expect(size.width == 2560 && size.height == 1600, "the guest keeps this size for the whole run, so it is what the user asked for")
+    }
+
+    @Test func aWideConfiguredSizeIsCappedWhenThereIsNoUsableWindow() {
+        var config = VMConfig.new(name: "l", guest: .linux)
+        config.displayWidth = 3200
+        config.displayHeight = 2000
+        let size = StartDisplay.size(for: config, window: nil, restoring: false)
+        #expect(size.width == 1280 && size.height == 800)
+    }
+
+    @Test func macOSKeepsAFixedSizeWhateverItsWidth() {
+        var config = VMConfig.new(name: "m", guest: .macOS)
+        config.fitsWindowAtStart = false
+        config.displayWidth = 2560
+        config.displayHeight = 1600
+        let size = StartDisplay.size(for: config, window: retinaWindow, restoring: false)
+        #expect(size.width == 2560 && size.height == 1600)
+    }
+
+    @Test func aFixedSizeWithinTheCapIsLeftAsConfigured() {
+        var config = VMConfig.new(name: "l", guest: .linux)
+        config.fitsWindowAtStart = false
+        config.displayWidth = 1111
+        config.displayHeight = 701
+        let size = StartDisplay.size(for: config, window: retinaWindow, restoring: false)
+        #expect(size.width == 1111 && size.height == 701)
+    }
 }
