@@ -65,8 +65,10 @@ not, without an error); what a new `VZVirtualMachineView` draws when full screen
 `open VMRunner.app --args --display-diagnostics` logs, under the `display` category, the sizes at each step: every layout and
 frame change of the container (container and machine view points, window points, backing scale, full screen), each setting
 written to the framework's view with the value it held, each request for a new size with the display's size before it, its
-outcome or refusal, and the framework's own begin and end of a display reconfiguration (for macOS guests too). The starting
-display is logged always. Read it with `log stream --level info --predicate 'category == "display"'`.
+outcome or refusal, and the framework's own begin and end of a display reconfiguration (for macOS guests too). Two things are
+logged always, without the argument: the starting display with the rule that chose it, and, for every request a Linux guest was
+asked, whether the guest responded or did not within two seconds (`reconfigure(sizeInPixels:)` returns no error either way). Read
+them as in "Reading the always-on lines" below.
 
 ## Done when
 
@@ -81,12 +83,9 @@ display is logged always. Read it with `log stream --level info --predicate 'cat
 
 ## Owner confirmation
 
-Use the release app (`swift run vmr build-app`), once with a macOS guest and once with a Linux guest, and keep the log running:
-
-```sh
-open VMRunner.app --args --display-diagnostics
-log stream --level info --predicate 'category == "display"'
-```
+Use the release app (`swift run vmr build-app`), once with a macOS guest and once with a Linux guest, and keep the log running.
+The `Starting display` and `Display resize:` lines are logged without a launch argument; add `--display-diagnostics` (`open
+VMRunner.app --args --display-diagnostics`) for the per-layout lines this list also asks for.
 
 For each step write down what you see (aligned, scaled to the window, centred; black bars; a stale or torn area; an offset
 picture) and copy the log lines it produced. After each step wait two seconds so the quiet period has passed.
@@ -100,5 +99,41 @@ picture) and copy the log lines it produced. After each step wait two seconds so
 7. Suspend, resume, and repeat step 2.
 
 Report, per step: the window size in points and the scanout size in pixels (the log lines `container … pt`, `asked for … px`,
-`framework finished reconfiguring the display; it is … px`), the backing scale, and any line that says `refused` or
+`framework finished reconfiguring the display; it is … px`), the backing scale, whether each request got `guest responded` or
+`guest did not respond` (a macOS guest has none of these lines: the framework resizes it), and any line that says `refused` or
 `view.automaticallyReconfiguresDisplay was … now …`. If a step corrupts the picture, say which one first did.
+
+### Reading the always-on lines
+
+These lines need no launch argument. They are notices, which the unified log keeps on disk, so they can be read after the fact
+or while the app runs:
+
+```sh
+log show --last 10m --predicate 'category == "display"' --info
+log stream --level info --predicate 'category == "display"'
+```
+
+Three kinds of line matter (sizes are pixels, window sizes are points; nothing identifies a machine or a path):
+
+1. **`Starting display W×H px for a window of W×H pt; host screen scale S, guest pixels per point P; source …, width cap …,
+   remembered size …; match window …, follows window …, restoring …`**: the scanout the firmware is given, and why. `source` is
+   `window`, `fixed size`, `configured size, no usable window` or `saved state`. `width cap` is `applied` (the size was reduced
+   to 1280 pixels wide), `in force, not needed` (already within it) or `does not apply` (macOS, a saved state, or a fixed size
+   with following switched off). `remembered size` is `ignored` (a cold start never uses it), `used` (a saved state) or `none`.
+   A second `Starting display` line in one run, with `restoring false`, means the restore failed or could not happen and the
+   machine booted cold on the size a cold start has.
+2. **`Display resize: guest responded: asked W×H px, the framework reports W×H px`**: the framework reported the end of the
+   reconfiguration, so frames arrived at the requested size. The guest's driver used the size; a reported size that differs
+   from the asked one means the guest settled on another.
+3. **`Display resize: guest did not respond within 2.0 seconds: asked W×H px, the framework reports W×H px`**: the framework
+   accepted the request (it returns no error either way) and no end of the reconfiguration came in two seconds. The guest did
+   not use the size, and the machine view shows "The guest ignored the display resize (firmware and boot loader screens
+   cannot follow the window)." until the next response. A `guest responded` line after it means the guest answered late. Expected
+   while the firmware, the boot loader or the installer's early console is on screen; for a guest that has booted, it means
+   its display driver does not act on the size, which is a finding to report. The size the framework reports is the display's
+   size at that moment: for an ignored request it is normally still the size from before.
+
+A `refused` line (error level) is the framework rejecting the request; it is retried. No `Display resize` line after a window
+change means nothing was asked: the first ten seconds of a cold boot, a view under 64 points, "Resize guest display with
+window" off, a macOS guest (the framework resizes it and the follower does not take part), or the display already had the size
+(`--display-diagnostics` shows which).
