@@ -84,6 +84,25 @@ struct PureLogicTests {
         #expect(swiftlint.release.binaryOverrideVariable == "SWIFTLINT_BIN")
         let swiftlintAddress = "https://github.com/realm/SwiftLint/releases/download/0.65.1/portable_swiftlint.zip"
         #expect(try ReleaseLocation.github.archiveURL(for: swiftlint).absoluteString == swiftlintAddress)
+
+        let actionlint = AnalyzerPin(release: .actionlint, version: "1.7.12", commit: "abc", sha256: "")
+        #expect(actionlint.directoryInArchive == nil)
+        #expect(
+            try ReleaseLocation.github.archiveURL(for: actionlint).absoluteString
+                == "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz")
+        let zizmor = AnalyzerPin(release: .zizmor, version: "1.31.1", commit: "abc", sha256: "")
+        #expect(
+            try ReleaseLocation.github.archiveURL(for: zizmor).absoluteString
+                == "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-apple-darwin.tar.gz")
+    }
+
+    @Test(arguments: [
+        ("1.7.12\ninstalled by downloading from release page\nbuilt with go1.26.1 compiler for darwin/arm64\n", "actionlint", "1.7.12"),
+        ("zizmor 1.31.1\n", "zizmor", "1.31.1"), ("0.65.1\n", "swiftlint", "0.65.1"), ("  0.10.2  \n", "arcleak", "0.10.2"),
+        ("", "dolly", ""),
+    ])
+    func aVersionReportIsReadFromItsFirstLineWithoutTheToolsName(report: String, name: String, version: String) {
+        #expect(AnalyzerInstaller.version(fromReport: report, name: name) == version)
     }
 
     @Test

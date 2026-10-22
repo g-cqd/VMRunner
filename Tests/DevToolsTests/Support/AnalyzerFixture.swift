@@ -133,12 +133,14 @@ struct AnalyzerFixture {
         }
     }
 
-    /// A tarball of the release's directory, or a zip of the files at its root.
+    /// A tarball of the release's directory, or a zip or tarball of the files at its root.
     private static func pack(_ pin: AnalyzerPin, content: URL, parent: URL, to archive: URL) async throws {
         let run: Invocation
         switch pin.release.archive {
         case .versionedTarball:
             run = try await VMR.run("/usr/bin/tar", ["-czf", archive.path, "-C", parent.path, content.lastPathComponent], in: parent)
+        case .flatTarball:
+            run = try await VMR.run("/usr/bin/tar", ["-czf", archive.path, "."], in: content)
         case .flatZip:
             run = try await VMR.run("/usr/bin/zip", ["-q", "-r", archive.path, "."], in: content)
         }

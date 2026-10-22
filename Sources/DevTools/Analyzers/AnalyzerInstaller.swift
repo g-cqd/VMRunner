@@ -123,7 +123,15 @@ struct AnalyzerInstaller: Sendable {
     static func reportedVersion(of binary: URL) async throws -> String {
         let result = try await ProcessRunner.run(CommandSpec(executable: binary.path, arguments: ["--version"]))
         guard result.succeeded else { throw ToolError("\(binary.lastPathComponent) --version exited with status \(result.status)") }
-        return result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Self.version(fromReport: result.standardOutput, name: binary.lastPathComponent)
+    }
+
+    /// The version in a `--version` report: its first line without surrounding blanks or a leading `<name> `. zizmor prints
+    /// `zizmor 1.31.1`; actionlint prints the version alone on its first line, then how it was built.
+    static func version(fromReport report: String, name: String) -> String {
+        let firstLine = report.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        let prefix = "\(name) "
+        return firstLine.hasPrefix(prefix) ? String(firstLine.dropFirst(prefix.count)) : firstLine
     }
 
     private static func checkArchiveLayout(_ archive: URL, pin: AnalyzerPin) async throws {

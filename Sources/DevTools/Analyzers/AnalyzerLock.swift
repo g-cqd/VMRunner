@@ -5,17 +5,20 @@ struct ReleaseSpec: Equatable, Sendable {
     /// The GitHub account that publishes the analyzer releases: the one place its name is written.
     static let analyzersOwner = "g-cqd"
 
-    /// How a release archive is named and laid out. macOS's `tar` lists and unpacks both kinds.
+    /// How a release archive is named and laid out. macOS's `tar` lists and unpacks every kind.
     enum Archive: Equatable, Sendable {
         /// `<name>-<version>-macos-arm64.tar.gz`, holding the binary in a directory named like the archive without its suffix.
         case versionedTarball
         /// A zip with a fixed file name that holds the binary at its root.
         case flatZip(name: String)
+        /// A gzip tarball with the binary at its root, named by `template` where `{version}` stands for the version
+        /// (`actionlint_{version}_darwin_arm64.tar.gz`); a template without it is a fixed name.
+        case flatTarball(template: String)
 
         /// The compression letter of `tar`'s mode: gzip is asked for by name, a zip is recognised by `tar` itself.
         var tarCompression: String {
             switch self {
-            case .versionedTarball: "z"
+            case .versionedTarball, .flatTarball: "z"
             case .flatZip: ""
             }
         }
@@ -36,6 +39,7 @@ struct ReleaseSpec: Equatable, Sendable {
         switch archive {
         case .versionedTarball: "\(name)-\(version)-macos-arm64.tar.gz"
         case .flatZip(let fileName): fileName
+        case .flatTarball(let template): template.replacing("{version}", with: version)
         }
     }
 
@@ -43,7 +47,7 @@ struct ReleaseSpec: Equatable, Sendable {
     func directoryInArchive(version: String) -> String? {
         switch archive {
         case .versionedTarball: "\(name)-\(version)-macos-arm64"
-        case .flatZip: nil
+        case .flatZip, .flatTarball: nil
         }
     }
 
@@ -51,8 +55,17 @@ struct ReleaseSpec: Equatable, Sendable {
     static let swiftlint = Self(
         name: "swiftlint", owner: "realm", repository: "SwiftLint", tagPrefix: "", archive: .flatZip(name: "portable_swiftlint.zip"))
 
+    /// actionlint, the workflow linter: a tarball named for its version, the binary at its root.
+    static let actionlint = Self(
+        name: "actionlint", owner: "rhysd", repository: "actionlint", tagPrefix: "v",
+        archive: .flatTarball(template: "actionlint_{version}_darwin_arm64.tar.gz"))
+    /// zizmor, the workflow security auditor: a tarball with a fixed name, the binary at its root.
+    static let zizmor = Self(
+        name: "zizmor", owner: "zizmorcore", repository: "zizmor", tagPrefix: "v",
+        archive: .flatTarball(template: "zizmor-aarch64-apple-darwin.tar.gz"))
+
     /// Every release `Scripts/analyzers.lock` pins, in the order `vmr analyzers versions` lists them.
-    static var pinnedReleases: [Self] { AnalyzerTool.allCases.map(\.release) + [.swiftlint] }
+    static var pinnedReleases: [Self] { AnalyzerTool.allCases.map(\.release) + [.swiftlint, .actionlint, .zizmor] }
 }
 
 /// The three static analyzers the gate runs.
@@ -89,7 +102,7 @@ struct AnalyzerPin: Equatable, Sendable {
 }
 
 /// The pins file: `KEY=VALUE` lines, `#` comments, keys `<TOOL>_VERSION`, `<TOOL>_COMMIT` and
-/// `<TOOL>_SHA256_MACOS_ARM64`, for each analyzer and for SwiftLint. The values end up in paths and addresses and decide
+/// `<TOOL>_SHA256_MACOS_ARM64`, for each analyzer, SwiftLint, actionlint and zizmor. The values end up in paths and addresses and decide
 /// what is trusted, so a pin is rejected unless each has its exact shape, and a key written twice rejects the whole file.
 struct AnalyzerLock: Equatable {
     static let relativePath = "Scripts/analyzers.lock"
