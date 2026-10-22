@@ -19,6 +19,16 @@ enum ConfigurationBuilder {
                 VZVirtualMachineConfiguration.maximumAllowedMemorySize >> 20)
     }
 
+    /// `build` away from the caller's actor. It reads the auxiliary storage and validates the configuration, which held the
+    /// main thread for 150 to 300 ms at a machine's start (roadmap 0037). What it builds is new and shared with nobody, so it
+    /// is sent back to the caller.
+    @concurrent  // @dw:accept:this referenced-only-by-tests -- machine start calls it once B9 lands
+    static func buildInBackground(
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil
+    ) async throws -> sending Built {
+        try build(config, bundle: bundle, display: display)
+    }
+
     /// A validated configuration, and the user-mode network stack its NIC talks to when the machine is `.filtered`.
     ///
     /// The stack is created but **not started**: the caller starts it before the machine and must stop it on every path
