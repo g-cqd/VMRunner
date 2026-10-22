@@ -1,6 +1,6 @@
 # VMRunner
 
-A small SwiftUI app that creates and runs **macOS** and **Linux (CentOS Stream)** virtual machines on Apple
+A small SwiftUI app that creates and runs **macOS** and **Linux** (CentOS Stream, Debian, Alpine, Ubuntu Server or any arm64 UEFI ISO) virtual machines on Apple
 silicon with Apple's [Virtualization framework](https://developer.apple.com/documentation/virtualization).
 The app links the system frameworks and one pinned package, `swift-async-algorithms` (which brings in
 `swift-collections`); the developer tooling (`vmr`, below) uses two other pinned Apple/Swift packages and is never
@@ -124,9 +124,9 @@ Everything that copies a disk uses `clonefile(2)`, so it is instant and shares b
 "Disk usage" counts blocks shared with clones in full, so the real cost is lower. Cloning needs the machine
 library and its copies on the same APFS volume (it is, by default: `~/Library/Application Support/VMRunner`).
 
-## CentOS and CI
+## Linux guests and CI
 
-- Apple silicon guests are **arm64 only**: you get `aarch64` CentOS Stream. An x86_64 CentOS VM can't run here.
+- Apple silicon guests are **arm64 only**: you get `aarch64` images. An x86_64 VM can't run here.
 - To run x86_64 *binaries* inside the Linux guest, enable **Rosetta** (Sharing) and follow the mount hint.
 - Enable **Nested virtualization** (M3 or newer) for `/dev/kvm` in the guest, e.g. Podman or QEMU inside.
 - For repeatable CI-style runs, use the **Disposable** switch (or the Hardened profile) so every boot starts
@@ -149,7 +149,7 @@ Sources/VMRunner
   Model/    VMConfig (Codable settings), NetworkPolicy and its rules, Security (profiles, exposure summary), APFS (clone, snapshots),
             Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)
   Engine/   ConfigurationBuilder (VMConfig -> VZVirtualMachineConfiguration), Provisioner (media + install),
-            VMController (run/pause/suspend/restore, runtime limit), NetworkActivity (filtered-network log and VPN signals), Downloads, Catalogs (ipsw.me, CentOS)
+            VMController (run/pause/suspend/restore, runtime limit), NetworkActivity (filtered-network log and VPN signals), Downloads, Catalogs (ipsw.me and the Linux vendors)
   Network/  the user-mode network stack behind Filtered networking
   Views/    ContentView, MachineView (toolbar, display), ConfigEditor, NewMachineSheet (+ Settings)
 Machines live in ~/Library/Application Support/VMRunner/Machines/<uuid>.vm

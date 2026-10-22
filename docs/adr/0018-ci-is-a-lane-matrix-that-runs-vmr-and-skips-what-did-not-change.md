@@ -42,4 +42,4 @@ workflow; moving them into `vmr` would make them testable and is the next step i
 
 ## What this does not decide
 
-A pinned SwiftLint (it still comes from Homebrew), a benchmark or allocation regression gate, and Developer ID signing.
+Developer ID signing. (Update 2026-10-22: SwiftLint is pinned, ADR-0020, and the benchmark gate exists, ADR-0022.)

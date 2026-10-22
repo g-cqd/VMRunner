@@ -31,5 +31,5 @@ it. The Ubuntu entry goes stale until a new entry is added when the next LTS shi
 
 ## What this does not decide
 
-Verifying the OpenPGP signatures both vendors publish (Alpine's `.asc` per ISO, Ubuntu's `SHA256SUMS.gpg`), which stays with
-roadmap 0023, and the remaining candidates (AlmaLinux, Rocky Linux, Fedora, Debian netinst).
+The remaining candidates (AlmaLinux, Rocky Linux, Fedora, Debian netinst). (Update 2026-10-22: the OpenPGP signatures both
+vendors publish are now verified, ADR-0023, and Alpine takes the newest release that has a published signature.)

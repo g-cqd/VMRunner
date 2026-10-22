@@ -21,8 +21,8 @@ locally and in CI.
 
 SwiftPM's plugin sandbox cannot run the whole gate (a nested build cannot apply its own sandbox and can deadlock on the
 outer lock), so `swift run vmr` is the primary path and the plugins are a convenience. Two gates must not share one build
-directory; a second invocation waits on the first.
+directory; a second invocation fails at once and names the first.
 
 ## What this does not decide
 
-A lock that makes the second invocation fail fast with a clear message.
+Nothing about the lock is open any more: it exists (`GateLock`) and is tested. (Update 2026-10-22.)
