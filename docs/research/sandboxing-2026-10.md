@@ -345,10 +345,11 @@ machine (`--probe`), on this host, with the socket in a 0700 directory under `/t
 
 - **Seatbelt:** with no grant the probe cannot even look at the directory (`file-read-metadata`, which the bridge needs to
   check that it is private). Granted the path itself (`file-read-metadata file-write*` on the one `literal`) plus the
-  directories above it, the probe listens. Taking out the two socket rules (`network-bind` and `network-inbound`, each for
-  the one `path-literal`) did **not** change the probe: binding a local socket is checked as a file creation. They stay in
-  the profile for accepting a connection, which only a booted guest with a client can show; that is **not verified** here.
-  Taking out the file rule made `bind` fail with `Operation not permitted`.
+  directories above it, the probe listens. Taking out either socket rule (`network-bind` or `network-inbound`, each for the
+  one `path-literal`) alone changed nothing; taking out both made `bind` fail with `Operation not permitted`, and so did taking
+  out the file rule. All three stay. A guest booted from a kernel and an initial ramdisk under that profile (the strict level,
+  NAT network, `vmr guest` descriptor) reached its login prompt, and a client connected to the console socket, ran commands
+  and fetched a page through the guest's NAT network: a virtual machine does run inside a Seatbelt helper, for that descriptor.
 - **App Sandbox:** refused, `bind: Operation not permitted`, and the log names `file-write-create` on the path. Adding the
   path as an `absolute-path.read-write` exception moved the denial to `network-bind` on the path; adding
   `com.apple.security.network.server` as well did not clear it. So an App Sandbox helper cannot serve a console on a path
