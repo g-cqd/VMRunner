@@ -147,6 +147,45 @@ struct UserNetICMPTests {
         #expect(rig.host.datagrams.count == 1, "the same identifier reuses the socket")
     }
 
+    /// macOS delivers an echo reply to every ICMP socket connected to the replying address, not only to the one that sent the
+    /// request, so a guest that pinged the same address with two identifiers saw each reply twice, and with ten recent pings ten
+    /// times (found on a real guest: busybox `ping` marking replies `DUP!`).
+    @Test func anEchoReplyReachesTheGuestOnceWhicheverSocketsTheHostDeliversItTo() throws {
+        let rig = open()
+        for identifier in [0x11, 0x22, 0x33] {
+            rig.send(
+                Wire.guestFrame(
+                    Wire.ipv4(
+                        from: Wire.guest, to: remote.0, proto: IPProtocol.icmp, Wire.icmpEcho(identifier: identifier, sequence: 1))))
+        }
+        let tokens = rig.host.datagrams.keys.sorted()
+        #expect(tokens.count == 3)
+        let reply = Wire.icmpEcho(type: 0, identifier: 0x22, sequence: 1)
+        for token in tokens { rig.host.datagrams[token]?.incoming = [reply] }
+        for token in tokens { rig.core.datagramReadable(token: token) }
+        let frames = rig.host.takeFrames()
+        #expect(frames.count == 1, "one reply for one request")
+        #expect(frames.first?.payload == reply)
+    }
+
+    @Test func repliesToEachIdentifierStillReachTheGuestWhenSeveralPingsAreInFlight() throws {
+        let rig = open()
+        for identifier in [0x11, 0x22] {
+            rig.send(
+                Wire.guestFrame(
+                    Wire.ipv4(
+                        from: Wire.guest, to: remote.0, proto: IPProtocol.icmp, Wire.icmpEcho(identifier: identifier, sequence: 1))))
+        }
+        let tokens = rig.host.datagrams.keys.sorted()
+        let replies = [0x11, 0x22].map { Wire.icmpEcho(type: 0, identifier: $0, sequence: 1) }
+        for (token, reply) in zip(tokens, replies) {
+            rig.host.datagrams[token]?.incoming = [reply]
+            rig.core.datagramReadable(token: token)
+        }
+        let delivered = rig.host.takeFrames().map(\.payload)
+        #expect(delivered.count == 2 && Set(delivered) == Set(replies))
+    }
+
     @Test func aDeniedDestinationGetsNoSocketAndNoReply() {
         let rig = open(NetworkPolicy())
         let echo = Wire.icmpEcho(identifier: 1, sequence: 1)

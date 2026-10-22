@@ -72,6 +72,9 @@ final class DatagramFlow {
                 from: (key.remoteAddress, key.remotePort), to: (ctx.config.guestAddress, key.guestPort), mac: ctx.guestDestination,
                 payload: payload)
         case .icmpEcho:
+            // macOS delivers an echo reply to every ICMP socket connected to the replying address, so each flow passes on only
+            // the replies that carry its own identifier; otherwise a guest sees one copy per recent ping.
+            if payload[0] == ICMPHeader.echoReply, (try? payload.be16(at: 4)) != key.guestPort { return }
             ctx.sendICMP(from: key.remoteAddress, message: payload)
         }
     }
