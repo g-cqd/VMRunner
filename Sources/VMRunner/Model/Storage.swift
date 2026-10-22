@@ -173,11 +173,16 @@ struct VMBundle: Sendable {
         try AppPaths.createPrivateDirectory(url)
     }
 
-    /// Removes whatever is at `hostInfoFolder` and makes the folder again, private. Files or a link a copied bundle left
-    /// there are gone before a guest can see them.
+    /// Removes whatever is at `hostInfoFolder` and makes the folder again, private and empty. Files or a link a copied bundle
+    /// left there are gone before a guest can see them.
+    /// - Throws: `AppPaths.UnsafeDirectory` when something there could not be removed (a subfolder the app may not empty),
+    ///   so it is never served.
     func freshHostInfoFolder() throws -> URL {
         remove(hostInfoFolder)
         try AppPaths.createPrivateDirectory(hostInfoFolder)
+        guard try FileManager.default.contentsOfDirectory(atPath: hostInfoFolder.path).isEmpty else {
+            throw AppPaths.UnsafeDirectory(path: hostInfoFolder.path, reason: "what was left in it could not be removed")
+        }
         return hostInfoFolder
     }
 

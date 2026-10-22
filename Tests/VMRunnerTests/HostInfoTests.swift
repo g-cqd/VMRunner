@@ -110,6 +110,31 @@ struct HostInfoShareTests {
         #expect(FileManager.default.fileExists(atPath: elsewhere.appending(path: "secret").path), "the link's target is untouched")
     }
 
+    @Test(.disabled(if: geteuid() == 0, "mode 0555 does not stop root from emptying a folder"))
+    func aFolderThatCannotBeEmptiedIsRefused() throws {
+        let directory = try scratchDirectory()
+        let bundle = VMBundle(url: directory)
+        let stuck = bundle.hostInfoFolder.appending(path: "stale", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: stuck, withIntermediateDirectories: true)
+        try Data("forged".utf8).write(to: stuck.appending(path: "battery"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: stuck.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stuck.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        #expect(throws: AppPaths.UnsafeDirectory.self) { try bundle.freshHostInfoFolder() }
+    }
+
+    @Test func theFolderGoesWithTheOtherFilesOfARunWhenTheMachineStops() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundle = VMBundle(url: directory)
+        let folder = try bundle.freshHostInfoFolder()
+        try Data("percent=80\n".utf8).write(to: folder.appending(path: "battery"))
+        bundle.discardEphemeral()  // what `VMController.release()` runs at every stop
+        #expect(!FileManager.default.fileExists(atPath: folder.path), "the last facts do not travel with a copied bundle")
+    }
+
     @Test func theHelpNamesTheTag() {
         #expect(HelpTopic.hostInformation.entry.paragraphs.joined(separator: " ").contains(ConfigurationBuilder.hostInfoTag))
     }
