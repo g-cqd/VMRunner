@@ -6,6 +6,7 @@ public enum ProbeCheck {
     public static let udpSend = "send a UDP datagram to 127.0.0.1:9"
     public static let udpBind = "bind a UDP socket to 127.0.0.1"
     public static let icmpConnect = "connect an ICMP echo socket to 127.0.0.1"
+    public static let consoleSocket = "listen on the console socket"
     public static let localHost = "localhost"
     public static let remoteHost = "example.com"
 

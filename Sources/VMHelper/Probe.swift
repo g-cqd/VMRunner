@@ -1,4 +1,5 @@
 import Foundation
+import GuestConsole
 import VMHelperCore
 import Virtualization
 
@@ -15,6 +16,7 @@ struct Probe {
         reportOutside()
         reportVirtualization()
         reportSockets()
+        reportConsole()
         reportNames()
     }
 
@@ -160,6 +162,30 @@ struct Probe {
             unsafe pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 unsafe Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
+        }
+    }
+
+    // MARK: Console
+
+    /// Whether the console socket can be created where the descriptor says: the bridge binds and listens, then lets go.
+    private func reportConsole() {
+        guard let console = descriptor.console else { return }
+        let check = ProbeCheck.consoleSocket
+        do {
+            let pair = try ConsoleBridge.makeGuestPair()
+            defer { close(pair.guest) }
+            do {
+                let bridge = try ConsoleBridge(guestDescriptor: pair.host, socketPath: console.socket)
+                bridge.stop()
+            } catch {
+                close(pair.host)
+                throw error
+            }
+            emitter.emit(.probe, message: "listening on \(console.socket)", check: check, verdict: .allowed)
+        } catch ConsoleError.system(let call, let code) where code == EPERM || code == EACCES {
+            emitter.emit(.probe, message: "\(call): \(Self.describe(code))", check: check, verdict: .refused)
+        } catch {
+            emitter.emit(.probe, message: "\(error)", check: check, verdict: .inconclusive)
         }
     }
 

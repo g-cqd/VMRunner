@@ -23,6 +23,8 @@ public struct SandboxGrants: Equatable, Sendable {
     public var readWrite: [String]
     /// Outbound sockets and name resolution: only at the standard level, and only for a machine whose network the helper hosts.
     public var hostSockets: Bool
+    /// The local socket the helper serves the guest's console on: created, listened on and removed by the helper.
+    public var consoleSocket: String?
 
     /// `descriptorPath` is where the helper reads the descriptor itself from, or `nil` when it arrives on standard input.
     /// The descriptor must already be canonical (`HelperDescriptor.canonicalized`).
@@ -37,5 +39,7 @@ public struct SandboxGrants: Equatable, Sendable {
         self.read = Array(Set(read).subtracting(readWrite)).sorted()
         self.readWrite = readWrite
         hostSockets = level == .standard && descriptor.network == .fileHandle
+        consoleSocket = descriptor.console?.socket
+        if let consoleSocket { try SandboxPath.validate(consoleSocket) }
     }
 }

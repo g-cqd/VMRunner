@@ -6,6 +6,9 @@ import Foundation
 /// events and does not depend on the launcher's clock.
 public struct HelperEvent: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, Sendable {
+        /// The console socket is listening; `message` is its path. It comes before `booting`, so output from the first
+        /// instructions of the guest is kept for the first client.
+        case consoleReady
         /// The configuration is built and validated; the machine is about to start.
         case booting
         /// The framework reports the machine running.

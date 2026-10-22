@@ -14,9 +14,9 @@ struct DescriptorTests {
     private func descriptor(
         boot: HelperDescriptor.Boot = .init(kind: .efi, variableStore: "/vm/efi"),
         disks: [HelperDescriptor.Disk] = [.init(path: "/vm/disk")],
-        iso: String? = nil
+        iso: String? = nil, console: String? = nil
     ) -> HelperDescriptor {
-        HelperDescriptor(name: "t", boot: boot, disks: disks, installerISO: iso)
+        HelperDescriptor(name: "t", boot: boot, disks: disks, installerISO: iso, console: console.map { .init(socket: $0) })
     }
 
     @Test
@@ -43,6 +43,15 @@ struct DescriptorTests {
         try machine.validate()
         #expect(machine.readPaths == ["/vm/initrd", "/vm/vmlinuz"])
         #expect(machine.readWritePaths == ["/vm/root.img"])
+    }
+
+    @Test
+    func aKernelBootWithAnInitialRamdiskNeedsNoDiskButEveryOtherMachineDoes() throws {
+        let netboot = HelperDescriptor.Boot(kind: .kernel, kernel: "/vm/Image", initrd: "/vm/initrd", commandLine: "console=hvc0")
+        try descriptor(boot: netboot, disks: []).validate()
+        let noRamdisk = HelperDescriptor.Boot(kind: .kernel, kernel: "/vm/Image")
+        #expect(throws: HelperFailure.self) { try descriptor(boot: noRamdisk, disks: []).validate() }
+        #expect(throws: HelperFailure.self) { try descriptor(disks: []).validate() }
     }
 
     /// A valid descriptor as JSON, with one member replaced by `replacing`.
@@ -76,6 +85,40 @@ struct DescriptorTests {
                 Issue.record("unexpected error \(error)")
             }
         }
+    }
+
+    // MARK: Console
+
+    @Test
+    func aDescriptorWithoutAConsoleHasNoneAndOneWithAConsoleReadsItsSocket() throws {
+        #expect(try HelperDescriptor.parse(Data(Self.json.utf8)).console == nil)
+        let text = Self.json.replacing(#""network":"nat""#, with: #""network":"nat","console":{"socket":"/var/vm/run/console.sock"}"#)
+        let machine = try HelperDescriptor.parse(Data(text.utf8))
+        #expect(machine.console == .init(socket: "/var/vm/run/console.sock"))
+        // The socket is neither a file the helper reads nor one it holds open as a disk: it has its own grant.
+        #expect(!machine.readPaths.contains("/var/vm/run/console.sock") && !machine.readWritePaths.contains("/var/vm/run/console.sock"))
+        let reread = try HelperDescriptor.parse(JSONEncoder().encode(machine))
+        #expect(reread == machine)
+    }
+
+    @Test
+    func aConsoleSocketIsCheckedLikeEveryOtherPathAndMustFitALocalSocketPath() throws {
+        let limit = HelperDescriptor.Console.socketPathLimit
+        let fitting = "/" + String(repeating: "a", count: limit - 1)
+        try descriptor(console: fitting).validate()
+        for path in [fitting + "a", "relative.sock", "/a/../b.sock", "/a\"b.sock", "/a\nb.sock"] {
+            #expect(throws: HelperFailure.self, "\(path.debugDescription)") { try descriptor(console: path).validate() }
+        }
+    }
+
+    @Test
+    func resolvingTheConsoleSocketCannotPushItPastTheLimit() throws {
+        // `/tmp` is `/private/tmp`: eight bytes more once resolved.
+        let name = String(repeating: "s", count: HelperDescriptor.Console.socketPathLimit - "/tmp/".utf8.count)
+        let socket = "/tmp/" + name
+        #expect(socket.utf8.count == HelperDescriptor.Console.socketPathLimit)
+        try descriptor(console: socket).validate()
+        #expect(throws: HelperFailure.self) { try descriptor(console: socket).canonicalized() }
     }
 
     @Test

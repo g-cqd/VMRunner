@@ -68,7 +68,7 @@ let package = Package(
         // launcher and the helper agree on them.
         .target(name: "VMHelperCore", path: "Sources/VMHelperCore", swiftSettings: hardening),
         .executableTarget(
-            name: "VMHelper", dependencies: ["VMHelperCore", "NetStack", "NetPolicy"], path: "Sources/VMHelper",
+            name: "VMHelper", dependencies: ["VMHelperCore", "GuestConsole", "NetStack", "NetPolicy"], path: "Sources/VMHelper",
             swiftSettings: hardening),
         .testTarget(name: "VMHelperCoreTests", dependencies: ["VMHelperCore"], path: "Tests/VMHelperCoreTests", swiftSettings: hardening),
 

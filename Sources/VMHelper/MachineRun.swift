@@ -1,4 +1,5 @@
 import Foundation
+import GuestConsole
 import VMHelperCore
 import Virtualization
 
@@ -24,6 +25,38 @@ struct MachineRun {
         // The host end of a file-handle network stays open until the process exits.
         _ = built.hostDescriptor
 
+        // The console is served before the machine starts, so the first client sees the guest's first output.
+        let console = try serveConsole(built)
+        do {
+            try await runMachine(built)
+        } catch {
+            await stop(console)
+            throw error
+        }
+        await stop(console)
+    }
+
+    private func serveConsole(_ built: MachineConfiguration.Built) throws -> ConsoleBridge? {
+        guard let settings = descriptor.console, let host = built.consoleDescriptor else { return nil }
+        let bridge: ConsoleBridge
+        do {
+            bridge = try ConsoleBridge(guestDescriptor: host, socketPath: settings.socket)
+        } catch {
+            close(host)
+            throw HelperFailure.virtualMachine("cannot serve the console on \(settings.socket): \(error)")
+        }
+        bridge.start()
+        emitter.emit(.consoleReady, message: settings.socket)
+        return bridge
+    }
+
+    private func stop(_ console: ConsoleBridge?) async {
+        guard let console else { return }
+        console.stop()
+        await console.waitUntilFinished()
+    }
+
+    private func runMachine(_ built: MachineConfiguration.Built) async throws {
         let machine = VZVirtualMachine(configuration: built.configuration)
         let delegate = Delegate()
         machine.delegate = delegate

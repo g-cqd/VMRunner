@@ -1,17 +1,26 @@
 import Foundation
+import GuestConsole
 import VMHelperCore
 import Virtualization
 
 /// Translates a descriptor into a validated `VZVirtualMachineConfiguration`.
 ///
 /// This is a copy of the minimum of the app's `ConfigurationBuilder` (Linux, EFI or kernel boot, disks, an ISO, entropy,
-/// NAT) so the helper does not depend on the app target. Extracting one shared builder is a follow-up: the app's builder
+/// NAT, a serial console) so the helper does not depend on the app target. Extracting one shared builder is a follow-up: the app's builder
 /// reads `VMConfig` and `VMBundle`, which pull in most of the model layer.
 enum MachineConfiguration {
-    /// A validated configuration plus what must outlive it: the host end of the socket pair of a `fileHandle` network.
+    /// A validated configuration plus what must outlive it: the host end of the socket pair of a `fileHandle` network, and the
+    /// bridge's end of the console's socket pair.
     struct Built {
         let configuration: VZVirtualMachineConfiguration
         let hostDescriptor: Int32?
+        let consoleDescriptor: Int32?
+
+        /// Closes what a configuration that is not going to run holds.
+        func release() {
+            if let hostDescriptor { close(hostDescriptor) }
+            if let consoleDescriptor { close(consoleDescriptor) }
+        }
     }
 
     /// Builds and validates the configuration. With `creatingVariableStore` a missing EFI variable store is created (a real
@@ -28,17 +37,25 @@ enum MachineConfiguration {
         configuration.bootLoader = try bootLoader(descriptor, creatingVariableStore: creatingVariableStore)
         configuration.storageDevices = try storage(descriptor)
         configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
-        configuration.serialPorts = [console()]
-        let network = try network(descriptor)
+        let console = try console(descriptor)
+        configuration.serialPorts = [console.port]
+        let network: (devices: [VZNetworkDeviceConfiguration], hostDescriptor: Int32?)
+        do {
+            network = try self.network(descriptor)
+        } catch {
+            if let host = console.hostDescriptor { close(host) }
+            throw error
+        }
         configuration.networkDevices = network.devices
 
+        let built = Built(configuration: configuration, hostDescriptor: network.hostDescriptor, consoleDescriptor: console.hostDescriptor)
         do {
             try configuration.validate()
         } catch {
-            if let descriptor = network.hostDescriptor { close(descriptor) }
+            built.release()
             throw HelperFailure.configurationRejected("the framework rejected the configuration: \(error.localizedDescription)")
         }
-        return Built(configuration: configuration, hostDescriptor: network.hostDescriptor)
+        return built
     }
 
     private static func requireFile(_ path: String) throws {
@@ -101,11 +118,31 @@ enum MachineConfiguration {
         return devices
     }
 
-    /// The guest's serial console goes to the helper's standard error; standard output carries only events.
-    private static func console() -> VZSerialPortConfiguration {
+    /// The guest's first serial port. With a console in the descriptor it is one end of a socket pair whose other end the bridge
+    /// serves; without one the guest's output goes to the helper's standard error, which carries no events.
+    private static func console(_ descriptor: HelperDescriptor) throws -> (port: VZSerialPortConfiguration, hostDescriptor: Int32?) {
         let port = VZVirtioConsoleDeviceSerialPortConfiguration()
-        port.attachment = VZFileHandleSerialPortAttachment(fileHandleForReading: nil, fileHandleForWriting: .standardError)
-        return port
+        guard descriptor.console != nil else {
+            port.attachment = VZFileHandleSerialPortAttachment(fileHandleForReading: nil, fileHandleForWriting: .standardError)
+            return (port, nil)
+        }
+        let pair: ConsoleBridge.GuestPair
+        do {
+            pair = try ConsoleBridge.makeGuestPair()
+        } catch {
+            throw HelperFailure.virtualMachine("cannot create the console's socket pair: \(error)")
+        }
+        // The attachment wants a handle to read from and one to write to; each owns a descriptor and closes it when released.
+        let reading = dup(pair.guest)
+        guard reading >= 0 else {
+            close(pair.guest)
+            close(pair.host)
+            throw HelperFailure.virtualMachine("cannot duplicate the console's descriptor (errno \(errno))")
+        }
+        port.attachment = VZFileHandleSerialPortAttachment(
+            fileHandleForReading: FileHandle(fileDescriptor: reading, closeOnDealloc: true),
+            fileHandleForWriting: FileHandle(fileDescriptor: pair.guest, closeOnDealloc: true))
+        return (port, pair.host)
     }
 
     private static func network(_ descriptor: HelperDescriptor) throws -> (devices: [VZNetworkDeviceConfiguration], hostDescriptor: Int32?)

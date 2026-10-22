@@ -40,7 +40,7 @@ public enum SeatbeltProfile {
     /// The profile text for `grants`. `helperExecutable` is the canonical path of the helper binary, which `sandbox-exec`
     /// executes under the profile. A path that is not plain (see `SandboxPath`) is refused, whoever validated it before.
     public static func generate(grants: SandboxGrants, helperExecutable: String) throws -> String {
-        for path in [helperExecutable] + grants.read + grants.readWrite {
+        for path in [helperExecutable] + grants.read + grants.readWrite + [grants.consoleSocket].compactMap(\.self) {
             try SandboxPath.validate(path)
         }
         var lines = [
@@ -61,7 +61,8 @@ public enum SeatbeltProfile {
             "",
             ";; Directories on the way to the granted files may be looked at, nothing more.",
         ]
-        let ancestors = Set(([helperExecutable] + grants.read + grants.readWrite).flatMap(Self.ancestors) + systemMetadata)
+        let reached = [helperExecutable] + grants.read + grants.readWrite + [grants.consoleSocket].compactMap(\.self)
+        let ancestors = Set(reached.flatMap(Self.ancestors) + systemMetadata)
         lines += ancestors.sorted().map { "(allow file-read-metadata \(literal($0)))" }
 
         lines += ["", ";; Files the descriptor names. The framework hands them on to the per-machine service as sandbox extensions."]
@@ -73,6 +74,16 @@ public enum SeatbeltProfile {
             lines.append("(allow file-read* file-write* \(literal(path)))")
             lines.append(issueExtension("com.apple.app-sandbox.read", path))
             lines.append(issueExtension("com.apple.app-sandbox.read-write", path))
+        }
+
+        if let socket = grants.consoleSocket {
+            lines += [
+                "",
+                ";; The console socket: the helper creates it, listens on it and removes it. Clients connect from outside.",
+                "(allow file-read-metadata file-write* \(literal(socket)))",
+                "(allow network-bind (local unix-socket (path-literal \"\(socket)\")))",
+                "(allow network-inbound (local unix-socket (path-literal \"\(socket)\")))",
+            ]
         }
 
         if grants.hostSockets {

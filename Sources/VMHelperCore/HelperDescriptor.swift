@@ -17,6 +17,22 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
     /// An installation ISO, attached as a read-only USB mass-storage device.
     public var installerISO: String?
     public var network: Network
+    /// A serial console served on a local socket: the guest's first serial port (`hvc0`) is bridged to it. Absent: the port
+    /// goes to the helper's standard error.
+    public var console: Console?
+
+    public struct Console: Codable, Equatable, Sendable {
+        /// A local socket path holds at most this many bytes (`sockaddr_un.sun_path` minus its terminating NUL).
+        public static let socketPathLimit = 103
+
+        /// Where the helper listens. The directory must exist and be private to the user; the socket is created with mode 0600
+        /// and removed when the helper ends.
+        public var socket: String
+
+        public init(socket: String) {
+            self.socket = socket
+        }
+    }
 
     public struct Boot: Codable, Equatable, Sendable {
         public enum Kind: String, Codable, Sendable {
@@ -71,7 +87,7 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
 
     public init(
         version: Int = Self.currentVersion, name: String, cpuCount: Int = 2, memoryMiB: Int = 1024, boot: Boot, disks: [Disk] = [],
-        installerISO: String? = nil, network: Network = .none
+        installerISO: String? = nil, network: Network = .none, console: Console? = nil
     ) {
         self.version = version
         self.name = name
@@ -81,6 +97,7 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         self.disks = disks
         self.installerISO = installerISO
         self.network = network
+        self.console = console
     }
 
     /// `version`, `name` and `boot` are required; everything else has the default the memberwise initializer has.
@@ -94,6 +111,7 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         disks = try container.decodeIfPresent([Disk].self, forKey: .disks) ?? []
         installerISO = try container.decodeIfPresent(String.self, forKey: .installerISO)
         network = try container.decodeIfPresent(Network.self, forKey: .network) ?? .none
+        console = try container.decodeIfPresent(Console.self, forKey: .console)
     }
 
     // MARK: Reading
@@ -135,11 +153,21 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
                 throw HelperFailure.invalidDescriptor("variableStore belongs to an efi boot, not a kernel boot")
             }
         }
-        guard !disks.isEmpty || installerISO != nil else {
-            throw HelperFailure.invalidDescriptor("the machine needs a disk or an installerISO to boot from")
+        // A kernel boot with an initial ramdisk can run from memory alone (a netboot image does).
+        let runsFromMemory = boot.kind == .kernel && boot.initrd != nil
+        guard !disks.isEmpty || installerISO != nil || runsFromMemory else {
+            throw HelperFailure.invalidDescriptor("the machine needs a disk, an installerISO or a kernel boot with an initrd")
         }
         for path in readPaths + readWritePaths {
             try SandboxPath.validate(path)
+        }
+        if let console {
+            try SandboxPath.validate(console.socket)
+            guard console.socket.utf8.count <= Console.socketPathLimit else {
+                let length = console.socket.utf8.count
+                throw HelperFailure.invalidDescriptor(
+                    "the console socket path is \(length) bytes; a local socket path holds at most \(Console.socketPathLimit)")
+            }
         }
     }
 
@@ -182,6 +210,9 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         copy.boot.initrd = try boot.initrd.map(resolve)
         copy.installerISO = try installerISO.map(resolve)
         copy.disks = try disks.map { Disk(path: try resolve($0.path), readOnly: $0.readOnly) }
+        copy.console = try console.map { Console(socket: try resolve($0.socket)) }
+        // Resolving can lengthen a path (`/tmp` is `/private/tmp`), so the limits are checked on the result.
+        try copy.validate()
         return copy
     }
 }

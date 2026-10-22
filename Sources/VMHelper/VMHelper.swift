@@ -9,8 +9,8 @@ import Virtualization
 ///     VMHelper --start   [--descriptor PATH|-] [--run-seconds N]   boot the machine (the owner's run)
 ///
 /// The descriptor comes from `PATH`, or from standard input when the path is `-` or absent. Standard output carries one JSON
-/// event per line (`HelperEvent`); the guest's serial console goes to standard error. The exit status is the `sysexits.h`
-/// value of `HelperFailure`, or 0.
+/// event per line (`HelperEvent`); the guest's serial console goes to standard error, unless the descriptor names a console
+/// socket, in which case it is served there. The exit status is the `sysexits.h` value of `HelperFailure`, or 0.
 @main
 struct VMHelper {
     enum Mode: String {
@@ -79,7 +79,7 @@ struct VMHelper {
         case .dryRun:
             // Builds and validates; the machine object is never created, so nothing starts.
             let built = try MachineConfiguration.build(descriptor, creatingVariableStore: false)
-            if let host = built.hostDescriptor { close(host) }
+            built.release()
             emitter.emit(.validated)
         case .start:
             try await MachineRun(descriptor: descriptor, emitter: emitter, runSeconds: arguments.runSeconds).run()

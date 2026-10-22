@@ -83,6 +83,33 @@ struct SeatbeltProfileTests {
     }
 
     @Test
+    func aConsoleSocketIsGrantedItsOwnPathAndBindingToItAndNothingMore() throws {
+        var withConsole = machine()
+        withConsole.console = .init(socket: "/private/vm/run/console.sock")
+        let text = try profile(withConsole)
+        let socket = "/private/vm/run/console.sock"
+        #expect(text.contains("(allow file-read-metadata file-write* (literal \"\(socket)\"))"))
+        #expect(text.contains("(allow network-bind (local unix-socket (path-literal \"\(socket)\")))"))
+        #expect(text.contains("(allow network-inbound (local unix-socket (path-literal \"\(socket)\")))"))
+        #expect(
+            text.contains("(allow file-read-metadata (literal \"/private/vm/run\"))"), "the directory is looked at to check it is private")
+        #expect(!text.contains("network-outbound"), "a console grants no way out")
+        #expect(!text.contains("subpath \"/private/vm"), "the socket is one path, never its directory")
+        let plain = try profile(machine())
+        #expect(!plain.contains("unix-socket") && !plain.contains("console"))
+    }
+
+    @Test
+    func theConsoleSocketIsPartOfTheGrantsOnlyWhenTheDescriptorHasOne() throws {
+        var withConsole = machine()
+        withConsole.console = .init(socket: "/private/vm/run/console.sock")
+        let granted = try SandboxGrants(descriptor: withConsole, descriptorPath: nil, level: .strict)
+        #expect(granted.consoleSocket == "/private/vm/run/console.sock")
+        #expect(!granted.read.contains("/private/vm/run/console.sock") && !granted.readWrite.contains("/private/vm/run/console.sock"))
+        #expect(try SandboxGrants(descriptor: machine(), descriptorPath: nil, level: .strict).consoleSocket == nil)
+    }
+
+    @Test
     func theProfileIsDeterministic() throws {
         #expect(try profile(machine()) == profile(machine()))
     }

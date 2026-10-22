@@ -336,12 +336,33 @@ settings model. A failure under `seatbelt` only means the profile misses a Mach 
 name. A failure under `app-sandbox` that the denials do not explain would mean the framework needs something an App Sandbox
 helper cannot be given, which would leave `seatbelt` as the only engine for helpers.
 
+## The console socket (2026-10-22)
+
+The descriptor gained `console: { "socket": PATH }`: the helper attaches the guest's first serial port to one end of a socket
+pair, serves the other end on a local socket (`GuestConsole`), and reports `consoleReady` with the path before `booting`. The
+probe has a check for it, `listen on the console socket`, which binds and listens on the path and lets go. Run without a
+machine (`--probe`), on this host, with the socket in a 0700 directory under `/tmp`:
+
+- **Seatbelt:** with no grant the probe cannot even look at the directory (`file-read-metadata`, which the bridge needs to
+  check that it is private). Granted the path itself (`file-read-metadata file-write*` on the one `literal`) plus the
+  directories above it, the probe listens. Taking out the two socket rules (`network-bind` and `network-inbound`, each for
+  the one `path-literal`) did **not** change the probe: binding a local socket is checked as a file creation. They stay in
+  the profile for accepting a connection, which only a booted guest with a client can show; that is **not verified** here.
+  Taking out the file rule made `bind` fail with `Operation not permitted`.
+- **App Sandbox:** refused, `bind: Operation not permitted`, and the log names `file-write-create` on the path. Adding the
+  path as an `absolute-path.read-write` exception moved the denial to `network-bind` on the path; adding
+  `com.apple.security.network.server` as well did not clear it. So an App Sandbox helper cannot serve a console on a path
+  outside its container with the entitlements tried, and the generated entitlements are left as they were. A socket inside
+  the helper's container was not tried. Run `vmr sandbox run --engine app-sandbox` with a console descriptor to see the
+  refusal; starting such a helper ends with `cannot serve the console on <path>`.
+
 ## Not verified
 
 Everything about a machine that is actually running inside either engine (the owner's run above): the Mach services and file
 rules the framework needs once a machine starts, whether the framework issues the sandbox extensions as inferred, NAT inside
 either engine, and boot time. Also: the user-mode network stack hosted in a helper (it was not extracted from the app), a
-security-scoped bookmark or a container-staged disk as the App Sandbox file mechanism, `network.server` for binding, whether
+security-scoped bookmark or a container-staged disk as the App Sandbox file mechanism, `network.server` for binding to a port
+(for a local socket it was tried and did not help, see above), whether
 an ad-hoc re-signed helper bundle can be launched by a notarized app, and the wording of a later Apple engineer comment about
 the macOS 27 descendants client.
 
