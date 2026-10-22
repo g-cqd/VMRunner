@@ -146,4 +146,15 @@ enum ImageStore {
         }
         return bundle.installer
     }
+
+    /// A copy-on-write clone of the verified `file` beside it, under a name no other setup uses, for one install to read
+    /// (ADR-0003, ADR-0031): the shared file may be replaced or removed while the install runs, the clone may not. The name
+    /// keeps the file's own name at its end, so the extension is unchanged. The caller deletes the clone.
+    /// - Throws: `SetupError.notARegularFile` for a link or another kind of entry, `SetupError.missingFile` when nothing is there.
+    static func installCopy(of file: URL) throws -> URL {
+        guard try regularFileExists(at: file) else { throw SetupError.missingFile(file.path) }
+        let copy = file.deletingLastPathComponent().appending(path: ".install-\(UUID().uuidString)-\(file.lastPathComponent)")
+        try APFS.clone(file, to: copy)
+        return copy
+    }
 }

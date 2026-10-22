@@ -223,6 +223,31 @@ struct MachineInstallerTests {
         #expect(try contents(of: bundle.installer) == "installer")
     }
 
+    @Test func anInstallReadsACloneOfItsOwnThatChangesToTheCachedFileDoNotReach() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cached = directory.appending(path: "UniversalMac_26.1_25B78_Restore.ipsw")
+        try Data("the verified restore image".utf8).write(to: cached)
+
+        let copy = try ImageStore.installCopy(of: cached)
+        #expect(copy.deletingLastPathComponent().path == cached.deletingLastPathComponent().path)
+        #expect(copy.lastPathComponent.hasSuffix("-UniversalMac_26.1_25B78_Restore.ipsw") && copy.lastPathComponent.hasPrefix(".install-"))
+        try Data("replaced".utf8).write(to: cached)
+        #expect(try contents(of: copy) == "the verified restore image")
+        #expect(try ImageStore.installCopy(of: cached) != copy, "each install gets a clone of its own")
+    }
+
+    @Test func aLinkOrANameWithNothingBehindItIsNeverClonedForAnInstall() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let target = directory.appending(path: "elsewhere.ipsw")
+        try Data("x".utf8).write(to: target)
+        let link = directory.appending(path: "UniversalMac.ipsw")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        #expect(throws: SetupError.self) { try ImageStore.installCopy(of: link) }
+        #expect(throws: SetupError.self) { try ImageStore.installCopy(of: directory.appending(path: "missing.ipsw")) }
+    }
+
     @Test func keepingAgainReplacesTheCopyOfAResumedSetup() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

@@ -66,9 +66,13 @@ enum Provisioner {
     private static func provisionMac(_ config: VMConfig, _ library: any MachineStore, _ job: SetupJob) async throws {
         var config = config
         let bundle = library.bundle(config.id)
-        guard let ipsw = try await resolveMedia(config.source, job: job) else {
+        guard let media = try await resolveMedia(config.source, job: job) else {
             throw SetupError.missingFile("macOS restore image")
         }
+        // The install reads a clone of a downloaded image that is its own, never the shared cache file, which another setup may
+        // replace or delete meanwhile (ADR-0031). A file the user picked is read where it is.
+        let ipsw = try AppPaths.isInside(media, AppPaths.images) ? ImageStore.installCopy(of: media) : media
+        defer { if ipsw != media { try? FileManager.default.removeItem(at: ipsw) } }
 
         job.title = "Reading restore image"
         job.fraction = nil
@@ -117,7 +121,7 @@ enum Provisioner {
 
         config.isProvisioned = true
         library.update(config)
-        discardCachedRestoreImage(ipsw)
+        discardCachedRestoreImage(media)
     }
 
     /// A restore image is 20+ GB and only needed once: cloning an installed machine is cheaper than reinstalling.
