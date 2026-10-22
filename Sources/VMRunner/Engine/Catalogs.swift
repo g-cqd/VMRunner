@@ -125,7 +125,9 @@ enum LinuxCatalog {
             approximateSize: "~93 MB", maximumBytes: 1 << 30, supportsSecureBoot: false,
             trustNotes: "Published by the Alpine Linux project. The ISO's detached OpenPGP signature (.asc) is checked against "
                 + "the release signer's key built into the app; the SHA-256, fetched over HTTPS from the same server, is checked as well. "
-                + "Releases older than 3.24.2, the oldest this version of the app accepts, are refused.",
+                + "Releases older than 3.24.2, the oldest this version of the app accepts, are refused. Alpine publishes an ISO before its "
+                + "signature: if the newest has none yet, the newest one that has is used and the setup says so; an image without a "
+                + "signature is never used.",
             provider: .alpineVirt),
         LinuxImage(
             id: "ubuntu-server-26.04", name: "Ubuntu Server 26.04 LTS", medium: "live server ISO", install: "offline install",

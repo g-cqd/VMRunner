@@ -4,6 +4,8 @@ import Observation
 @MainActor @Observable
 final class SetupJob {
     var title = "Preparing…"
+    /// Something the user should know about this setup that is not a failure, for example that a newer release was passed over.
+    var notice: String?
     var fraction: Double?
     var error: String?
     var task: Task<Void, Never>?

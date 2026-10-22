@@ -39,6 +39,18 @@ struct LinuxRelease: Equatable, Sendable {
 struct ResolvedImage: Sendable {
     var source: ImageSource
     var imageSignature: PGP.Check?
+    /// The release number of the chosen installer.
+    var version = ""
+    /// Newer releases the vendor lists whose signatures are not published yet, newest first; they were passed over.
+    var unsignedNewer: [String] = []
+
+    /// What to tell the user when newer releases were passed over, for example `Alpine Linux 3.24.3 has no signature yet;
+    /// using 3.24.2.`, or nil when the newest release was taken.
+    func notice(named name: String) -> String? {
+        guard !unsignedNewer.isEmpty else { return nil }
+        let which = unsignedNewer.joined(separator: " and ")
+        return "\(name) \(which) \(unsignedNewer.count == 1 ? "has" : "have") no signature yet; using \(version)."
+    }
 }
 
 /// How one distribution publishes an installer ISO and its SHA-256: where to look, which file is the newest,
@@ -241,24 +253,60 @@ struct LinuxProvider: Sendable {
             return try await resolveFromSharedList(
                 prefix: prefix, suffix: suffix, listName: fileName, directory: directory, now: now, fetch: fetch)
         }
-        let release: LinuxRelease
+        let candidates: [LinuxRelease]
         switch iso {
         case .fixed(let path):
-            release = LinuxRelease(path: path, version: "")
+            candidates = [LinuxRelease(path: path, version: "")]
         case .newest(let prefix, let suffix):
             let listing = try Self.text(of: try await fetch(directory, Network.smallLimit), at: directory)
-            guard let newest = Self.releases(inListing: listing, prefix: prefix, suffix: suffix, series: series).first else {
+            candidates = Self.releases(inListing: listing, prefix: prefix, suffix: suffix, series: series)
+            guard !candidates.isEmpty else {
                 let others = Self.releases(inListing: listing, prefix: prefix, suffix: suffix)
                 throw SetupError.missingFile("a \(series ?? "matching") ISO in \(directory)" + Self.outsideSeries(others))
             }
-            release = newest
         }
-        try accept(release)
+        guard trust.signsEachImage else {
+            try accept(candidates[0])
+            return try await vouchedImage(candidates[0], directory: directory, now: now, fetch: fetch)
+        }
+        return try await newestWithASignature(among: candidates, directory: directory, now: now, fetch: fetch)
+    }
+
+    /// The newest of `candidates` (newest first) whose signature the vendor has published, not going below the oldest release
+    /// accepted. Only an HTTP 404 on the signature means "not published yet"; a signature that cannot be fetched for any other
+    /// reason, or that is malformed or untrusted, ends the search, so a hostile network cannot steer the choice to an older
+    /// release by corrupting signatures. An image without a signature is never returned.
+    private func newestWithASignature(
+        among candidates: [LinuxRelease], directory: URL, now: Date, fetch: SmallFetch
+    ) async throws -> ResolvedImage {
+        var unsigned: [String] = []
+        for release in candidates {
+            do {
+                try accept(release)
+            } catch {
+                // Newest first: this one and every later one is below the floor.
+                if unsigned.isEmpty { throw error }
+                break
+            }
+            do {
+                var image = try await vouchedImage(release, directory: directory, now: now, fetch: fetch)
+                image.unsignedNewer = unsigned
+                return image
+            } catch SetupError.signatureNotPublished {
+                unsigned.append(release.version)
+            }
+        }
+        throw SetupError.noSignedRelease(oldest: minimumVersion ?? "", unsigned: unsigned)
+    }
+
+    /// `release` with its checksum, fetched and vouched for by `trust`.
+    private func vouchedImage(_ release: LinuxRelease, directory: URL, now: Date, fetch: SmallFetch) async throws -> ResolvedImage {
         let checksumURL = try checksumURL(for: release)
         let file = try await fetch(checksumURL, Network.smallLimit)
         let vouched = try await trust.vouch(
             for: file, at: checksumURL, image: directory.appending(path: release.path), now: now, fetch: fetch)
-        return ResolvedImage(source: try source(for: release, checksumText: vouched.text), imageSignature: vouched.imageSignature)
+        return ResolvedImage(
+            source: try source(for: release, checksumText: vouched.text), imageSignature: vouched.imageSignature, version: release.version)
     }
 
     /// A shared checksum file lists every image the vendor ships and is vouched for; the directory listing is neither. The
@@ -276,7 +324,8 @@ struct LinuxProvider: Sendable {
             throw SetupError.missingFile("a \(series ?? "matching") ISO in \(listName)" + Self.outsideSeries(others))
         }
         try accept(newest)
-        return ResolvedImage(source: try source(for: newest, checksumText: vouched.text), imageSignature: vouched.imageSignature)
+        return ResolvedImage(
+            source: try source(for: newest, checksumText: vouched.text), imageSignature: vouched.imageSignature, version: newest.version)
     }
 
     /// For an error message: the newest release found whatever its series, which is not the one this app serves.

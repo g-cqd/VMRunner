@@ -36,6 +36,9 @@ struct SetupJobView: View {
     private var progress: some View {
         VStack(spacing: 12) {
             Text(job.title).font(.headline)
+            if let notice = job.notice {
+                Text(notice).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled)
+            }
             if let fraction = job.fraction {
                 ProgressView(value: fraction) {
                     EmptyView()

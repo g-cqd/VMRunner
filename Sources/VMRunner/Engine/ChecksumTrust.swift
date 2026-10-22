@@ -16,6 +16,10 @@ struct VouchedChecksum: Sendable {
 /// provider says so explicitly with `HTTPSOnlyTrust`. A signed provider never falls back to HTTPS alone: a missing,
 /// malformed, expired or wrongly made signature throws `SetupError.signatureRejected`.
 protocol ChecksumTrust: Sendable {
+    /// Whether the vendor signs each installer on its own, some time after publishing it (Alpine). A provider with such a trust
+    /// takes the newest release whose signature exists; one whose trust signs a list does not walk back.
+    var signsEachImage: Bool { get }
+
     /// - Parameters:
     ///   - checksumFile: The checksum file as downloaded.
     ///   - checksumURL: Where it came from; a detached signature sits next to it.
@@ -27,6 +31,10 @@ protocol ChecksumTrust: Sendable {
     func vouch(
         for checksumFile: Data, at checksumURL: URL, image imageURL: URL, now: Date, fetch: SmallFetch
     ) async throws -> VouchedChecksum
+}
+
+extension ChecksumTrust {
+    var signsEachImage: Bool { false }
 }
 
 /// The checksum file is believed because it came over HTTPS from the vendor's own host; nothing signs it or the installer
@@ -81,12 +89,15 @@ struct SignedImageTrust: ChecksumTrust {
     var suffix: String
     var keys: [PGP.PinnedKey]
 
+    var signsEachImage: Bool { true }
+
     func vouch(
         for checksumFile: Data, at checksumURL: URL, image imageURL: URL, now: Date, fetch: SmallFetch
     ) async throws -> VouchedChecksum {
         let name = imageURL.lastPathComponent
         let trusted = try SignatureSupport.keys(keys, for: name)
-        let armored = try await SignatureSupport.signature(at: imageURL.appendingPathExtension(suffix), fetch: fetch)
+        let armored = try await SignatureSupport.signature(
+            at: imageURL.appendingPathExtension(suffix), fetch: fetch, reportsMissing: true)
         let check = try SignatureSupport.refusing(name) { () throws(PGP.Failure) in
             try PGP.Check.detached(armored, keys: trusted, now: now)
         }
@@ -106,13 +117,22 @@ private enum SignatureSupport {
     }
 
     /// Downloads a signature file from a host the download policy allows, capped at `PGP.maximumSignatureSize`.
+    /// - Parameters:
+    ///   - url: Where the signature is; it must pass the download policy.
+    ///   - fetch: How the file is downloaded.
+    ///   - reportsMissing: Answers an HTTP 404 with `SetupError.signatureNotPublished` instead of a rejection, for a caller
+    ///     that can take an older release. Every other failure is a rejection either way.
+    /// - Returns: The signature file's bytes.
     /// - Throws: `SetupError.signatureRejected` if it cannot be had, so a missing signature never reads as "no signature needed".
-    static func signature(at url: URL, fetch: SmallFetch) async throws -> [UInt8] {
+    static func signature(at url: URL, fetch: SmallFetch, reportsMissing: Bool = false) async throws -> [UInt8] {
         _ = try DownloadPolicy.validate(url)
         do {
             return Array(try await fetch(url, PGP.maximumSignatureSize))
         } catch {
             try Task.checkCancellation()
+            if reportsMissing, case SetupError.badResponse(_, 404) = error {
+                throw SetupError.signatureNotPublished(file: url.deletingPathExtension().lastPathComponent)
+            }
             throw SetupError.signatureRejected(
                 file: url.deletingPathExtension().lastPathComponent,
                 reason: "the signature file \(url.lastPathComponent) could not be downloaded (\(error.localizedDescription))")

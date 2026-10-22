@@ -57,7 +57,13 @@ genuine older file would verify too. Each signed provider therefore names its re
 the oldest release it accepts, the one current when its key was pinned (Ubuntu 26.04.1, Alpine 3.24.2, Debian 13.7.0, Fedora
 44-1.7), and refuses anything older with a message that says so. Where the signed object is a list of many images (Debian,
 Ubuntu) the release is chosen from the signed text and not from the unsigned directory listing, which could hide the newest
-one. These floors move up with app releases; a copy of the app that is not updated still accepts every newer release. Debian's netboot index, CentOS Stream, AlmaLinux and Rocky
+one. These floors move up with app releases; a copy of the app that is not updated still accepts every newer release. Alpine
+signs each ISO some time after publishing it, so its search takes the newest release whose `.asc` exists and not below the
+floor, says which newer releases it passed over, and never installs an unsigned image. Only an HTTP 404 on the signature
+counts as "not published yet"; a server error, a network error, a malformed signature or a signature by an unpinned key stops
+the setup, so a hostile network cannot steer the choice to an older release by corrupting signatures. A network position
+that can answer 404 for the newest signature can still make the app take the next signed release, but never one below the
+floor and never one without a signature, and the setup says so. Debian's netboot index, CentOS Stream, AlmaLinux and Rocky
 Linux remain on HTTPS alone, and say so.
 
 ## What this does not decide

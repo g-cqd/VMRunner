@@ -148,7 +148,6 @@ struct SignedProviderFailClosedTests {
                     ubuntuDirectory: VendorFiles.ubuntuListing, ubuntuDirectory + "SHA256SUMS": SignedVendorFiles.ubuntuChecksums,
                 ])
             ),
-            (.alpineVirt, alpineMirror(signature: nil)),
         ]
         for (provider, mirror) in cases {
             await #expect("\(provider.host)") {
@@ -156,6 +155,17 @@ struct SignedProviderFailClosedTests {
             } throws: { error in
                 rejection(error)?.reason.contains("could not be downloaded") == true
             }
+        }
+    }
+
+    @Test func aMissingSignatureLeavesAlpineWithNoReleaseToInstall() async {
+        // Alpine signs each ISO some time after publishing it, so a missing signature makes the search try an older release; with
+        // nothing signed at or above the floor there is none, and the setup is refused.
+        await #expect {
+            try await LinuxProvider.alpineVirt.resolve(now: pgpGoldenNow, fetch: alpineMirror(signature: nil).fetch)
+        } throws: { error in
+            guard case SetupError.noSignedRelease(let oldest, let unsigned) = error else { return false }
+            return oldest == "3.24.2" && unsigned == ["3.24.2"]
         }
     }
 

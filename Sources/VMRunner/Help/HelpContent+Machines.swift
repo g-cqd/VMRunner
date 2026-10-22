@@ -93,6 +93,10 @@ extension HelpCatalog {
                 "A checksum fetched from the same server proves the file arrived intact, not who built it. A valid signature proves "
                     + "that the holder of the project's key signed it: Ubuntu signs its SHA256SUMS list and Alpine signs the ISO itself, "
                     + "and VMRunner checks both and refuses the download on any failure instead of falling back to the checksum alone.",
+                "Alpine publishes each ISO before its signature. If the newest release has no signature yet, VMRunner uses the "
+                    + "newest one that has, never older than the oldest it accepts, and says so while it sets up. It never installs an "
+                    + "image without a valid signature, and any other problem with a signature stops the setup instead of trying an "
+                    + "older release.",
                 "The keys are built into the app, so VMRunner cannot see a key being revoked or expiring, and a new key needs an app "
                     + "update. A signature does not say the software is safe. Each image has an oldest release VMRunner accepts, "
                     + "so a genuine older signed file is refused; that limit rises with app updates. Only HTTPS from a short list "

@@ -19,6 +19,10 @@ enum SetupError: LocalizedError {
     case weakChecksum(String)
     /// `file` is a genuine release but older than `oldest`, the oldest this version of the app accepts.
     case releaseTooOld(file: String, oldest: String)
+    /// The vendor has not published the signature of `file` (HTTP 404), as opposed to a signature that cannot be had or trusted.
+    case signatureNotPublished(file: String)
+    /// Every release from `oldest` up that the vendor lists lacks its signature so far; `unsigned` names them, newest first.
+    case noSignedRelease(oldest: String, unsigned: [String])
     /// The OpenPGP signature that should vouch for `file` is missing, malformed or wrong; `reason` completes "because ...".
     case signatureRejected(file: String, reason: String)
     case rosettaUnavailable
@@ -42,6 +46,12 @@ enum SetupError: LocalizedError {
             reason
         case .missingFile(let path):
             "File not found: \(path)"
+        case .signatureNotPublished(let file):
+            "The vendor has not published an OpenPGP signature for \(file) yet."
+        case .noSignedRelease(let oldest, let unsigned):
+            "No release from \(oldest) up has a published OpenPGP signature yet"
+                + (unsigned.isEmpty ? "" : " (\(unsigned.joined(separator: ", ")) has none)")
+                + ". VMRunner does not install an image it cannot check; try again later."
         case .releaseTooOld(let file, let oldest):
             "Refusing \(file): it is older than the oldest release this version of VMRunner accepts (\(oldest)). "
                 + "The listing may be out of date or tampered with; update VMRunner if a newer release exists."

@@ -163,6 +163,10 @@ enum Provisioner {
             job.title = "Looking up the newest \(entry.name)"
             job.fraction = nil
             let resolved = try await LinuxCatalog.resolve(entry)
+            if let notice = resolved.notice(named: entry.name) {
+                job.notice = notice
+                Log.network.notice("\(notice, privacy: .public)")
+            }
             guard case .remote(let url, let checksum) = resolved.source else { return nil }
             return try await ImageStore.fetch(
                 url, checksum: checksum, signature: resolved.imageSignature, maximumBytes: entry.maximumBytes, job: job)

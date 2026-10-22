@@ -9,7 +9,8 @@ decision: ADR-0023
 Debian (netinst), Ubuntu Server, Fedora and Alpine Linux are verified against pinned vendor keys by an in-tree verifier
 (ADR-0023, `Sources/VMRunner/Engine/PGP/`). The checksum file is the signed object for Debian, Ubuntu and Fedora; for Alpine
 the ISO itself is, so its signature is checked after the download and its SHA-256 as well. A missing, malformed, wrongly made,
-expired or tampered signature fails closed; every other provider says it is HTTPS only. Roadmap 0022 owns which of these
+expired or tampered signature fails closed (except that Alpine, which signs each ISO after publishing it, falls back from a release
+whose signature answers 404 to the newest one that has one, never below its floor, and tells the user); every other provider says it is HTTPS only. Roadmap 0022 owns which of these
 vendors are offered: today Ubuntu Server and Alpine Linux are, and Debian netinst and Fedora 44 are still candidates.
 
 Remaining:
