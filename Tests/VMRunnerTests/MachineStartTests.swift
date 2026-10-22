@@ -113,6 +113,52 @@ struct MachineStartTests {
         #expect(events == ["begin#1", "begin#2", "shutdown#1"], "each attempt has its own stack, and the failed one is stopped")
     }
 
+    @Test func aColdBootAfterAFailedRestoreStartsOnTheColdStartSizeNotTheRememberedOne() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        rig.factory.add("restoring").fail(.restore, "the image doesn't match")
+        let cold = rig.factory.add("cold")
+        rig.remember(width: 3456, height: 2234)
+        try rig.leaveSavedState()
+        let window = CGSize(width: 1512, height: 900)
+        let expected = StartDisplay.size(for: rig.config, window: window, restoring: false)
+
+        await rig.start(window: window)
+        #expect(cold.count(.start) == 1)
+        #expect(rig.factory.displays == [.init(width: 3456, height: 2234), .init(width: expected.width, height: expected.height)])
+        #expect(expected.width == 1280, "the firmware gets the capped size")
+        #expect(rig.config.lastDisplayWidth == expected.width && rig.config.lastDisplayHeight == expected.height)
+    }
+
+    @Test func aMachineThatCannotRestoreItsStateColdBootsOnTheColdStartSize() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        rig.factory.suspend = .unavailable(reason: "this configuration can't be saved")
+        let unused = rig.factory.add("built for the remembered size")
+        let cold = rig.factory.add("cold")
+        rig.remember(width: 3456, height: 2234)
+        try rig.leaveSavedState()
+        let window = CGSize(width: 1512, height: 900)
+        let expected = StartDisplay.size(for: rig.config, window: window, restoring: false)
+
+        await rig.start(window: window)
+        #expect(unused.count(.start) == 0 && cold.count(.start) == 1)
+        #expect(rig.factory.displays == [.init(width: 3456, height: 2234), .init(width: expected.width, height: expected.height)])
+        #expect(rig.controller.state == .running)
+    }
+
+    @Test func aRestoreThatWorksKeepsTheRememberedSizeAndPreparesOnce() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        rig.remember(width: 3456, height: 2234)
+        try rig.leaveSavedState()
+
+        await rig.start(window: CGSize(width: 1512, height: 900))
+        #expect(guest.count(.restore) == 1)
+        #expect(rig.factory.displays == [.init(width: 3456, height: 2234)], "saved state restores only at the size it was taken on")
+    }
+
     @Test func aColdBootDoesNotLeaveAMemoryImageThatNoLongerMatchesTheDisk() async throws {
         let rig = try ControllerRig()
         defer { rig.cleanUp() }

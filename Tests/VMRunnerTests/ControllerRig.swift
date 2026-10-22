@@ -8,10 +8,17 @@ import Virtualization
 /// Hands the controller fake machines, and a network stack that only counts its starts and stops.
 @MainActor
 final class FakeFactory: MachineFactory {
+    struct Size: Equatable {
+        var width: Int
+        var height: Int
+    }
+
     private var queued: [FakeGuest] = []
     /// Every machine handed out, in order.
     private(set) var handedOut: [FakeGuest] = []
     private(set) var preparations = 0
+    /// The display size each preparation was asked for, in order.
+    private(set) var displays: [Size] = []
     var suspend = SuspendSupport.available
     var withNetwork = true
     /// `prepare` throws this once, then behaves again.
@@ -30,6 +37,7 @@ final class FakeFactory: MachineFactory {
         _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
     ) throws -> PreparedMachine {
         preparations += 1
+        displays.append(Size(width: display.width, height: display.height))
         if let failure {
             self.failure = nil
             throw FakeGuestError(message: failure)
@@ -93,13 +101,21 @@ final class ControllerRig {
     var bundle: VMBundle { library.bundle(id) }
     var config: VMConfig { library.machine(id) ?? VMConfig.new(name: "gone", guest: .linux) }
 
-    func start() async {
-        await controller.start(config, bundle: bundle, library: library)
+    func start(window: CGSize? = nil) async {
+        await controller.start(config, bundle: bundle, library: library, windowSize: window)
     }
 
     /// Runs `start()` in its own task, so the test can act while it waits for the framework.
     func starting() -> Task<Void, Never> {
         Task { await start() }
+    }
+
+    /// The size an earlier cold boot recorded as its start size.
+    func remember(width: Int, height: Int) {
+        var config = config
+        config.lastDisplayWidth = width
+        config.lastDisplayHeight = height
+        library.update(config)
     }
 
     /// A memory image from an earlier suspend.

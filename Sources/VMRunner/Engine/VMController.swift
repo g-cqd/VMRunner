@@ -27,19 +27,9 @@ final class VMController {
     private(set) var firmwareStartedAt: ContinuousClock.Instant?
     var errorMessage: String?
 
-    /// What a start needs again if it falls back to a cold boot, and what the rest of the run needs from it.
-    private struct Launch {
-        var config: VMConfig
-        let bundle: VMBundle
-        weak var library: VMLibrary?
-        let display: (width: Int, height: Int)
-        let suspendAllowed: Bool
-        var disposableCopyMade = false
-    }
-
     /// Bumped each time a machine is released: a report that carries an older number is stale.
     @ObservationIgnored private var run: UInt64 = 0
-    @ObservationIgnored private var launch: Launch?
+    @ObservationIgnored private var launch: MachineLaunch?
     @ObservationIgnored private var notice: String?
     @ObservationIgnored private var stopIssued = false
     @ObservationIgnored private let factory: any MachineFactory
@@ -86,14 +76,14 @@ final class VMController {
         if !mayResume { bundle.discardSavedState() }
         let restoring = bundle.hasSavedState
         let decision = StartDisplay.decide(for: config, window: windowSize, restoring: restoring)
-        let display = decision.size
         decision.log(config: config, window: windowSize, restoring: restoring)
         if !restoring {
-            config.lastDisplayWidth = display.width
-            config.lastDisplayHeight = display.height
+            config.lastDisplayWidth = decision.width
+            config.lastDisplayHeight = decision.height
             library.update(config)
         }
-        launch = Launch(config: config, bundle: bundle, library: library, display: display, suspendAllowed: mayResume)
+        launch = MachineLaunch(
+            config: config, bundle: bundle, library: library, display: decision, windowSize: windowSize, suspendAllowed: mayResume)
         await drive(.startRequested, run: run)
     }
 
@@ -181,6 +171,7 @@ final class VMController {
             return prepare(run: token)
         case .fallBackToColdBoot(let reason):
             notice = "Couldn't restore the suspended state (\(reason)). Booted normally instead."
+            launch?.useColdStartDisplay()
             letGoOfAttempt()
             return prepare(run: token)
         case .discardSavedState:
@@ -215,9 +206,16 @@ final class VMController {
             // A configuration that failed to restore can't be reused, and neither can its network stack: each attempt
             // gets its own.
             let prepared = try factory.prepare(
-                attempt.config, bundle: attempt.bundle, display: attempt.display, suspendAllowed: attempt.suspendAllowed)
+                attempt.config, bundle: attempt.bundle, display: attempt.display.size, suspendAllowed: attempt.suspendAllowed)
             adopt(prepared, run: token)
-            return .prepared(canRestore: prepared.suspend == .available && attempt.bundle.hasSavedState)
+            let canRestore = prepared.suspend == .available && attempt.bundle.hasSavedState
+            if !canRestore && attempt.display.source == .savedState {
+                // Built for a restore that cannot happen: boot cold on the display a cold start has.
+                launch?.useColdStartDisplay()
+                letGoOfAttempt()
+                return prepare(run: token)
+            }
+            return .prepared(canRestore: canRestore)
         } catch {
             Log.machine.error("Start failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
             return .startFailed(error.localizedDescription)
