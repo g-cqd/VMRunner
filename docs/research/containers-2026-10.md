@@ -238,9 +238,9 @@ The real stack is not plugged in because it lives in the app target, which canno
 views, its settings, its other package). Extracting it was out of scope. **What would be needed**, checked by compiling the
 files in a scratch package with the repository's compiler flags and no source change:
 
-1. A library target for the stack: the 46 files of `Sources/VMRunner/Network`, eight model files (`IPAddress`,
+1. A library target for the stack: the 50 files of `Sources/VMRunner/Network`, eight model files (`IPAddress`,
    `NetworkHost`, `NetworkPolicy`, `NetworkRules`, `NetworkPortRules`, `FlowLog`, `Log`, `StringRuleCoding`) and
-   `Engine/VPNMonitor.swift`: 55 files, about 6,800 lines, no external package. ADR-0001 holds, because the app would link
+   `Engine/VPNMonitor.swift`: 59 files, about 7,400 lines, no external package. ADR-0001 holds, because the app would link
    one more module of its own.
 2. Access: everything is internal today. The runner needs `UserNetStack.attachment(config:policy:)`, `start()`, `stop()`,
    `UserNetConfig` and `NetworkPolicy`; SwiftPM's `package` access level would expose them to the app and the runner without
