@@ -89,9 +89,10 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
         }
     }
 
-    /// Convenience over `ContinuousClock` with a generous real-time deadline. Prefer
-    /// the clock-injectable overload under a `TestClock`.
-    public func wait(forAtLeast count: Int, timeout: Duration = .seconds(2)) async throws -> [Event] {
+    /// Convenience over `ContinuousClock` with a generous real-time deadline: it only elapses when a test is
+    /// really stuck, and instrumented builds on a busy machine are far slower than a plain debug run. Prefer the
+    /// clock-injectable overload under a `TestClock`.
+    public func wait(forAtLeast count: Int, timeout: Duration = .seconds(30)) async throws -> [Event] {
         try await wait(forAtLeast: count, within: timeout, clock: ContinuousClock())
     }
 
