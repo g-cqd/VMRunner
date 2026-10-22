@@ -177,6 +177,12 @@ enum LinuxCatalog {
                 + "older than 10.2 are refused.",
             provider: .rocky(release: 10, flavor: "minimal")),
         LinuxImage(
+            id: "fedora-server-43-netinst", name: "Fedora Server 43", medium: "netinst ISO", install: "network install",
+            approximateSize: "~1.2 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
+            trustNotes: "Published by the Fedora Project. The CHECKSUM file must be an inline OpenPGP clear-signed message made by "
+                + "the Fedora 43 release key built into the app, or the download is refused; composes older than 43-1.6 are refused.",
+            provider: .fedoraServerNetinst(release: 43)),
+        LinuxImage(
             id: "fedora-server-44-netinst", name: "Fedora Server 44", medium: "netinst ISO", install: "network install",
             approximateSize: "~1.3 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Fedora Project. The CHECKSUM file must be an inline OpenPGP clear-signed message made by "

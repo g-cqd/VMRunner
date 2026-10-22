@@ -102,13 +102,14 @@ extension PGP {
         /// The Fedora release keys that are pinned, by release number. A release without a key here fails closed.
         static func fedora(release: Int) -> [PinnedKey] {
             switch release {
+            case 43: [fedora43]
             case 44: [fedora44]
             default: []
             }
         }
 
         /// Every pinned key, for tests that check each constant against its fingerprint.
-        static let all = [debianCD, ubuntuCDImage, fedora44, alpineCopa, almaLinux10, rockyLinux10]
+        static let all = [debianCD, ubuntuCDImage, fedora44, alpineCopa, almaLinux10, rockyLinux10, fedora43]
 
         /// Checked on 2026-10-22 against almalinux.org/security and the AlmaLinux 10 release notes: no expiry.
         static let almaLinux10 = PinnedKey(
@@ -157,6 +158,31 @@ extension PGP {
                 "84a99efb6656f2a95b8d937c67e3c115a95bf7e26b7d181cb5d2a1f7f6e86dfc",
                 "1392df4138e397de6ec905afdf0a4313152b0ce7b37768436778895564593f76",
                 "19d738097b1c255683d36c351eff03dcac5a390e89f86050f9e1cb54a7f3b7f7",
+            ].joined(),
+            exponent: "010001")
+
+        /// Checked on 2026-10-22 against fedoraproject.org/security and the key file on src.fedoraproject.org: no expiry.
+        static let fedora43 = PinnedKey(
+            owner: "Fedora 43 release key",
+            fingerprint: "C6E7F081CF80E13146676E88829B606631645531",
+            created: 1_723_260_111,
+            modulus: [
+                "b8ecdc0a2e2fe0d92f48da9e49b546c9d32de6d92b7dcea91210d998c3ff91f9",
+                "62af68fdd2292150177422ea9a865c9f3c0032549056293861b2a1cd1d89e2c2",
+                "9883eab566f01af05533105105e537fa10a5c1b490b32b159ebf15c54c2275fb",
+                "088cd25abc267007466865bc5d08f31030e810c932d7e0e23fb8a94f5337b298",
+                "31f0c636ffb6595f9524ce1ad7587b782247389dc4dfb16c26fa5285e4974fa5",
+                "24415bb26a78d4ee43fd4af9374e6506bb045e80ee16bf7d29fbf702fedfdc97",
+                "f30e592a0bf12199fc59119bd68f78517407e2d9f166b5572b74b7c6229420e9",
+                "8d816a98693e1687a8a97dcc3e465aabb91925c6a0b6865eeb01bf004a8d2fe0",
+                "f952e8ee925f32c505dec51db89346dd44e102cae940b577c10cf400c1d51254",
+                "44ace59d04363475d00a2cf2fbfe6b718f7f69184a59fdd36d424ce09bb54274",
+                "fd74427419af047697c93b08fbb4a7294f097997bca156575baff519f3b65598",
+                "e81466b9f2a7fa526c37706587b9dd8b9ae50a347a98756b403fe5ebef159920",
+                "f7fe60e76c45cfcb3064498e43d70a51ecce555cde6354744e738640e4cf3c4b",
+                "2238f04486366780c2d19aaf8e7f5fec06e3bf840b8f895e934eec142b12f1e0",
+                "27105dca843a28b0eb11aaa7fce429c41e067e672f4b09160e94a4f30166fe91",
+                "a514ae89e1bf9b6bb78e7ad5be697ad64a2141d6c4c0834398fa076cebb3a959",
             ].joined(),
             exponent: "010001")
     }

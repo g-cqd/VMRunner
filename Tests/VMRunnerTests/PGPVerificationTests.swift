@@ -324,6 +324,7 @@ struct PGPPinnedKeyTests {
         (PGP.PinnedKeys.alpineCopa, "0482D84022F52DF1C4E7CD43293ACD0907D9495A"),
         (PGP.PinnedKeys.almaLinux10, "EE6DB7B98F5BF5EDD9DA0DE5DEE5C11CC2A1E572"),
         (PGP.PinnedKeys.rockyLinux10, "FC226859C0860BF0DDB95B085B106C736FEDFC85"),
+        (PGP.PinnedKeys.fedora43, "C6E7F081CF80E13146676E88829B606631645531"),
     ]
 
     // The fingerprint check proves the constants are the key the vendor published, but it is the golden tests (`PGPGoldenTests`)
@@ -345,7 +346,8 @@ struct PGPPinnedKeyTests {
     @Test func theTableHoldsEachKeyOnceAndFedoraIsPinnedPerRelease() {
         #expect(Set(PGP.PinnedKeys.all.map(\.fingerprint)).count == PGP.PinnedKeys.all.count)
         #expect(PGP.PinnedKeys.fedora(release: 44) == [PGP.PinnedKeys.fedora44])
-        for release in [0, 40, 43, 45, 46, 99] { #expect(PGP.PinnedKeys.fedora(release: release).isEmpty, "Fedora \(release) has no pin") }
+        #expect(PGP.PinnedKeys.fedora(release: 43) == [PGP.PinnedKeys.fedora43])
+        for release in [0, 40, 42, 45, 46, 99] { #expect(PGP.PinnedKeys.fedora(release: release).isEmpty, "Fedora \(release) has no pin") }
     }
 
     @Test func aDamagedConstantNeverBecomesAKey() throws {

@@ -421,7 +421,7 @@ extension LinuxProvider {
     }
 
     /// The compose of each Fedora release when the app was last updated; a release not listed starts at itself.
-    private static let fedoraFloors = [44: "44-1.7"]
+    private static let fedoraFloors = [43: "43-1.6", 44: "44-1.7"]
 
     /// The CHECKSUM file is a cleartext-signed message made by that release's Fedora key; a release the app pins no key for
     /// is refused, not read without a signature.
