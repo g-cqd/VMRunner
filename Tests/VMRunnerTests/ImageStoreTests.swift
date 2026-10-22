@@ -248,6 +248,41 @@ struct MachineInstallerTests {
         #expect(throws: SetupError.self) { try ImageStore.installCopy(of: directory.appending(path: "missing.ipsw")) }
     }
 
+    @Test func theLaunchSweepDeletesOnlyLeftOverInstallClones() throws {
+        let fileManager = FileManager.default
+        let images = try scratchDirectory()
+        defer { try? fileManager.removeItem(at: images) }
+        let outside = try scratchDirectory()
+        defer { try? fileManager.removeItem(at: outside) }
+        let folder = images.appending(path: String(repeating: "a", count: 64), directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        let cached = folder.appending(path: "Restore.ipsw")
+        try Data("image".utf8).write(to: cached)
+        let nestedClone = try ImageStore.installCopy(of: cached)
+        let flatClone = images.appending(path: ".install-1-Restore.ipsw")
+        try Data("left over".utf8).write(to: flatClone)
+        // Kept: a link with the prefix, the file it points to, a folder with the prefix, a clone two levels down, and the
+        // files behind a link to a folder.
+        let target = outside.appending(path: ".install-2-elsewhere.ipsw")
+        try Data("not ours".utf8).write(to: target)
+        let link = images.appending(path: ".install-3-link.ipsw")
+        try fileManager.createSymbolicLink(at: link, withDestinationURL: target)
+        let prefixedFolder = images.appending(path: ".install-4-folder", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: prefixedFolder, withIntermediateDirectories: true)
+        let deeper = folder.appending(path: "sub", directoryHint: .isDirectory).appending(path: ".install-5-deep.ipsw")
+        try fileManager.createDirectory(at: deeper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("deeper".utf8).write(to: deeper)
+        try fileManager.createSymbolicLink(at: images.appending(path: "linked"), withDestinationURL: outside)
+
+        ImageStore.sweepInstallClones(in: images)
+
+        #expect(!fileManager.fileExists(atPath: nestedClone.path) && !fileManager.fileExists(atPath: flatClone.path))
+        #expect(try contents(of: cached) == "image", "the cached file itself stays")
+        #expect(try contents(of: target) == "not ours", "a link is not followed, as a file or as a folder")
+        #expect((try? fileManager.destinationOfSymbolicLink(atPath: link.path)) != nil, "and the link itself stays")
+        #expect(fileManager.fileExists(atPath: prefixedFolder.path) && fileManager.fileExists(atPath: deeper.path))
+    }
+
     @Test func keepingAgainReplacesTheCopyOfAResumedSetup() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

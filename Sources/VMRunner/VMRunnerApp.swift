@@ -65,7 +65,11 @@ struct VMRunnerApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated { InputLatencyMonitor.startIfRequested() }
+        MainActor.assumeIsolated {
+            InputLatencyMonitor.startIfRequested()
+            // No setup runs yet, so every install clone in the image cache is one that a crash or a forced quit left behind.
+            ImageStore.sweepInstallClones()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

@@ -158,6 +158,27 @@ enum ImageStore {
         return copy
     }
 
+    /// Deletes the install clones (`installCopy(of:)`) that a setup left behind when the app stopped in the middle of it:
+    /// each holds the blocks of a restore image the cache may since have dropped. Looks directly in `imagesDirectory` and in
+    /// each real folder directly inside it, where the clones are made. Deletes only regular files whose name starts with
+    /// `.install-`; never follows a link and never deletes one. Run at launch, before any setup can have made a clone.
+    static func sweepInstallClones(in imagesDirectory: URL = AppPaths.images) {
+        let fileManager = FileManager.default
+        func entries(of folder: URL) -> [URL] {
+            (try? fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        }
+        // `attributesOfItem` describes a link itself and does not follow it.
+        func isFolder(_ url: URL) -> Bool {
+            (try? fileManager.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType == .typeDirectory
+        }
+        for folder in [imagesDirectory] + entries(of: imagesDirectory).filter(isFolder) {
+            for entry in entries(of: folder) where entry.lastPathComponent.hasPrefix(".install-") {
+                guard (try? regularFileExists(at: entry)) == true else { continue }
+                try? fileManager.removeItem(at: entry)
+            }
+        }
+    }
+
     /// Whether `path` names a file directly in `imagesDirectory`, where the cache kept downloads before it filed them by
     /// checksum (`Images/<name>`, not `Images/<sha256>/<name>`, ADR-0031).
     static func isInFlatCache(_ path: String, imagesDirectory: URL = AppPaths.images) -> Bool {
