@@ -127,7 +127,8 @@ jobs:
           sha256sum --check --strict "VMRunner-${TAG}.zip.sha256"
       - name: Say that the attestation is skipped
         if: ${{ github.event.repository.private != false }}
-        run: echo "::notice::the zip is not attested: attestations need a public repository (or GitHub Enterprise Cloud)"
+        run: |
+          echo "::notice::the zip is not attested: attestations need a public repository (or GitHub Enterprise Cloud)"
       - name: Attest the zip
         if: ${{ github.event.repository.private == false }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
