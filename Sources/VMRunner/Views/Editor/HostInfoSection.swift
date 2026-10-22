@@ -22,7 +22,7 @@ struct HostInfoSection: View {
     }
 
     private func row(_ title: String, _ isOn: Binding<Bool>) -> some View {
-        Toggle(title, isOn: isOn).settingHelp(.hostInformation)
+        Toggle(title, isOn: isOn).managedLock(.allowHostInformation).settingHelp(.hostInformation)
     }
 
     private var mountHint: some View {

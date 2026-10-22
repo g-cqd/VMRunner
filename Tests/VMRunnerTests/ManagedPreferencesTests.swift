@@ -57,6 +57,16 @@ struct ManagedPreferencesTests {
         for key in ManagedKey.allCases { suite.set(false, forKey: key.rawValue) }
         #expect(ManagedPreferences(reading: suite) == ManagedPreferences(forcedValue: { _ in nil }))
     }
+
+    @Test func aControlIsLockedOnlyWhereThePolicyRestricts() {
+        let policy = forced(["AllowSharedFolders": false, "AllowMicrophone": true, "MaxRuntimeMinutes": 60])
+        #expect(policy.isLocked(.allowSharedFolders))
+        #expect(!policy.isLocked(.allowMicrophone), "an allowed feature is not locked")
+        #expect(policy.isLocked(.maxRuntimeMinutes))
+        #expect(!policy.isLocked(.requireDisposableMachines))
+        let nothing = ManagedPreferences(forcedValue: { _ in nil })
+        #expect(ManagedKey.allCases.allSatisfy { !nothing.isLocked($0) })
+    }
 }
 
 /// The library brings every configuration it adds, changes or loads within the policy.

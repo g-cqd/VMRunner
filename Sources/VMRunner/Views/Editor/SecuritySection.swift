@@ -27,13 +27,16 @@ struct SecuritySection: View {
                 .font(.caption).foregroundStyle(.secondary)
 
             Toggle("Disposable (discard all changes on stop)", isOn: $config.ephemeral)
+                .managedLock(.requireDisposableMachines)
                 .settingHelp(.disposable)
             Toggle("Allow suspend (writes memory to disk)", isOn: $config.allowsSuspend)
                 .disabled(config.ephemeral)
+                .managedLock(.allowSuspend)
                 .settingHelp(.suspendResume)
             Stepper(value: $config.maxRuntimeMinutes, in: EditorLimits.runtimeMinutes, step: EditorLimits.runtimeStepMinutes) {
                 LabeledContent("Runtime limit", value: config.maxRuntimeMinutes == 0 ? "Off" : "\(config.maxRuntimeMinutes) min")
             }
+            .managedLock(.maxRuntimeMinutes)
             .settingHelp(.runtimeLimit)
             if config.guest == .linux { secureBootRows }
             exposures

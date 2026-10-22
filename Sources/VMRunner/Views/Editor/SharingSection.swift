@@ -25,10 +25,10 @@ struct SharingSection: View {
                         .labelStyle(.iconOnly).buttonStyle(.borderless)
                 }
             }
-            Button("Add Shared Folder…", systemImage: "plus") { choosingFolder = true }
+            Button("Add Shared Folder…", systemImage: "plus") { choosingFolder = true }.managedLock(.allowSharedFolders)
             if !folders.isEmpty { mountHint }
             if guest == .linux {
-                Toggle("Share clipboard (SPICE agent)", isOn: $clipboard).settingHelp(.clipboard)
+                Toggle("Share clipboard (SPICE agent)", isOn: $clipboard).managedLock(.allowClipboardSharing).settingHelp(.clipboard)
                 Text("Needs spice-vdagent running in the guest.")
                     .font(.caption).foregroundStyle(.secondary)
                 rosettaRow

@@ -45,6 +45,21 @@ struct ManagedPreferences: Equatable, Sendable {
         }
     }
 
+    /// The policy forced in the app's own domain now. Cheap enough to read when a view is drawn.
+    static var current: Self { Self() }
+
+    /// What a locked control's tooltip says.
+    static let lockedHelp = "Set by your organisation. Ask your administrator to change it."
+
+    /// Whether the control for `key` is locked: the organisation restricted it.
+    func isLocked(_ key: ManagedKey) -> Bool {
+        switch key {
+        case .requireDisposableMachines: requiresDisposable
+        case .maxRuntimeMinutes: maxRuntimeMinutes != nil
+        default: denied.contains(key)
+        }
+    }
+
     /// `config` with every forced restriction applied; whatever the policy allows is left as it is.
     func clamp(_ config: VMConfig) -> VMConfig {
         var config = config

@@ -32,7 +32,9 @@ struct AudioSection: View {
     var body: some View {
         Section {
             Toggle("Sound output", isOn: $output).help(HelpTopic.audio.summary)
-            Toggle("Microphone input", isOn: $input).help("The guest can record from your Mac's microphone. Leave off unless needed.")
+            Toggle("Microphone input", isOn: $input)
+                .managedLock(.allowMicrophone)
+                .help("The guest can record from your Mac's microphone. Leave off unless needed.")
         } header: {
             HelpHeader("Audio", topic: .audio)
         }
