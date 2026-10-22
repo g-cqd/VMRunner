@@ -20,10 +20,12 @@ struct DisplaySection: View {
                 .settingHelp(.pixelDensity)
             } else {
                 Text(
-                    "Match window sizes the guest display to the window when the VM starts, so UEFI and GRUB text isn't shrunk. "
-                        + "A fixed size keeps the same aspect ratio only if the window does."
+                    "Linux starts at no more than 1280 pixels wide, in the shape of the window, so UEFI and GRUB text stays "
+                        + "legible, then follows the window once the system runs. A fixed size keeps the same aspect ratio only if "
+                        + "the window does. A suspended machine resumes at the size it started with."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                .settingHelp(.linuxBootText)
             }
             Toggle("Resize guest display with window", isOn: $followsWindow)
                 .settingHelp(.resizeWithWindow)

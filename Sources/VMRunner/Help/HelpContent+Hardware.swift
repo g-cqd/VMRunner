@@ -155,14 +155,18 @@ extension HelpCatalog {
                     + "with black bars.",
                 "Why text can look tiny: boot menus (UEFI, GRUB) draw letters at a fixed pixel size. On a big window with a big "
                     + "screen, those "
-                    + "letters become small. VMRunner therefore starts Linux at no more than 1280 pixels wide and scales it up.",
+                    + "letters become small. VMRunner therefore starts Linux at no more than 1280 pixels wide and scales it up. "
+                    + "That holds for a preset or Custom size too, unless you also turn off \"Resize guest display with window\": "
+                    + "then the guest keeps exactly the size you chose.",
+                "A suspended machine resumes at the size it started with, whatever you change here. Discard the suspended state to "
+                    + "use a new size.",
             ],
             advanced: [
                 "\"Match window\" gives Linux 1 pixel per point (2 if you choose it) and macOS pixels-per-inch ÷ 72 pixels per point, "
                     + "limited to \(EditorLimits.displayWidth.lowerBound)–\(EditorLimits.displayWidth.upperBound) pixels wide. "
                     + "The size used at the last start is remembered so a suspended machine can resume."
             ],
-            related: [.pixelDensity, .resizeWithWindow, .pixelsPerPoint]
+            related: [.pixelDensity, .resizeWithWindow, .pixelsPerPoint, .linuxBootText]
         ),
         .pixelDensity: HelpEntry(
             area: .display,
@@ -187,7 +191,9 @@ extension HelpCatalog {
             ],
             advanced: [
                 "macOS guests use the framework's automatic resizing. Linux guests are resized by VMRunner itself at the chosen "
-                    + "pixels per point, because the framework would hand them a Retina-scaled screen with tiny text."
+                    + "pixels per point, because the framework would hand them a Retina-scaled screen with tiny text. VMRunner "
+                    + "leaves a Linux guest at its starting size for the first ten seconds after a cold boot, so the firmware reads "
+                    + "the small size, and then asks for the window's size."
             ],
             related: [.pixelsPerPoint, .resolution]
         ),
@@ -202,6 +208,34 @@ extension HelpCatalog {
                     + "unless you set its display scaling (for example 200% in GNOME).",
             ],
             related: [.resizeWithWindow]
+        ),
+        .linuxBootText: HelpEntry(
+            area: .display,
+            title: "Small text at boot (Linux)",
+            summary: "Firmware and GRUB text is drawn before any driver loads; GRUB and console-font settings enlarge it.",
+            paragraphs: [
+                "Before Linux starts, the firmware and the boot loader (GRUB) draw their text on a plain screen, with no graphics driver "
+                    + "and no acceleration. Their letters have a fixed size in pixels, so the more pixels the screen has, the smaller "
+                    + "the text looks in your window.",
+                "VMRunner starts a Linux guest at no more than 1280 pixels wide, in the shape of your window, and scales it up to the "
+                    + "window. Once Linux runs, the guest follows the window. What happens inside the guest is up to the guest:",
+                "• **GRUB**: in `/etc/default/grub` set `GRUB_GFXMODE=1280x800` (any size that `videoinfo` lists at the GRUB "
+                    + "prompt; a smaller one draws larger letters) and `GRUB_GFXPAYLOAD_LINUX=keep` (the kernel keeps that mode) or "
+                    + "`GRUB_GFXPAYLOAD_LINUX=text`. Then run `sudo update-grub` (Debian, Ubuntu) or "
+                    + "`sudo grub-mkconfig -o /boot/grub/grub.cfg`.",
+                "• **Console font**, after the kernel starts: add `fbcon=font:TER16x32` to `GRUB_CMDLINE_LINUX_DEFAULT` in the same "
+                    + "file and run the same command. On Debian and Ubuntu you can instead set `FONTFACE=\"Terminus\"` and "
+                    + "`FONTSIZE=\"16x32\"` in `/etc/default/console-setup` and run `sudo setupcon`.",
+                "What cannot be done: the firmware's own screens and GRUB run before the guest has any driver, so nothing here can "
+                    + "accelerate them or change the firmware's font. Linux guests get no 3D acceleration from Apple's framework at all.",
+            ],
+            advanced: [
+                "The size the guest started with is recorded in the machine's `config.json` as `lastDisplayWidth` and "
+                    + "`lastDisplayHeight`. These are guest settings: VMRunner cannot check them for your distribution, and whether the "
+                    + "kernel offers `TER16x32` depends on how it was built. How the framework's firmware picks its screen mode is "
+                    + "not documented, so the 1280 pixel start is a measure, not a guarantee."
+            ],
+            related: [.resolution, .resizeWithWindow, .graphics]
         ),
         .pointingDevice: HelpEntry(
             area: .display,

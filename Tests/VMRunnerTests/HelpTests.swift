@@ -47,6 +47,20 @@ struct HelpCatalogTests {
         }
     }
 
+    @Test func theBootTextTopicNamesTheGuestSettingsAndWhatIsImpossible() {
+        let entry = HelpTopic.linuxBootText.entry
+        let text = (entry.paragraphs + entry.advanced).joined(separator: " ")
+        for setting in [
+            "GRUB_GFXMODE", "GRUB_GFXPAYLOAD_LINUX", "/etc/default/grub", "fbcon=font:TER16x32", "GRUB_CMDLINE_LINUX_DEFAULT",
+            "/etc/default/console-setup", "FONTFACE", "FONTSIZE", "update-grub",
+        ] {
+            #expect(text.contains(setting), "the topic should name \(setting)")
+        }
+        #expect(text.contains("no acceleration") && text.contains("no 3D acceleration"))
+        #expect(HelpCatalog.search("GRUB_GFXMODE").contains(.linuxBootText))
+        #expect(HelpTopic.resolution.entry.related.contains(.linuxBootText))
+    }
+
     @Test func searchMatchesTitleBodyAndAdvancedText() {
         #expect(HelpCatalog.search("rosetta").contains(.rosetta))
         #expect(HelpCatalog.search("copy-on-write").contains(.snapshots))

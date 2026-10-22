@@ -27,7 +27,8 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     // Storage
     case diskSize, diskCaching, diskSync, extraDisks, installerISO
     // Display and input
-    case graphics, resolution, pixelDensity, resizeWithWindow, pixelsPerPoint, pointingDevice, captureKeys, inputResponsiveness, audio
+    case graphics, resolution, pixelDensity, resizeWithWindow, pixelsPerPoint, linuxBootText, pointingDevice, captureKeys
+    case inputResponsiveness, audio
     // Network and sharing
     case networkMode, macAddress, sharedFolders, clipboard, rosetta
     case networkPolicy, policyRules, policyLimits, guestVpn
