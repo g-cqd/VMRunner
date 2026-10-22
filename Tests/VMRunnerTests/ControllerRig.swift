@@ -1,0 +1,104 @@
+import Foundation
+import TestKit
+import Testing
+import Virtualization
+
+@testable import VMRunner
+
+/// Hands the controller fake machines, and a network stack that only counts its starts and stops.
+@MainActor
+final class FakeFactory: MachineFactory {
+    private var queued: [FakeGuest] = []
+    /// Every machine handed out, in order.
+    private(set) var handedOut: [FakeGuest] = []
+    private(set) var preparations = 0
+    var suspend = SuspendSupport.available
+    var withNetwork = true
+    /// `prepare` throws this once, then behaves again.
+    var failure: String?
+    /// `begin#n` and `shutdown#n` for the n-th preparation's stack.
+    let network = AsyncEventProbe<String>()
+
+    @discardableResult
+    func add(_ name: String = "guest") -> FakeGuest {
+        let guest = FakeGuest(name)
+        queued.append(guest)
+        return guest
+    }
+
+    func prepare(
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
+    ) throws -> PreparedMachine {
+        preparations += 1
+        if let failure {
+            self.failure = nil
+            throw FakeGuestError(message: failure)
+        }
+        guard !queued.isEmpty else { throw FakeGuestError(message: "the test queued no machine") }
+        let guest = queued.removeFirst()
+        handedOut.append(guest)
+        return PreparedMachine(
+            machine: guest, network: withNetwork ? makeNetwork(preparations) : nil,
+            suspend: suspendAllowed ? suspend : .unavailable(reason: "Suspend is off for disposable or locked-down machines."))
+    }
+
+    private func makeNetwork(_ number: Int) -> NetworkActivity {
+        let (flows, _) = AsyncStream.makeStream(of: FlowEvent.self)
+        let (vpn, _) = AsyncStream.makeStream(of: GuestVPNState.self)
+        let (host, _) = AsyncStream.makeStream(of: [InterfaceSnapshot].self)
+        let probe = network
+        return NetworkActivity(
+            policy: NetworkPolicy(), events: flows, vpnChanges: vpn, hostMonitor: VPNMonitor(source: { host }),
+            begin: { probe.record("begin#\(number)") }, forward: { _, _ in },
+            shutdown: { probe.record("shutdown#\(number)") })
+    }
+}
+
+/// One Linux machine in a scratch folder, a library that knows it, and a controller wired to fakes and a test clock.
+@MainActor
+final class ControllerRig {
+    let directory: URL
+    let library: VMLibrary
+    let factory = FakeFactory()
+    let clock = TestClock()
+    let controller: VMController
+    let id: UUID
+
+    init(ephemeral: Bool = false, runtimeMinutes: Int = 0, allowsSuspend: Bool = true) throws {
+        directory = try scratchDirectory()
+        let controller = VMController(factory: factory, runtimeLimit: RuntimeLimit(clock: clock))
+        self.controller = controller
+        library = VMLibrary(machinesDirectory: directory, makeController: { controller })
+        var config = VMConfig.new(name: "fake", guest: .linux)
+        config.isProvisioned = true
+        config.ephemeral = ephemeral
+        config.maxRuntimeMinutes = runtimeMinutes
+        config.allowsSuspend = allowsSuspend
+        id = config.id
+        try library.add(config)
+        let bundle = library.bundle(config.id)
+        try Data("disk".utf8).write(to: bundle.disk)
+        try Data("nvram".utf8).write(to: bundle.efiVariables)
+    }
+
+    var bundle: VMBundle { library.bundle(id) }
+    var config: VMConfig { library.machine(id) ?? VMConfig.new(name: "gone", guest: .linux) }
+
+    func start() async {
+        await controller.start(config, bundle: bundle, library: library)
+    }
+
+    /// Runs `start()` in its own task, so the test can act while it waits for the framework.
+    func starting() -> Task<Void, Never> {
+        Task { await start() }
+    }
+
+    /// A memory image from an earlier suspend.
+    func leaveSavedState() throws {
+        try Data("memory".utf8).write(to: bundle.savedState)
+    }
+
+    var disposableCopyExists: Bool { FileManager.default.fileExists(atPath: bundle.ephemeralDisk.path) }
+
+    func cleanUp() { try? FileManager.default.removeItem(at: directory) }
+}

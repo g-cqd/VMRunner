@@ -3,14 +3,14 @@ import Observation
 import Virtualization
 import os
 
-/// Owns one running `VZVirtualMachine` and mirrors its state for SwiftUI.
+/// Owns one running machine behind the `GuestMachine` seam and mirrors its state for SwiftUI.
 ///
-/// Every callback that can arrive late (KVO, delegate) carries the identity of the machine it came from and
-/// is ignored if that machine is no longer the current one, so a machine that failed to restore can't
-/// tear down its replacement.
+/// Every callback that can arrive late (state changes, the guest stopping) carries the identity of the machine it came
+/// from and is ignored if that machine is no longer the current one, so a machine that failed to restore can't tear down
+/// its replacement.
 @MainActor @Observable
-final class VMController: NSObject, VZVirtualMachineDelegate {
-    private(set) var virtualMachine: VZVirtualMachine?
+final class VMController {
+    private(set) var guest: (any GuestMachine)?
     private(set) var state: VZVirtualMachine.State = .stopped
     private(set) var canSuspend = false
     /// Why Suspend is unavailable, when it is.
@@ -21,11 +21,18 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     private(set) var network: NetworkActivity?
     var errorMessage: String?
 
-    @ObservationIgnored private var observation: NSKeyValueObservation?
     @ObservationIgnored private var activeBundle: VMBundle?
-    @ObservationIgnored private let runtimeLimit = RuntimeLimit(clock: ContinuousClock())
+    @ObservationIgnored private let factory: any MachineFactory
+    @ObservationIgnored private let runtimeLimit: RuntimeLimit
 
-    var isActive: Bool { virtualMachine != nil }
+    init(factory: any MachineFactory = VZMachineFactory(), runtimeLimit: RuntimeLimit = RuntimeLimit(clock: ContinuousClock())) {
+        self.factory = factory
+        self.runtimeLimit = runtimeLimit
+    }
+
+    /// The framework's machine, for the view that displays it.
+    var virtualMachine: VZVirtualMachine? { guest?.virtualMachine }
+    var isActive: Bool { guest != nil }
 
     /// When the current run began its firmware (a cold boot); `nil` while stopped and for a run restored from saved state.
     private(set) var firmwareStartedAt: ContinuousClock.Instant?
@@ -36,7 +43,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     ///
     /// Failures are reported through `errorMessage`; the controller is back in its stopped state afterwards.
     func start(_ config: VMConfig, bundle: VMBundle, library: VMLibrary, windowSize: CGSize? = nil) async {
-        guard virtualMachine == nil else { return }
+        guard guest == nil else { return }
         errorMessage = nil
         var config = config
         // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable.
@@ -62,14 +69,14 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         do {
             if config.ephemeral { try bundle.prepareEphemeral(guest: config.guest) }
             activeBundle = bundle
-            var built = try ConfigurationBuilder.build(config, bundle: bundle, display: display)
-            beginNetwork(built.networkStack, policy: config.networkPolicy)
-            probeSuspendSupport(of: built.configuration, allowed: mayResume, filtered: config.networkMode == .filtered)
+            var prepared = try factory.prepare(config, bundle: bundle, display: display, suspendAllowed: mayResume)
+            beginNetwork(prepared.network)
+            applySuspendSupport(prepared.suspend)
 
             var notice: String?
             if bundle.hasSavedState, canSuspend {
                 do {
-                    try await restore(built.configuration, from: bundle)
+                    try await restore(prepared.machine, from: bundle)
                     startRuntimeLimit(minutes: config.maxRuntimeMinutes)
                     return
                 } catch {
@@ -81,21 +88,16 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
                     activeBundle = bundle
                     notice = "Couldn't restore the suspended state (\(error.localizedDescription)). Booted normally instead."
                     // A configuration that failed to restore can't be reused, and neither can its network stack.
-                    built = try ConfigurationBuilder.build(config, bundle: bundle, display: display)
-                    beginNetwork(built.networkStack, policy: config.networkPolicy)
+                    prepared = try factory.prepare(config, bundle: bundle, display: display, suspendAllowed: mayResume)
+                    beginNetwork(prepared.network)
                 }
             }
 
             firmwareStartedAt = .now
-            let machine = attach(VZVirtualMachine(configuration: built.configuration))
-            switch config.guest {
-            case .macOS:
-                try await machine.start(options: try macStartOptions(config))
-            case .linux:
-                try await machine.start()
-            }
+            let machine = attach(prepared.machine)
+            try await machine.start()
             // Stopped (for example force-stopped) while the start was still in flight: nothing more to do.
-            guard virtualMachine === machine else { return }
+            guard guest === machine else { return }
 
             recordFirstBoot(of: config, in: library)
             errorMessage = notice
@@ -107,31 +109,26 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         }
     }
 
-    private func probeSuspendSupport(of configuration: VZVirtualMachineConfiguration, allowed: Bool, filtered: Bool) {
-        do {
-            try configuration.validateSaveRestoreSupport()
-            canSuspend = allowed
-            suspendUnavailableReason = allowed ? nil : "Suspend is off for disposable or locked-down machines."
-        } catch {
+    private func applySuspendSupport(_ support: SuspendSupport) {
+        switch support {
+        case .available:
+            canSuspend = true
+            suspendUnavailableReason = nil
+        case .unavailable(let reason):
             canSuspend = false
-            // The framework decides whether a user-mode network device can be saved; say so instead of leaving a bare error.
-            suspendUnavailableReason =
-                filtered
-                ? "\(error.localizedDescription) Filtered networking may be the cause: switch the network to NAT to suspend."
-                : error.localizedDescription
+            suspendUnavailableReason = reason
         }
     }
 
     /// Starts a new run's user-mode stack before the machine, and watches it. A stack left from an earlier attempt is
     /// stopped first, because each start gets its own.
     func beginNetwork(_ stack: UserNetStack?, policy: NetworkPolicy) {
+        beginNetwork(stack.map { NetworkActivity(stack: $0, policy: policy) })
+    }
+
+    private func beginNetwork(_ activity: NetworkActivity?) {
         network?.stop()
-        guard let stack else {
-            network = nil
-            return
-        }
-        let activity = NetworkActivity(stack: stack, policy: policy)
-        activity.start()
+        activity?.start()
         network = activity
     }
 
@@ -161,61 +158,45 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         )
     }
 
-    private func restore(_ vz: VZVirtualMachineConfiguration, from bundle: VMBundle) async throws {
-        let machine = attach(VZVirtualMachine(configuration: vz))
-        try await machine.restoreMachineStateFrom(url: bundle.savedState)
+    private func restore(_ machine: any GuestMachine, from bundle: VMBundle) async throws {
+        let machine = attach(machine)
+        try await machine.restoreState(from: bundle.savedState)
         bundle.discardSavedState()
         try await machine.resume()
     }
 
-    private func attach(_ machine: VZVirtualMachine) -> VZVirtualMachine {
-        machine.delegate = self
-        virtualMachine = machine
+    private func attach(_ machine: any GuestMachine) -> any GuestMachine {
+        guest = machine
         LatencyActivity.shared.hold(for: ObjectIdentifier(self))
+        let identity = ObjectIdentifier(machine)
+        machine.onGuestStopped = { [weak self] in self?.guestDidStop(identity) }
+        machine.onStoppedWithError = { [weak self] message in self?.guestDidStop(identity, error: message) }
         observe(machine)
         return machine
-    }
-
-    private func macStartOptions(_ config: VMConfig) throws -> VZMacOSVirtualMachineStartOptions {
-        let options = VZMacOSVirtualMachineStartOptions()
-        options.startUpFromMacOSRecovery = config.bootIntoRecovery
-
-        // The framework only evaluates provisioning on the first boot after install.
-        if #available(macOS 27.0, *), !config.hasBooted, config.provisioning.enabled, !config.provisioning.password.isEmpty {
-            let provisioning = VZMacGuestProvisioningOptions()
-            provisioning.fullName = config.provisioning.fullName
-            provisioning.username = config.provisioning.username
-            provisioning.password = config.provisioning.password
-            provisioning.logsInAutomatically = config.provisioning.logsInAutomatically
-            provisioning.enablesRemoteLogin = config.provisioning.enablesRemoteLogin
-            try provisioning.validate()
-            try options.setGuestProvisioning(provisioning)
-        }
-        return options
     }
 
     // MARK: Control
 
     /// Asks the guest to shut down cleanly (like pressing the power button).
     func requestStop() {
-        do { try virtualMachine?.requestStop() } catch { errorMessage = error.localizedDescription }
+        do { try guest?.requestStop() } catch { errorMessage = error.localizedDescription }
     }
 
     /// Stops immediately, like pulling the power cord, and releases the machine.
     func forceStop() async {
-        guard let machine = virtualMachine else { return }
+        guard let machine = guest else { return }
         if machine.canStop {
             do { try await machine.stop() } catch { errorMessage = error.localizedDescription }
         }
-        if virtualMachine === machine { tearDown() }
+        if guest === machine { tearDown() }
     }
 
     func pause() async {
-        do { try await virtualMachine?.pause() } catch { errorMessage = error.localizedDescription }
+        do { try await guest?.pause() } catch { errorMessage = error.localizedDescription }
     }
 
     func resume() async {
-        do { try await virtualMachine?.resume() } catch { errorMessage = error.localizedDescription }
+        do { try await guest?.resume() } catch { errorMessage = error.localizedDescription }
     }
 
     /// Pauses, writes the machine state to the bundle, then stops. The next start restores it.
@@ -223,13 +204,13 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     /// If any step fails the state file is removed: a memory image next to a disk that keeps changing would
     /// restore into a corrupted guest.
     func suspend(to bundle: VMBundle) async {
-        guard let machine = virtualMachine, canSuspend else { return }
+        guard let machine = guest, canSuspend else { return }
         do {
             if machine.state == .running { try await machine.pause() }
-            try await machine.saveMachineStateTo(url: bundle.savedState)
+            try await machine.saveState(to: bundle.savedState)
             try bundle.restrictSavedState()
             try await machine.stop()
-            if virtualMachine === machine { tearDown() }
+            if guest === machine { tearDown() }
         } catch {
             bundle.discardSavedState()
             errorMessage = "Couldn't suspend: \(error.localizedDescription)"
@@ -238,15 +219,12 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
 
     // MARK: State plumbing
 
-    private func observe(_ machine: VZVirtualMachine) {
+    private func observe(_ machine: any GuestMachine) {
         state = machine.state
         let identity = ObjectIdentifier(machine)
-        observation = machine.observe(\.state, options: [.new]) { [weak self] _, change in
-            guard let newState = change.newValue else { return }
-            Task { @MainActor in
-                guard let self, let current = self.virtualMachine, ObjectIdentifier(current) == identity else { return }
-                self.state = newState
-            }
+        machine.onStateChange = { [weak self] newState in
+            guard let self, let current = self.guest, ObjectIdentifier(current) == identity else { return }
+            self.state = newState
         }
     }
 
@@ -257,28 +235,15 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         deadline = nil
         activeBundle?.discardEphemeral()
         activeBundle = nil
-        observation = nil
-        virtualMachine = nil
+        guest = nil
         LatencyActivity.shared.release(for: ObjectIdentifier(self))
         firmwareStartedAt = nil
         state = .stopped
     }
 
-    nonisolated func guestDidStop(_ virtualMachine: VZVirtualMachine) {
-        let identity = ObjectIdentifier(virtualMachine)
-        Task { @MainActor in
-            guard let current = self.virtualMachine, ObjectIdentifier(current) == identity else { return }
-            self.tearDown()
-        }
-    }
-
-    nonisolated func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: any Error) {
-        let identity = ObjectIdentifier(virtualMachine)
-        let message = error.localizedDescription
-        Task { @MainActor in
-            guard let current = self.virtualMachine, ObjectIdentifier(current) == identity else { return }
-            self.errorMessage = "The virtual machine stopped: \(message)"
-            self.tearDown()
-        }
+    private func guestDidStop(_ identity: ObjectIdentifier, error: String? = nil) {
+        guard let current = guest, ObjectIdentifier(current) == identity else { return }
+        if let error { errorMessage = "The virtual machine stopped: \(error)" }
+        tearDown()
     }
 }

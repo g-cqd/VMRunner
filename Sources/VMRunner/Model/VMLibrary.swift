@@ -35,13 +35,25 @@ final class VMLibrary {
         }
     }
 
+    /// How a setup job's work is done; a test supplies its own to hold a job open.
+    typealias Provision = @MainActor (VMConfig, VMLibrary, SetupJob) async throws -> Void
+
     private let machinesDirectory: URL
     @ObservationIgnored private let persistence: ConfigPersistence
     @ObservationIgnored private var approvals: HostPathApprovals
+    @ObservationIgnored private let makeController: @MainActor () -> VMController
+    @ObservationIgnored private let provision: Provision
 
-    /// `approvalsFile` defaults to a file beside the machines folder (outside every bundle).
-    init(machinesDirectory: URL = AppPaths.machines, saveDelay: Duration = .milliseconds(400), approvalsFile: URL? = nil) {
+    /// `approvalsFile` defaults to a file beside the machines folder (outside every bundle). `makeController` and `provision`
+    /// default to the real controller and the real provisioner.
+    init(
+        machinesDirectory: URL = AppPaths.machines, saveDelay: Duration = .milliseconds(400), approvalsFile: URL? = nil,
+        makeController: @escaping @MainActor () -> VMController = { VMController() },
+        provision: @escaping Provision = { try await Provisioner.run(config: $0, library: $1, job: $2) }
+    ) {
         self.machinesDirectory = machinesDirectory
+        self.makeController = makeController
+        self.provision = provision
         approvals = HostPathApprovals(
             file: approvalsFile
                 ?? machinesDirectory.deletingLastPathComponent().appending(path: "\(machinesDirectory.lastPathComponent).approvals.json"))
@@ -149,7 +161,7 @@ final class VMLibrary {
 
     func controller(for id: UUID) -> VMController {
         if let existing = controllers[id] { return existing }
-        let controller = VMController()
+        let controller = makeController()
         controllers[id] = controller
         return controller
     }
@@ -258,7 +270,7 @@ final class VMLibrary {
         job.task = Task { [weak self, weak job] in
             guard let self, let job else { return }
             do {
-                try await Provisioner.run(config: config, library: self, job: job)
+                try await provision(config, self, job)
                 jobs[id] = nil
             } catch  where Task.isCancelled || error is CancellationError {
                 job.task = nil
