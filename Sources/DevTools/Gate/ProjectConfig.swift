@@ -31,7 +31,8 @@ struct ProjectConfig: Decodable, Equatable {
     /// builds gain nothing from instrumentation and would distort the coverage figure.
     var skipTestsWhenInstrumented: [String]?
     /// Packages of their own inside the repository (directories holding a `Package.swift`) that the `build` and `test`
-    /// steps build and test as well, each into its own scratch directory. Nothing else of the gate looks at them.
+    /// steps build and test as well, each into its own scratch directory. The `analyzers` step also analyzes their Sources
+    /// and Tests; nothing else of the gate looks at them.
     var packages: [String]?
     var coverage: Coverage?
 
