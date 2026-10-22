@@ -92,7 +92,7 @@ enum Checksums {
         switch algorithm {
         case .sha256: try streamedDigest(of: url, using: SHA256.self)
         // SHA-1 cannot vouch for a file (`verify` refuses it first); nothing is hashed with it.
-        case .sha1: throw SetupError.weakChecksum(url.lastPathComponent)
+        case .refused: throw SetupError.weakChecksum(url.lastPathComponent)
         }
     }
 

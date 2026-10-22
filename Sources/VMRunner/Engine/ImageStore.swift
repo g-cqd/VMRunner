@@ -19,7 +19,7 @@ enum ImageStore {
         if let checksum, checksum.algorithm == .sha256, checksum.value.lowercased().isLowercaseHexadecimal(digits: 64) {
             key = checksum.value.lowercased()
         } else {
-            let claim = checksum.map { "\($0.algorithm.rawValue):\($0.value.lowercased())" } ?? remote.absoluteString
+            let claim = checksum.map { "\($0.algorithm.name):\($0.value.lowercased())" } ?? remote.absoluteString
             key = "claim-" + SHA256.hash(data: Data(claim.utf8)).hexString
         }
         return imagesDirectory.appending(path: key, directoryHint: .isDirectory)

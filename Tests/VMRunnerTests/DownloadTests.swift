@@ -199,7 +199,7 @@ struct ChecksumTests {
 
     @Test func sha1IsRefusedBeforeTheFileIsOpened() async throws {
         let missing = FileManager.default.temporaryDirectory.appending(path: "absent-\(UUID().uuidString).bin")
-        let error = await #expect(throws: SetupError.self) { try await Checksums.hexDigest(of: missing, algorithm: .sha1) }
+        let error = await #expect(throws: SetupError.self) { try await Checksums.hexDigest(of: missing, algorithm: .refused("sha1")) }
         guard case .weakChecksum(let name) = error else {
             Issue.record("expected weakChecksum, got \(String(describing: error))")
             return

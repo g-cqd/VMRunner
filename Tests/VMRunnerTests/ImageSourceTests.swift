@@ -10,7 +10,7 @@ struct ImageSourceCodingTests {
         return try VMConfig.decode(from: Data(json.utf8))
     }
 
-    @Test(arguments: [("sha256", Checksum.Algorithm.sha256), ("sha1", .sha1)])
+    @Test(arguments: [("sha256", Checksum.Algorithm.sha256), ("sha1", .refused("sha1")), ("md5", .refused("md5"))])
     func anOldConfigNamingAnImageAndItsChecksumStillDecodes(name: String, algorithm: Checksum.Algorithm) throws {
         let stored =
             #"{"remote":{"_0":"https://example.com/a.iso","checksum":{"algorithm":"\#(name)","value":"ab12"}}}"#
@@ -31,9 +31,18 @@ struct ImageSourceCodingTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let url = try #require(URL(string: "https://example.com/a.iso"))
-        let source = ImageSource.remote(url, checksum: Checksum(algorithm: .sha1, value: "ab12"))
+        let source = ImageSource.remote(url, checksum: Checksum(algorithm: .refused("sha1"), value: "ab12"))
         #expect(
             String(bytes: try encoder.encode(source), encoding: .utf8)
                 == #"{"remote":{"_0":"https://example.com/a.iso","checksum":{"algorithm":"sha1","value":"ab12"}}}"#)
+    }
+
+    @Test func aRefusedAlgorithmIsWrittenBackAsItWasStored() throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let stored = #"{"algorithm":"md5","value":"ab12"}"#
+        let decoded = try JSONDecoder().decode(Checksum.self, from: Data(stored.utf8))
+        #expect(decoded.algorithm == .refused("md5"))
+        #expect(String(bytes: try encoder.encode(decoded), encoding: .utf8) == stored)
     }
 }

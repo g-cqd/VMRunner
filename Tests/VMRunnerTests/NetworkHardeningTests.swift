@@ -55,7 +55,7 @@ struct SessionConfigurationTests {
 
 struct SHA1RefusalTests {
     // SHA-1 of "abc".
-    private let sha1 = Checksum(algorithm: .sha1, value: "a9993e364706816aba3e25717850c26c9cd0d89d")
+    private let sha1 = Checksum(algorithm: .refused("sha1"), value: "a9993e364706816aba3e25717850c26c9cd0d89d")
 
     @Test func aCorrectSHA1CannotVouchForAFile() async throws {
         let directory = try scratchDirectory()
