@@ -12,6 +12,7 @@ final class VMLibrary {
     private(set) var machines: [VMConfig] = []
     @ObservationIgnored private var controllers: [UUID: VMController] = [:]
     @ObservationIgnored private var models: [UUID: MachineModel] = [:]
+    @ObservationIgnored private var hasLoaded = false
     private(set) var jobs: [UUID: SetupJob] = [:]
     var selection: UUID?
     var showingNewMachine = false
@@ -75,7 +76,11 @@ final class VMLibrary {
 
     // MARK: Loading
 
+    /// Reads the machines folder, once. Every window runs the load task as it opens, and a second run would replace the machines
+    /// in memory with what is on disk, losing settings that are still waiting to be written, and read every file again. Later
+    /// calls return at once; a call that failed to reach the folder is tried again.
     func load() {
+        guard !hasLoaded else { return }
         let fileManager = FileManager.default
         do {
             try AppPaths.createPrivateDirectory(machinesDirectory)
@@ -95,6 +100,7 @@ final class VMLibrary {
         discardAllEphemeral()
         // An upgrade: machines that exist before approvals were ever recorded are the user's own.
         recordApprovals { try $0.grandfather(machines) }
+        hasLoaded = true
     }
 
     /// Runs `change` on the approvals and reports a failure to save them.
@@ -311,6 +317,19 @@ final class VMLibrary {
     // MARK: Machine control (shared by the toolbar, menu, and launch arguments)
 
     var selectedController: VMController? { selection.map { controller(for: $0) } }
+
+    /// The machine `--start` names, or nil after saying why there is none to start: in the log, for a script that reads it, and in
+    /// the library alert, for whoever is at the window. A launch argument has nobody to ask, so a refusal must not be silent.
+    func machineToStart(forLaunchArgument key: String) -> UUID? {
+        switch LaunchStart.decide(key, in: machines, settingUp: Set(jobs.keys)) {
+        case .start(let id):
+            return id
+        case .refuse(let refusal):
+            Log.machine.error("--start: \(refusal.logReason, privacy: .public)")
+            alertMessage = refusal.message
+            return nil
+        }
+    }
 
     /// The host paths in the machine's configuration that the user has not approved.
     func unapprovedHostPaths(for id: UUID) -> [HostPathGrant] {

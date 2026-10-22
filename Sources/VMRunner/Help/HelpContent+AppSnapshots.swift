@@ -72,6 +72,8 @@ extension HelpCatalog {
                 "From a script or Terminal:",
                 "`open VMRunner.app --args --start \"Machine name\"`",
                 "You can use the machine's name or its identifier. The window opens and the machine starts.",
+                "A machine that has not finished its setup, or is still being set up, is not started: the window says so in an "
+                    + "alert, and the reason is in the system log.",
             ],
             advanced: [
                 "`--input-latency` measures how late keyboard and mouse events reach the app and how long the main thread stays busy. "

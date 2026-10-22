@@ -138,10 +138,10 @@ struct HostPathApprovalsTests {
     @Test func startingAnUnapprovedMachineAsksInsteadOfStarting() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let library = makeLibrary(in: directory)
-        library.load()
+        makeLibrary(in: directory).load()
         let imported = machine(sharing: secrets)
         try plant(imported, in: directory)
+        let library = makeLibrary(in: directory)
         library.load()
         try #require(!library.unapprovedHostPaths(for: imported.id).isEmpty)
 
@@ -156,10 +156,10 @@ struct HostPathApprovalsTests {
     @Test func aLaunchArgumentRefusesWithoutAsking() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let library = makeLibrary(in: directory)
-        library.load()
+        makeLibrary(in: directory).load()
         let imported = machine(sharing: secrets)
         try plant(imported, in: directory)
+        let library = makeLibrary(in: directory)
         library.load()
 
         library.startMachine(imported.id, interactive: false)
@@ -172,10 +172,10 @@ struct HostPathApprovalsTests {
     @Test func approvingTheListedPathsClearsThem() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let library = makeLibrary(in: directory)
-        library.load()
+        makeLibrary(in: directory).load()
         let imported = machine(sharing: secrets)
         try plant(imported, in: directory)
+        let library = makeLibrary(in: directory)
         library.load()
 
         library.approveHostPaths(library.unapprovedHostPaths(for: imported.id), for: imported.id)
@@ -237,12 +237,13 @@ struct HostPathApprovalsTests {
     @Test func aDuplicateInheritsOnlyWhatItsSourceHadApproved() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let library = makeLibrary(in: directory)
-        library.load()
+        let earlier = makeLibrary(in: directory)
+        earlier.load()
         let own = machine(sharing: "/Users/me/work", named: "own")
-        try library.add(own)
+        try earlier.add(own)
         let imported = machine(sharing: secrets, named: "imported")
         try plant(imported, in: directory)
+        let library = makeLibrary(in: directory)
         library.load()
         for config in [own, imported] {
             try Data("disk".utf8).write(to: library.bundle(config.id).disk)

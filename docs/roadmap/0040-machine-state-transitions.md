@@ -78,5 +78,9 @@ after a cancel) stays in the library's job table and no longer overlaps a new jo
 - *Done:* the memory image used to be written in place, so a crash in the middle of a suspend left a partial image for a later
   restore to reject. It is now written under a temporary name beside the final one, flushed, and renamed over it
   (`VMBundle.commitSavedState`); a failure removes the temporary, and the next start sweeps one a crash left.
+- *Done:* `--start` skipped a machine that was unprovisioned or mid-setup without a word. It now logs the reason (without the
+  machine's name) and shows it in the library alert (`LaunchStart.decide`, tested as pure code). `VMLibrary.load()` also runs
+  once now: a second window's load task used to replace the machines in memory with the files on disk, losing settings still
+  waiting to be written.
 - The latency activity (roadmap 0037) is held when the controller receives a prepared machine and ended where the machine is
   let go, so it is released on every path that releases the machine; the tests check it after every ending.
