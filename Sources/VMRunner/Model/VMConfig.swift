@@ -49,8 +49,11 @@ enum DiskSync: String, Codable, CaseIterable, Identifiable, Sendable {
 }
 
 /// How the machine's own disk is attached. NVMe is honoured for Linux guests only.
-enum DiskInterface: String, Codable, Sendable {
+enum DiskInterface: String, Codable, CaseIterable, Identifiable, Sendable {
     case virtio, nvme
+
+    var id: Self { self }
+    var label: String { self == .virtio ? "Virtio" : "NVMe" }
 }
 
 enum PointingDevice: String, Codable, CaseIterable, Identifiable, Sendable {

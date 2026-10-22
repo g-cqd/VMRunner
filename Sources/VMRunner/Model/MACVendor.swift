@@ -1,10 +1,21 @@
 import Foundation
 
 /// Where the first three bytes of an address VMRunner makes for a machine come from.
-enum MACVendor: String, Codable, CaseIterable, Sendable {
+enum MACVendor: String, Codable, CaseIterable, Identifiable, Sendable {
     /// Random, with the locally administered bit set, as the framework makes them: no manufacturer owns such an address.
     case locallyAdministered
     case apple, intel, realtek
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .locallyAdministered: "None (locally administered)"
+        case .apple: "Apple"
+        case .intel: "Intel"
+        case .realtek: "Realtek"
+        }
+    }
 
     /// The manufacturer's registered prefix (its OUI), or nil for a locally administered address.
     var prefix: [UInt8]? {

@@ -76,3 +76,23 @@ struct GuestIdentityStartTests {
         rig.expectReleased()
     }
 }
+
+/// The identity settings' labels and help: honest about what a guest can still tell, and naming the prefixes it uses.
+struct GuestIdentityHelpTests {
+    @Test func theHelpSaysWhatAGuestCanStillTell() {
+        let entry = HelpTopic.guestIdentity.entry
+        let text = (entry.paragraphs + entry.advanced).joined(separator: " ")
+        for phrase in ["hypervisor", "virtio devices", "timing", "cannot change", "not for getting around"] {
+            #expect(text.contains(phrase), "missing: \(phrase)")
+        }
+        for prefix in MACVendor.allCases.compactMap(\.prefix) {
+            #expect(text.contains(prefix.map { [$0].hexString }.joined(separator: ":").uppercased()))
+        }
+        #expect(HelpTopic.macAddress.entry.related.contains(.guestIdentity))
+    }
+
+    @Test func everyChoiceHasALabel() {
+        #expect(MACVendor.allCases.allSatisfy { !$0.label.isEmpty })
+        #expect(DiskInterface.allCases.map(\.label) == ["Virtio", "NVMe"])
+    }
+}

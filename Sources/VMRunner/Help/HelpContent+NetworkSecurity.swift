@@ -36,7 +36,7 @@ extension HelpCatalog {
                     + "make a new one. "
                     + "Changing it discards a suspended state.",
             ],
-            related: [.suspendResume, .networkMode]
+            related: [.suspendResume, .networkMode, .guestIdentity]
         ),
         .sharedFolders: HelpEntry(
             area: .network,
@@ -113,6 +113,40 @@ extension HelpCatalog {
                     + "\"What this machine can reach\" lists it.",
             ],
             related: [.sharedFolders, .exposureSummary, .securityProfiles]
+        ),
+        .guestIdentity: HelpEntry(
+            area: .security,
+            title: "Guest identity",
+            summary: "What the guest can learn about its virtual hardware, what you can change, and what it can always tell.",
+            paragraphs: [
+                "Software in a guest can read the identity of its virtual hardware: the network card's address, the disk's "
+                    + "kind and serial number, the machine's identifier. These settings make that identity look less like a "
+                    + "virtual machine's, or new at every start, for testing software that behaves differently in one, or for "
+                    + "privacy.",
+                "• **Network card vendor**: the first half of the MAC address names a manufacturer. *None* is what macOS "
+                    + "makes for virtual machines, an address no manufacturer owns. Apple, Intel or Realtek make it look like "
+                    + "one of their cards. It applies when VMRunner makes an address: clear the MAC address or press **Randomize**.",
+                "• **Disk interface** (Linux): NVMe shows the disk as an NVMe drive instead of a virtio disk. A Linux system "
+                    + "installed on virtio finds its disk under a new name; one that mounts its disks by UUID or label boots.",
+                "• **Disk serial number**: what a virtio disk reports as its serial, at most 20 plain characters. An NVMe "
+                    + "drive reports none.",
+                "• **New identity at each start** (disposable machines): a new MAC address and machine identifier every time, "
+                    + "so two runs cannot be matched by them. A macOS guest sees a new serial number each time.",
+                "**What a guest can still tell.** None of this hides the virtual machine from a guest that looks closely: a "
+                    + "macOS guest is told by its kernel that it runs under a hypervisor and sees the virtual Mac model of its "
+                    + "restore image; a Linux guest sees virtio devices and the firmware of Apple's virtualization; timing and "
+                    + "the virtual processor give any guest away to a determined check. VMRunner cannot change these.",
+                "These settings are for testing and privacy, not for getting around checks run by services you do not "
+                    + "control.",
+            ],
+            advanced: [
+                "The Apple, Intel and Realtek prefixes are 00:03:93, 00:1B:21 and 00:E0:4C. The disk serial is the virtio "
+                    + "block device identifier. The identifier of a disposable start is kept beside the disposable disk and "
+                    + "discarded with it.",
+                "Not yet verified with a real guest: a macOS guest started with a new identifier, and a Linux guest moved "
+                    + "to NVMe.",
+            ],
+            related: [.macAddress, .disposable, .exposureSummary]
         ),
         .securityProfiles: HelpEntry(
             area: .security,

@@ -33,7 +33,7 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     case networkMode, macAddress, sharedFolders, clipboard, rosetta, hostInformation
     case networkPolicy, policyRules, policyLimits, guestVpn, killSwitch
     // Security
-    case securityProfiles, disposable, secureBoot, exposureSummary, devices, memoryBalloon, entropy, vsock, serialConsole
+    case securityProfiles, disposable, secureBoot, exposureSummary, devices, memoryBalloon, entropy, vsock, serialConsole, guestIdentity
     // macOS guests
     case bootRecovery, firstBootAccount
     // Snapshots and copies

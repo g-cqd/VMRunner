@@ -36,6 +36,7 @@ struct ConfigEditor: View {
             if config.networkMode == .filtered {
                 NetworkPolicySection(policy: $config.networkPolicy, model: model.network)
             }
+            IdentitySection(config: $config)
             SharingSection(
                 guest: config.guest, folders: $config.sharedFolders, clipboard: $config.sharesClipboard,
                 rosetta: $config.rosetta, model: sharing, addFolder: model.addSharedFolder)
