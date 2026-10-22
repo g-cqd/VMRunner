@@ -81,7 +81,7 @@ jobs:
 
   # One definition for the lanes that differ only in the command and the cache they use. `assert` requires evidence that
   # tests ran: a run that compiled but discovered none (a renamed target, a broken filter) exits 0.
-  # `nested` adds the nested packages' scratch directory (.build-packages, see .vmr.json) to the cache of the lane that builds them.
+  # `nested` adds the nested packages' scratch directory (.build-packages, see CONTRIBUTING.md, Nested packages) to the cache of the lane that builds them.
   gate:
     name: ${{ matrix.name }}
     needs: changes
