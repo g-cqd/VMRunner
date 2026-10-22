@@ -46,22 +46,40 @@ struct ResolverQueue<Job> {
 
 /// A few threads of their own for lookups that block (`getaddrinfo`, `DNSServiceProcessResult`), so no cooperative-pool thread
 /// ever waits on the system resolver. A burst starts at most `maximumWorkers` threads; each runs lookups one after another until
-/// none waits, then ends, so a quiet stack holds no thread.
+/// none waits, then ends, so a quiet stack holds no thread. A lookup that waited `maximumWait` or longer for a worker runs its
+/// `late` job instead: whoever asked has given up on it by then.
 final class ResolverWorkers: Sendable {
     typealias Job = @Sendable () -> Void
 
-    private let queue: Mutex<ResolverQueue<Job>>
-
-    init(maximumWorkers: Int, maximumQueued: Int) {
-        queue = Mutex(ResolverQueue(maximumWorkers: maximumWorkers, maximumQueued: maximumQueued))
+    /// A lookup, what runs instead when no worker took it before `deadline`, and that deadline.
+    private struct Entry {
+        let run: Job
+        let late: Job
+        let deadline: ContinuousClock.Instant
     }
 
-    /// Runs `job` on a worker thread soon. Returns false, and never runs it, when every worker is busy and the queue is full.
-    func submit(_ job: @escaping Job) -> Bool {
-        switch queue.withLock({ $0.admit(job) }) {
+    private let queue: Mutex<ResolverQueue<Entry>>
+    private let maximumWait: Duration
+    private let now: @Sendable () -> ContinuousClock.Instant
+
+    /// `now` reads the clock; tests pass one they move by hand.
+    init(
+        maximumWorkers: Int, maximumQueued: Int, maximumWait: Duration,
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }
+    ) {
+        queue = Mutex(ResolverQueue(maximumWorkers: maximumWorkers, maximumQueued: maximumQueued))
+        self.maximumWait = maximumWait
+        self.now = now
+    }
+
+    /// Runs `job` on a worker thread soon, or `late` instead when the job waited `maximumWait` or longer for a worker. Exactly
+    /// one of the two runs. Returns false, and runs neither, when every worker is busy and the queue is full.
+    func submit(_ job: @escaping Job, late: @escaping Job) -> Bool {
+        let entry = Entry(run: job, late: late, deadline: now().advanced(by: maximumWait))
+        switch queue.withLock({ $0.admit(entry) }) {
         case .startWorker:
             Thread.detachNewThread { [self] in
-                job()
+                entry.run()
                 drain()
             }
             return true
@@ -73,6 +91,8 @@ final class ResolverWorkers: Sendable {
     }
 
     private func drain() {
-        while let job = queue.withLock({ $0.next() }) { job() }
+        while let entry = queue.withLock({ $0.next() }) {
+            if now() < entry.deadline { entry.run() } else { entry.late() }
+        }
     }
 }

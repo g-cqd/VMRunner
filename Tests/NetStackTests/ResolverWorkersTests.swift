@@ -22,10 +22,37 @@ struct ResolverQueueTests {
 
 struct ResolverWorkersTests {
     @Test func everyLookupOfABurstLargerThanThePoolRuns() async throws {
-        let workers = ResolverWorkers(maximumWorkers: 4, maximumQueued: 200)
+        let start = ContinuousClock.now
+        // A clock that never moves: no lookup is ever late.
+        let workers = ResolverWorkers(maximumWorkers: 4, maximumQueued: 200, maximumWait: .seconds(5), now: { start })
         let done = AsyncEventProbe<Int>()
-        for index in 0..<100 { #expect(workers.submit { done.record(index) }) }
+        for index in 0..<100 {
+            let admitted = workers.submit({ done.record(index) }, late: { done.record(-1) })
+            #expect(admitted)
+        }
         let events = try await done.wait(forAtLeast: 100)
         #expect(Set(events) == Set(0..<100))
+    }
+
+    @Test func aLookupThatWaitedPastItsDeadlineIsAnsweredLateWithoutRunning() async throws {
+        let start = ContinuousClock.now
+        let clock = TestClock()
+        let workers = ResolverWorkers(
+            maximumWorkers: 1, maximumQueued: 4, maximumWait: .seconds(5), now: { start.advanced(by: clock.now.offset) })
+        let release = DispatchSemaphore(value: 0)
+        let done = AsyncEventProbe<String>()
+        // The only worker is busy until `release`, so the next two lookups wait in the queue.
+        let busy = workers.submit(
+            {
+                release.wait()
+                done.record("busy ran")
+            }, late: { done.record("busy late") })
+        let waited = workers.submit({ done.record("waited ran") }, late: { done.record("waited late") })
+        clock.advance(by: .seconds(6))  // past the first queued lookup's deadline, not past the next one's
+        let fresh = workers.submit({ done.record("fresh ran") }, late: { done.record("fresh late") })
+        #expect(busy && waited && fresh)
+        release.signal()
+        let events = try await done.wait(forAtLeast: 3)
+        #expect(events == ["busy ran", "waited late", "fresh ran"])
     }
 }

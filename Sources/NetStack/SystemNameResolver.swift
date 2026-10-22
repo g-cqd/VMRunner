@@ -9,26 +9,35 @@ import Foundation
 ///
 /// Both block, so lookups run on ``ResolverWorkers``: at most ``maximumConcurrent`` threads, each taking queued lookups one
 /// after another until none is left, so a burst does not start a thread per lookup. A lookup that finds ``maximumQueued``
-/// others waiting answers SERVFAIL at once. The caller awaits a continuation: no cooperative-pool thread is ever blocked.
+/// others waiting answers SERVFAIL at once, and one that waited ``maximumWait`` or longer answers SERVFAIL when a worker
+/// takes it, without being run: the proxy has answered the guest by then. The caller awaits a continuation: no
+/// cooperative-pool thread is ever blocked.
 package struct SystemNameResolver: HostNameResolver {
     static let maximumConcurrent = 32
     /// Lookups that may wait for a free worker; the next one is answered SERVFAIL at once.
     static let maximumQueued = 256
+    /// How long a lookup may wait for a free worker: the DNS proxy's query timeout (`UserNetConfig.dnsTimeout`). Past it the
+    /// proxy has answered the guest SERVFAIL, and nobody waits for the result.
+    static let maximumWait = Duration.seconds(UserNetConfig().dnsTimeout)
     private static let queryTimeout: TimeInterval = 4
-    private static let workers = ResolverWorkers(maximumWorkers: maximumConcurrent, maximumQueued: maximumQueued)
+    private static let workers = ResolverWorkers(maximumWorkers: maximumConcurrent, maximumQueued: maximumQueued, maximumWait: maximumWait)
 
     package init() {}
 
     package func lookup(name: String, recordType: UInt16) async -> DNSLookupResult {
         let qualified = Self.fullyQualified(name)
+        let failure = DNSLookupResult(responseCode: DNSCode.serverFailure)
         return await withCheckedContinuation { continuation in
-            let admitted = Self.workers.submit {
-                let result =
-                    recordType == DNSCode.typeA
-                    ? Self.resolveIPv4(qualified) : DNSServiceQuery.run(name: qualified, recordType: recordType, timeout: Self.queryTimeout)
-                continuation.resume(returning: result)
-            }
-            if !admitted { continuation.resume(returning: DNSLookupResult(responseCode: DNSCode.serverFailure)) }
+            let admitted = Self.workers.submit(
+                {
+                    let result =
+                        recordType == DNSCode.typeA
+                        ? Self.resolveIPv4(qualified)
+                        : DNSServiceQuery.run(name: qualified, recordType: recordType, timeout: Self.queryTimeout)
+                    continuation.resume(returning: result)
+                },
+                late: { continuation.resume(returning: failure) })
+            if !admitted { continuation.resume(returning: failure) }
         }
     }
 
