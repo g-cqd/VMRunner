@@ -22,3 +22,6 @@ A forced `MaxRuntimeMinutes` of 0 sets no limit, by the owner's decision; any ot
 ADR-0013 is still proposed: the owner accepts it with this first set of keys, or changes it. A run with a real
 configuration profile installed. Reading the policy again when a profile changes while the app runs (today the library
 reads it at launch).
+Whether a restriction the library wrote into a machine's file is undone when the organisation lifts it (today it stays) is
+the owner's decision. The run with a real profile also checks how a locked control's row looks in the editor and Settings.
+The authorised real-guest run of 2026-10-22 installed no profile, so no forced value has been seen yet.

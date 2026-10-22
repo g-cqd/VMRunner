@@ -25,6 +25,8 @@ those capabilities, with tests for the capability checks.
   Alpine netboot image in a scratch directory. Measured results are in the study's "Built" section.
 - The app: a per-machine `serialConsole` switch for Linux guests (off by default, forced off by Isolated and Hardened),
   its line in the exposure summary, an editor toggle and a help topic.
+- The Alpine ISO of the app's catalog boots with `console=ttyAMA0`, so its console stays silent until the guest boots with
+  `console=hvc0`, as an authorised real-guest run found on 2026-10-22; the help topic, ADR-0052 and the study say how.
 
 ## Remaining
 

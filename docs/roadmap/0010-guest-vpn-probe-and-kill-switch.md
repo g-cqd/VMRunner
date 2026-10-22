@@ -34,3 +34,10 @@ showing an error. A framework that refuses the change has not been seen; the uni
 
 Whether the attachment can be taken off before the machine starts, so that a guest whose rule is broken never has a link
 at all, belongs to the same real-guest run: today the card is cut just after the machine starts.
+
+An authorised real-guest run on 2026-10-22, with no VPN on the Mac, saw the kill switch on NAT and on the filtered network:
+with a VPN required the guest had no carrier and no lease, and with a VPN forbidden the card was cut at the start and given
+back, and the guest got a lease and carried traffic. The first cut came while the guest was still in its firmware. Each cut
+and reconnection is now logged with its reason, so the next run can follow them without a screen. Still owed: a real VPN
+coming up or going down while the guest runs, the metered switch on a hotspot, and a cut the framework refuses. A changed
+rule takes effect at the next start: the kill switch keeps the rules it started with.

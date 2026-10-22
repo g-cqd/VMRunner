@@ -19,12 +19,18 @@ stack findings and the download findings (including the rollback through the uns
    (ADR-0054); every pinned key records its expiry, the verifier refuses a key from that second, and a test fails 90 days
    ahead. The Debian netboot chain (the archive's signed `InRelease`, which carries several signatures, one by a subkey) waits
    for the owner's decision.
+   An authorised real-guest run on 2026-10-22 checked the signed files of AlmaLinux, Rocky Linux, Fedora 43 and 44 and
+   Debian with `curl` and `gpg`, outside the app, against the pinned fingerprints: every signature was good. The app's own
+   download path was not run.
 4. *Fixed, except the floor opt-in.* A block rule for a name on some ports keeps holding for the addresses DNS gave the guest
    after the name table forgets them (derived address blocks); lookups run on at most 32 resolver threads that take queued
    lookups in turn; the guest transmit queue is bounded in bytes (8 MiB) as well as frames; a DNS-over-TCP answer that finds
    the guest's buffer full resets the session and is counted; repeated DNS answers are folded into one event with a count. An
    opt-in to lift one kind of the floor (ADR-0029) is not built: ADR-0029 left it out on purpose, and the owner decides
    whether a guest ever needs it.
+   Since then: a lookup that waited for a resolver thread past the proxy's query timeout is answered SERVFAIL without being
+   run, and a derived address block lives 12 hours after the proxy last gave its address, so past the bound of 1,024 the
+   oldest goes first, and the stack's housekeeping prunes them with the name table.
 5. *Fixed.* Bounds on `snapshot.json` (64 KiB, refused before it is parsed) and on the free-text fields and lists of
    `config.json` (`EditorLimits`: names, paths, counts, rule length), enforced when the file is read and in the editor;
    `ImageSource.local` must name an absolute path, at decode and in the file picker.
@@ -39,6 +45,9 @@ stack findings and the download findings (including the rollback through the uns
    stays unexplained and is watched.
 8. `actionlint` and `zizmor` have never run on the workflows; CI has never run on GitHub.
 9. Decide whether ADR-0012, 0013, 0016, 0017 and 0019 are accepted.
+10. *Fixed.* A macOS install reads its own clone of the restore image (ADR-0031), and a clone that a crash left behind is
+    deleted at the next launch. A data directory on a volume that is not APFS cannot clone, so a macOS install there fails
+    with the clone error instead of reading the shared file.
 
 ## Done when
 
