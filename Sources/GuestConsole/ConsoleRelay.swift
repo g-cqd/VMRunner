@@ -14,6 +14,14 @@ public enum ConsoleRelay {
         case detached
     }
 
+    /// Connects to the console at `socketPath` and relays until it ends. A console that has a client answers with one line and
+    /// closes, which shows up as `.consoleClosed` after that line was copied to `output`.
+    public static func run(socketPath: String, input: Int32, output: Int32) throws -> Ending {
+        let console = try ConsoleSocket.connect(to: socketPath)
+        defer { ConsoleSocket.close(console) }
+        return try run(console: console, input: input, output: output)
+    }
+
     /// Relays `input` to the connected socket `console` and the console's output to `output`. The caller puts a terminal into raw
     /// mode first, when there is one; this does not touch terminal settings.
     public static func run(console: Int32, input: Int32, output: Int32) throws -> Ending {

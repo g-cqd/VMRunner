@@ -90,6 +90,7 @@ let package = Package(
             name: "DevTools",
             dependencies: [
                 "VMHelperCore",
+                "GuestConsole",
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
@@ -134,7 +135,7 @@ let package = Package(
         .executableTarget(name: "FakeAnalyzer", path: "Tests/FakeAnalyzer", swiftSettings: hardening),
         .testTarget(
             name: "DevToolsTests",
-            dependencies: ["DevTools", "VMHelperCore", "vmr", "FakeAnalyzer"],
+            dependencies: ["DevTools", "VMHelperCore", "GuestConsole", "vmr", "FakeAnalyzer"],
             path: "Tests/DevToolsTests",
             swiftSettings: hardening
         ),
