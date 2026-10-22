@@ -74,7 +74,7 @@ enum GateVerdict: Hashable, Sendable {
 struct PolicyGate {
     var policy: NetworkPolicy
     var names = NameTable()
-    /// Floor ranges not enforced; always empty outside the integration tests (see ``UserNetConfig/exemptedFloorKinds``).
+    /// Floor ranges not enforced; always empty outside the integration tests (see `UserNetConfig.exemptedFloorKinds`).
     let floorExemptions: Set<ReservedRangeKind>
 
     init(policy: NetworkPolicy, floorExemptions: Set<ReservedRangeKind> = []) {

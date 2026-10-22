@@ -1,11 +1,5 @@
 import Foundation
 
-/// Whether the host's VPN state must (or must not) be present for a guest to have network access.
-/// The decision itself is ``VPNRequirement/allowsNetwork(vpn:)`` in `VPNMonitor.swift`.
-enum VPNRequirement: String, Hashable, Sendable, Codable, CaseIterable {
-    case ignore, required, forbidden
-}
-
 /// Egress rules for one guest, as a pure value with a pure evaluator.
 ///
 /// ## What this can and cannot enforce
@@ -156,7 +150,7 @@ struct NetworkPolicy: Hashable, Sendable, Codable {
 
     /// As ``evaluate(host:port:resolvedAddresses:)``, with `floorKinds` not enforced. For the integration tests, which
     /// must reach servers they start on the loopback interface: nothing outside the tests passes a non-empty set
-    /// (``UserNetConfig/exemptedFloorKinds`` is the only source), and the policy itself has no such setting.
+    /// (`UserNetConfig.exemptedFloorKinds` is the only source), and the policy itself has no such setting.
     func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress], exempting floorKinds: Set<ReservedRangeKind>) -> Decision {
         let form: HostForm
         do {
