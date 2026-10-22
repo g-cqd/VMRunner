@@ -12,7 +12,7 @@ swift run vmr hooks install           # pre-commit: format lint and SwiftLint on
 ## Before you push: `swift run vmr check`
 
 ```sh
-swift run vmr check                 # fast gate: format, swiftlint, docs, policy, build, test, analyzers
+swift run vmr check                 # fast gate: format, swiftlint, docs, workflows, policy, build, test, analyzers
 swift run vmr check --full          # + ASan, TSan, UBSan test runs, release build, coverage and benchmark gates
 swift run vmr check test analyzers  # only the named steps (swift run vmr check --list shows them all)
 ```
@@ -36,12 +36,18 @@ in `.github/workflows/ci.yml`).
   (result, duration) to that file, plus test counts, coverage and analyzer findings when the steps ran. Nothing changes
   when it is unset.
 
-The three static analyzers (retain cycles, duplicate code, dead code) and SwiftLint come from pinned, checksum-verified
-releases listed in `Scripts/analyzers.lock`; `swift run vmr analyzers` downloads the analyzers, and the first
-`swift run vmr check swiftlint` (or the first commit with the hook) downloads SwiftLint, into the git-ignored `.tools/`.
+The three static analyzers (retain cycles, duplicate code, dead code), SwiftLint and the workflow linters (actionlint and
+zizmor) come from pinned, checksum-verified releases listed in `Scripts/analyzers.lock`; `swift run vmr analyzers`
+downloads the analyzers, the first `swift run vmr check swiftlint` (or the first commit with the hook) downloads
+SwiftLint, and the first `swift run vmr check workflows` downloads actionlint and zizmor, into the git-ignored `.tools/`.
 CI runs the same `swift run vmr check` steps, so the lock is the only place the versions are written. See the
 "Quality gates" section of the README for what each analyzer gates on.
 
+- **`workflows`** runs actionlint, then zizmor, over `.github`. zizmor only warns about a file it cannot parse, so it runs
+  with `--strict-collection`, which makes that a failure (actionlint fails on invalid YAML by itself), and `--offline`, so
+  it never calls the GitHub API. A finding of either tool, at any severity, fails the step. actionlint runs without its
+  shellcheck and pyflakes integrations, so the result does not depend on `PATH`; `zizmor.yml` still runs actionlint with
+  shellcheck on Linux (`.github/workflows/zizmor.yml`). Do not add `-config-file`: actionlint reads `.github/actionlint.yaml` itself. `ACTIONLINT_BIN` and `ZIZMOR_BIN` name binaries of your own, like `SWIFTLINT_BIN`.
 - **SwiftLint is never taken from `PATH`.** Every checkout lints with the pinned version, so a new SwiftLint release
   cannot turn a green gate red by itself. To bump it, follow the lock file's header and fix what the new version
   reports in the same change. `SWIFTLINT_BIN` (like `ARCLEAK_BIN`, `DOLLY_BIN` and `DEADWOOD_BIN`) names a binary of
@@ -242,7 +248,7 @@ Workflows live in `.github/workflows`; every third-party action is pinned to a f
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| `ci.yml` | push to main, PR, merge queue | `changes` (decides what runs from the diff), `lint` (format, SwiftLint, documentation, policy), `gate` (build and tests, which fails if none ran; coverage; the hardened app bundle; the analyzers), `bench` (the benchmark gate, advisory until it is stable), `sanitizers` (asan, tsan, ubsan; on a PR only when the network stack, the engine, the test support or the dependencies changed). A documentation-only change runs `lint` and nothing else. The aggregate job **CI passed** is the one required check and tolerates skipped jobs |
+| `ci.yml` | push to main, PR, merge queue | `changes` (decides what runs from the diff), `lint` (format, SwiftLint, documentation, workflow lint, policy), `gate` (build and tests, which fails if none ran; coverage; the hardened app bundle; the analyzers), `bench` (the benchmark gate, advisory until it is stable), `sanitizers` (asan, tsan, ubsan; on a PR only when the network stack, the engine, the test support or the dependencies changed). A documentation-only change runs `lint` and nothing else. The aggregate job **CI passed** is the one required check and tolerates skipped jobs |
 | `codeql.yml` | push to main, PR, merge queue, weekly | CodeQL for the workflows and (experimental, Swift 6.4 is not yet supported) Swift |
 | `zizmor.yml` | `.github/**` changes, merge queue, weekly | actionlint and zizmor on the workflows |
 | `dependency-review.yml` | PR | fails a PR that adds a dependency with a high severity advisory |

@@ -77,7 +77,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # origin/main, for the policy step to compare the branch with its base
-      - run: swift run --only-use-versions-from-resolved-file vmr check format swiftlint docs policy
+      - run: swift run --only-use-versions-from-resolved-file vmr check format swiftlint docs workflows policy
 
   # One definition for the lanes that differ only in the command and the cache they use. `assert` requires evidence that
   # tests ran: a run that compiled but discovered none (a renamed target, a broken filter) exits 0.
