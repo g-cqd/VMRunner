@@ -12,6 +12,8 @@ extension PGP {
         let exponent: [UInt8]
         /// Seconds since 1970.
         let created: UInt32
+        /// Seconds since 1970 from which the key no longer vouches for anything; nil for a key without an end.
+        let expires: UInt32?
         /// The 20-byte version 4 fingerprint of the integers and the creation time.
         let fingerprint: [UInt8]
 
@@ -21,13 +23,14 @@ extension PGP {
 
         /// - Throws: `Failure.invalidKey` for a modulus under 2048 or over 8192 bits, one that is even or has a leading zero
         ///   byte, or any exponent but 65537.
-        init(modulus: [UInt8], exponent: [UInt8], created: UInt32) throws(Failure) {
+        init(modulus: [UInt8], exponent: [UInt8], created: UInt32, expires: UInt32? = nil) throws(Failure) {
             guard (256...1024).contains(modulus.count), modulus.first != 0, modulus.last.map({ $0 & 1 == 1 }) == true,
                 exponent == Self.publicExponent
             else { throw .invalidKey }
             self.modulus = modulus
             self.exponent = exponent
             self.created = created
+            self.expires = expires
             fingerprint = Self.fingerprint(modulus: modulus, exponent: exponent, created: created)
         }
 
@@ -95,6 +98,9 @@ extension PGP {
         var fingerprint: String
         /// Seconds since 1970 that the key was made, which the fingerprint covers.
         var created: UInt32
+        /// Seconds since 1970 when the vendor's key expires, as its self-signature states it; nil when it states none. Read when
+        /// the key is pinned and re-checked at each release (CONTRIBUTING, "Releasing"); the fingerprint does not cover it.
+        var expires: UInt32?
         var modulus: String
         var exponent: String
 
@@ -103,7 +109,7 @@ extension PGP {
         ///   damaged or altered constant can never verify anything.
         func publicKey() throws(Failure) -> RSAPublicKey {
             guard let modulus = PGP.bytes(hex: modulus), let exponent = PGP.bytes(hex: exponent) else { throw .invalidKey }
-            let key = try RSAPublicKey(modulus: modulus, exponent: exponent, created: created)
+            let key = try RSAPublicKey(modulus: modulus, exponent: exponent, created: created, expires: expires)
             guard key.fingerprint.hexString.uppercased() == fingerprint else { throw .invalidKey }
             return key
         }

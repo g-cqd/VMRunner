@@ -402,3 +402,35 @@ struct PGPPinnedKeyTests {
         }
     }
 }
+
+struct PGPKeyExpiryTests {
+    private let signer: TestSigner
+    private let data = Array("SHA256SUMS of a synthetic release\n".utf8)
+
+    init() throws { signer = try SharedSigner.get() }
+
+    @Test func aPinnedKeyIsRefusedFromTheSecondItExpiresAndAcceptedBefore() throws {
+        let now = UInt32(pgpTestNow.timeIntervalSince1970)
+        let armored = try signer.detachedSignature(over: data)
+        var pinned = signer.pinned
+        pinned.expires = now + 1
+        try PGP.Check.detached(armored, keys: [pinned.publicKey()], now: pgpTestNow).verify(data)
+        pinned.expires = now
+        #expect(throws: PGP.Failure.keyExpired) { try PGP.Check.detached(armored, keys: [pinned.publicKey()], now: pgpTestNow) }
+    }
+
+    @Test func theExpiryIsNotPartOfTheFingerprint() throws {
+        var pinned = signer.pinned
+        pinned.expires = 2_000_000_000
+        #expect(try pinned.publicKey().fingerprint == signer.key.fingerprint)
+    }
+
+    /// Fails 90 days before a pinned key expires, so a release never ships a key that stops working soon after.
+    @Test func noPinnedKeyExpiresWithinNinetyDays() {
+        let horizon = Date().addingTimeInterval(90 * 86_400)
+        for key in PGP.PinnedKeys.all {
+            guard let expires = key.expires else { continue }
+            #expect(Date(timeIntervalSince1970: TimeInterval(expires)) > horizon, "\(key.owner) expires within 90 days: pin its successor")
+        }
+    }
+}

@@ -97,8 +97,10 @@ extension HelpCatalog {
                     + "newest one that has, never older than the oldest it accepts, and says so while it sets up. It never installs an "
                     + "image without a valid signature, and any other problem with a signature stops the setup instead of trying an "
                     + "older release.",
-                "The keys are built into the app, so VMRunner cannot see a key being revoked or expiring, and a new key needs an app "
-                    + "update. A signature does not say the software is safe. Each image has an oldest release VMRunner accepts, "
+                "The keys are built into the app with the date each one expires, if its vendor set one: from that date VMRunner "
+                    + "refuses what the key signed until an app update pins the next key. VMRunner cannot see a key being revoked, "
+                    + "and a new key needs an app update. A signature does not say the software is safe. Each image has an oldest "
+                    + "release VMRunner accepts, "
                     + "so a genuine older signed file is refused; that limit rises with app updates. Only HTTPS from a short list "
                     + "of project hosts is allowed, and a download larger than a ceiling set for each image is stopped.",
             ],

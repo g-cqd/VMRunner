@@ -266,19 +266,22 @@ Build caches are restored by every run and saved only on main, on an exact-key m
 ## Releasing
 
 1. Set `CFBundleShortVersionString` in `Resources/Info.plist` to the new version and merge it to main through a PR.
-2. Wait for CI on main, then tag that commit and push the tag: `git tag -s vX.Y.Z && git push origin vX.Y.Z`.
-3. `release.yml` refuses a tag that is not `vMAJOR.MINOR.PATCH[-prerelease]`, is not on main, is on a commit without a
+2. Re-check every pinned vendor key (`PGP.PinnedKeys`) against its vendor's own page: the fingerprint, whether it was revoked,
+   and when it expires (its `expires` field; `nil` means the vendor set none). `PGPKeyExpiryTests` fails 90 days before a pinned
+   key expires: pin the vendor's next key, with a real signature from it as a test fixture, before then.
+3. Wait for CI on main, then tag that commit and push the tag: `git tag -s vX.Y.Z && git push origin vX.Y.Z`.
+4. `release.yml` refuses a tag that is not `vMAJOR.MINOR.PATCH[-prerelease]`, is not on main, is on a commit without a
    successful `CI` run (`gh run list --commit`), or differs from the built bundle's version, and it refuses while
    `vmr check publication` finds a placeholder. It builds `swift run vmr build-app release --hardened` and zips with
    `ditto`. The `build` job reports the zip's SHA-256 as a job output; the `publish` job compares the downloaded zip with
    that output (not with a file inside the artifact), then writes the release's `.sha256` asset from it.
-4. **What is attested, and when.** The zip, and only the zip, gets a build provenance attestation from the `publish` job
+5. **What is attested, and when.** The zip, and only the zip, gets a build provenance attestation from the `publish` job
    (verify with `gh attestation verify VMRunner-vX.Y.Z.zip --repo OWNER/REPO`), and only while the repository is public:
    attestations need a public repository or GitHub Enterprise Cloud, so on a private repository the job logs a notice and
    the release carries no attestation. The attestation names the workflow run and the tag that produced the digest; it
    is not attached to the `.sha256` asset or the generated notes, and it is not a notarization. The job that attests runs
    no repository build code, which is why the attestation is not made inside `build`.
-5. The release is created with generated notes, the zip and its `.sha256`.
+6. The release is created with generated notes, the zip and its `.sha256`.
 
 The app is ad-hoc signed, not Developer ID signed or notarized: whether the virtualization entitlement works under a
 Developer ID signature is unverified, so signing is not wired yet.

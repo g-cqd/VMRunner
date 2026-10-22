@@ -47,6 +47,7 @@ enum PGP {
         case unpinnedSigner(String)
         case notYetValid
         case expired
+        case keyExpired
         case predatesKey
         case invalidKey
         case badSignature
@@ -66,6 +67,7 @@ enum PGP {
             case .unpinnedSigner(let fingerprint): "it was made by key \(fingerprint), which is not pinned for this download"
             case .notYetValid: "it claims to have been made in the future (check the clock of this Mac)"
             case .expired: "it has expired"
+            case .keyExpired: "the pinned key that made it has expired; an update of this app pins the vendor's next key"
             case .predatesKey: "it claims to be older than the key that made it"
             case .invalidKey: "the pinned key is damaged"
             case .badSignature: "it does not match the file, so the file or its signature was altered"

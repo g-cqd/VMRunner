@@ -15,7 +15,7 @@ extension PGP {
         ///   - type: `0x00` for a signature over a binary file, `0x01` over canonical text; any other type is refused.
         ///   - keys: The only keys that may have signed. The issuer is taken from the signed part of the signature.
         ///   - now: The time to judge the signature by.
-        /// - Throws: `Failure.unsupportedType`, `.unpinnedSigner`, `.notYetValid`, `.predatesKey` or `.expired`.
+        /// - Throws: `Failure.unsupportedType`, `.unpinnedSigner`, `.notYetValid`, `.predatesKey`, `.keyExpired` or `.expired`.
         init(_ signature: Signature, expecting type: UInt8, keys: [RSAPublicKey], now: Date) throws(Failure) {
             guard signature.type == type else { throw .unsupportedType(signature.type) }
             guard let key = keys.first(where: { $0.fingerprint == signature.issuerFingerprint }) else {
@@ -25,6 +25,7 @@ extension PGP {
             let created = Int64(signature.created)
             guard created <= seconds else { throw .notYetValid }
             guard created >= Int64(key.created) else { throw .predatesKey }
+            if let expires = key.expires, seconds >= Int64(expires) { throw .keyExpired }
             if let lifetime = signature.expiresAfter, created + Int64(lifetime) <= seconds { throw .expired }
             self.signature = signature
             self.key = key
