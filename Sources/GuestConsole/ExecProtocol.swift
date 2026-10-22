@@ -25,13 +25,22 @@ public enum PromptClassifier {
                 scalars.append(scalar)
             }
         }
-        var line = String(scalars)
-        while line.last == " " { line.removeLast() }
-        let lowered = line.lowercased()
+        let line = String(scalars)
+        var trimmed = line
+        while trimmed.last == " " { trimmed.removeLast() }
+        let lowered = trimmed.lowercased()
         if lowered.hasSuffix("login:") { return .login }
         if lowered.hasSuffix("password:") { return .password }
-        if line.hasSuffix("#") || line.hasSuffix("$") { return .shell }
-        return nil
+        return endsInShellPrompt(line) ? .shell : nil
+    }
+
+    /// A shell prompt ends in `#` or `$` and at most one space. A progress bar (`50% ####` followed by blanks, or a full row
+    /// of `#`) is not one: it has blanks after its last `#`, or another `#` before it.
+    private static func endsInShellPrompt(_ line: String) -> Bool {
+        var prompt = line
+        if prompt.last == " " { prompt.removeLast() }
+        guard let sigil = prompt.last, sigil == "#" || sigil == "$" else { return false }
+        return prompt.dropLast().last != "#"
     }
 
     /// `text` without CSI escape sequences (`ESC [ ... final`) and bare `ESC` characters.

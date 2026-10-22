@@ -27,6 +27,27 @@ struct PromptClassifierTests {
     }
 
     @Test
+    func theProgressBarOfApkIsNotAShellPromptWhateverFrameItIsCutAt() {
+        // What the package install of Alpine's boot prints: the cursor is saved, a bar is drawn, the cursor is restored.
+        let frames = [
+            "\u{1B}7  0%                                             \u{1B}8\u{1B}[0K",
+            "\u{1B}7 15% #######                                     \u{1B}8\u{1B}[0K",
+            "\u{1B}7 50% ######################                      \u{1B}8\u{1B}[0K",
+            "\u{1B}7 79% ##################################          ",
+            "\u{1B}7 99% ############################################", "\u{1B}7100% #############################################",
+            "(19/28) Installing zlib (1.3.2-r1)\r\n\u{1B}7 78% ##################################          ",
+        ]
+        for frame in frames { #expect(classify(frame) == nil, "\(frame.debugDescription)") }
+    }
+
+    @Test
+    func promptsOfTheInitramfsAndOfAnInstalledSystemAreShellPrompts() {
+        for prompt in ["/ # ", "/ #", "localhost:~# ", "alpine:/etc# ", "user@host ~ $ ", "[root@box tmp]# ", "bash-5.2$ "] {
+            #expect(classify(prompt) == .shell, "\(prompt.debugDescription)")
+        }
+    }
+
+    @Test
     func aFinishedLineOrOutputInProgressIsNotAPrompt() {
         #expect(classify("") == nil)
         #expect(classify("localhost login: \r\n") == nil)
