@@ -11,7 +11,7 @@ entitlement only, receiving descriptors over XPC; measure boot time and sandbox 
 
 ## Done: the helper and its probes, without a machine
 
-- `VMHelper` (`Sources/VMHelper`) and `VMHelperKit` (`Sources/VMHelperKit`): a headless helper that reads a JSON descriptor,
+- `VMHelper` (`Sources/VMHelper`) and `VMHelperCore` (`Sources/VMHelperCore`): a headless helper that reads a JSON descriptor,
   reports line-delimited JSON events and exits with a `sysexits.h` status; `--dry-run` validates the configuration,
   `--probe` tries what a helper needs, `--start` boots. The descriptor arrives by path or on standard input, not yet over XPC.
 - `vmr sandbox run|profile`: launches the helper under App Sandbox (a bundle signed with the descriptor's paths as

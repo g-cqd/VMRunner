@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import VMHelperKit
+@testable import VMHelperCore
 
 struct SeatbeltProfileTests {
     private static let helper = "/private/tmp/work/VMHelper"

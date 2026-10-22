@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import VMHelperKit
+import VMHelperCore
 
 @testable import DevTools
 

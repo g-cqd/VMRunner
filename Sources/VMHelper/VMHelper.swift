@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 import Virtualization
 
 /// The headless helper of the sandbox helper: boots one Linux guest from a JSON descriptor and reports over standard output.

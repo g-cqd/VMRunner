@@ -13,8 +13,9 @@ package through `.package(path:)`; they are not git submodules or separate repos
 - No planning word (spike, prototype, poc, experiment, draft, wip) in any identifier, directory, file, command or flag.
 - No grab-bag suffix (`Kit`, `Util`, `Helper`, `Manager`). A library is named for the capability it provides.
 - An executable's testable logic is `<Executable>Core`. A product name that states a real process role stays (`VMHelper`).
-- Renames: `TestKit` to `TestSupport`, `CTestKitMalloc` to `CTestSupportMalloc`, `VMHelperKit` to `VMHelperCore`,
-  `ContainerSpike` to `ContainerRunner`, `vmr sandbox-spike` to `vmr sandbox`, `vmr spike-sign` to `vmr container-sign`.
+- Renames: done: `VMHelperKit` to `VMHelperCore`, `ContainerSpike` to `ContainerRunner`, `vmr sandbox-spike` to `vmr sandbox`,
+  `vmr spike-sign` to `vmr container-sign`. Still to do, after the branches that import it have merged: `TestKit` to
+  `TestSupport` and `CTestKitMalloc` to `CTestSupportMalloc`.
 - A module is never named like Apple's frameworks (`Network`) or like its main type.
 
 ## Packages

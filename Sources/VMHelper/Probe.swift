@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 import Virtualization
 
 /// `--probe`: the operations a guest-hosting helper needs, tried one by one inside whatever sandbox it was launched in,

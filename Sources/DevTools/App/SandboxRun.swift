@@ -1,6 +1,6 @@
 import Foundation
 import Synchronization
-import VMHelperKit
+import VMHelperCore
 
 /// How the helper is launched under an engine: the program to run, the arguments that come before the helper's own, and the
 /// helper binary that ends up running.

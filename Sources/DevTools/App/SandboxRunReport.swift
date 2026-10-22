@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 
 /// One launch of the helper under an engine, with what was seen of it.
 struct SandboxPhase {

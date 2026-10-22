@@ -40,12 +40,12 @@ let package = Package(
         .testTarget(name: "VMRunnerTests", dependencies: ["VMRunner", "TestKit"], path: "Tests/VMRunnerTests", swiftSettings: hardening),
 
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
-        // engine chosen by `vmr sandbox`. It links the system frameworks and VMHelperKit only, never the app.
-        // VMHelperKit holds the descriptor, the events and the Seatbelt profile generator; DevTools links it too, so the
+        // engine chosen by `vmr sandbox`. It links the system frameworks and VMHelperCore only, never the app.
+        // VMHelperCore holds the descriptor, the events and the Seatbelt profile generator; DevTools links it too, so the
         // launcher and the helper agree on them.
-        .target(name: "VMHelperKit", path: "Sources/VMHelperKit", swiftSettings: hardening),
-        .executableTarget(name: "VMHelper", dependencies: ["VMHelperKit"], path: "Sources/VMHelper", swiftSettings: hardening),
-        .testTarget(name: "VMHelperKitTests", dependencies: ["VMHelperKit"], path: "Tests/VMHelperKitTests", swiftSettings: hardening),
+        .target(name: "VMHelperCore", path: "Sources/VMHelperCore", swiftSettings: hardening),
+        .executableTarget(name: "VMHelper", dependencies: ["VMHelperCore"], path: "Sources/VMHelper", swiftSettings: hardening),
+        .testTarget(name: "VMHelperCoreTests", dependencies: ["VMHelperCore"], path: "Tests/VMHelperCoreTests", swiftSettings: hardening),
 
         // Deterministic and allocation-aware test support, vendored:
         // a controllable Clock, event probes, async gates and a malloc-count guard. Linked by test targets only.
@@ -64,7 +64,7 @@ let package = Package(
         .target(
             name: "DevTools",
             dependencies: [
-                "VMHelperKit",
+                "VMHelperCore",
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
@@ -109,7 +109,7 @@ let package = Package(
         .executableTarget(name: "FakeAnalyzer", path: "Tests/FakeAnalyzer", swiftSettings: hardening),
         .testTarget(
             name: "DevToolsTests",
-            dependencies: ["DevTools", "VMHelperKit", "vmr", "FakeAnalyzer"],
+            dependencies: ["DevTools", "VMHelperCore", "vmr", "FakeAnalyzer"],
             path: "Tests/DevToolsTests",
             swiftSettings: hardening
         ),

@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 
 /// Writes the helper's events to standard output, one JSON line each, and keeps the clock they are stamped with.
 ///

@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import VMHelperKit
+@testable import VMHelperCore
 
 struct DescriptorTests {
     private static let json = """

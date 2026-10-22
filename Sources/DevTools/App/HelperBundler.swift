@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 
 /// Builds the sandbox helper's helper and signs it ad hoc for an engine, then reads the entitlements back from the signed
 /// result, as `AppBundler` does for the app.

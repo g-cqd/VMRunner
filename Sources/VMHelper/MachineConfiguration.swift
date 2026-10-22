@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 import Virtualization
 
 /// Translates a descriptor into a validated `VZVirtualMachineConfiguration`.

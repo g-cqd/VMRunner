@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import VMHelperKit
+import VMHelperCore
 
 /// Parses an enum option by its raw value; `ExpressibleByArgument` is not adopted for types this package does not own.
 private func parseChoice<Value: RawRepresentable & CaseIterable>(_ text: String) throws -> Value where Value.RawValue == String {

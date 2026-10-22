@@ -141,7 +141,7 @@ tooling in Swift: no shell or Python files. The tooling's two dependencies (swif
 `exact:`; the app target and its tests must never link them. The app's own packages are listed in ADR-0001, and a test
 compares them with `Package.swift`. Every build and test `vmr` starts, and every `swift` command in the workflows, passes
 `--only-use-versions-from-resolved-file`: versions come from the committed `Package.resolved` alone, so after a
-dependency change run `swift package resolve` and commit the file. The same goes for `VMHelperKit` and `VMHelper`, the
+dependency change run `swift package resolve` and commit the file. The same goes for `VMHelperCore` and `VMHelper`, the
 headless helper of the sandbox helper (roadmap 0025): `swift run vmr sandbox run` launches it under App Sandbox or a
 Seatbelt profile. Without `--boot` it only probes and validates; `--boot` starts a virtual machine and is for the owner.
 

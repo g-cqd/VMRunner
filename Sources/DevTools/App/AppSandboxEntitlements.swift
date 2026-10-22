@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 
 /// The entitlements of the App Sandbox helper bundle: the checked-in base file, plus what this run's grants need.
 ///

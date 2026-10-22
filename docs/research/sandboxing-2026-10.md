@@ -171,9 +171,9 @@ either engine is not known yet**; the owner's run, described below, decides it.
 
 ### What compiled
 
-- `Sources/VMHelperKit` (library): the JSON descriptor and its path checks, the line-delimited events, the exit-status
+- `Sources/VMHelperCore` (library): the JSON descriptor and its path checks, the line-delimited events, the exit-status
   mapping, the grants both engines are derived from, and the Seatbelt profile generator. Pure Swift with unit tests.
-- `Sources/VMHelper` (executable): links the system frameworks and `VMHelperKit` only, never the app. `--dry-run` builds the
+- `Sources/VMHelper` (executable): links the system frameworks and `VMHelperCore` only, never the app. `--dry-run` builds the
   `VZVirtualMachineConfiguration` and calls `validate()` without creating a machine; `--probe` tries the operations a
   helper needs and reports each as allowed or refused; `--start` boots (owner only). Events go to standard output
   (`booting`, `running`, `stopped`, `error`, `validated`, `probe`), the guest's serial console to standard error. Exit

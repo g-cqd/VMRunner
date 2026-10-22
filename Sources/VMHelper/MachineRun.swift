@@ -1,5 +1,5 @@
 import Foundation
-import VMHelperKit
+import VMHelperCore
 import Virtualization
 
 /// Boots the machine and waits until it stops, fails, or the run-time limit passes. Only `--start` comes here.
