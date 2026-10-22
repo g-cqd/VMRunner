@@ -286,3 +286,17 @@ struct InputLatencyCollectorTests {
         #expect(clock.sleeperCount == 0)
     }
 }
+
+@MainActor
+struct MeasuredWindowTests {
+    @Test func anEventWithoutAWindowIsMeasuredAgainstTheKeyWindow() throws {
+        let event = try #require(
+            NSEvent.mouseEvent(
+                with: .mouseMoved, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0,
+                clickCount: 0, pressure: 0))
+        #expect(event.window == nil, "a pointer event without a window number has no window")
+        let key = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10), styleMask: [.titled], backing: .buffered, defer: true)
+        #expect(InputLatencyMonitor.measuredWindow(of: event, keyWindow: key) === key)
+        #expect(InputLatencyMonitor.measuredWindow(of: event, keyWindow: nil) == nil)
+    }
+}

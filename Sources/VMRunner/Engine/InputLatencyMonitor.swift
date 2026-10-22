@@ -105,10 +105,19 @@ final class InputLatencyMonitor {
     // MARK: Events
 
     private func observe(_ event: NSEvent) {
-        guard let kind = Self.kind(of: event.type), let window = event.window, showsMachine(window) else { return }
+        guard let kind = Self.kind(of: event.type),
+            let window = Self.measuredWindow(of: event, keyWindow: NSApplication.shared.keyWindow), showsMachine(window)
+        else { return }
         let age = InputLatencyRecorder.age(timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime)
         collector.recordEvent(kind, age: age)
         signposts.received(kind, age: age)
+    }
+
+    /// The window an event is measured against: its own, or the key window for an event that has none. An event posted to
+    /// the process (`CGEventPostToPid`) carries no window number, so AppKit gives a pointer event none; without this, such
+    /// events were never counted (roadmap 0037).
+    static func measuredWindow(of event: NSEvent, keyWindow: NSWindow?) -> NSWindow? {
+        event.window ?? keyWindow
     }
 
     /// Whether the window holds a machine's view. A window gains and loses it as machines start and stop, so the answer is
