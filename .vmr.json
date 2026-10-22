@@ -1,4 +1,6 @@
 {
+  "lintPaths": ["Sources", "Plugins", "Tests", "Packages/Containers/Sources", "Packages/Containers/Tests"],
+  "packages": ["Packages/Containers"],
   "skipTestsWhenInstrumented": ["DevToolsTests"],
   "coverage": {
     "minimum": 55,

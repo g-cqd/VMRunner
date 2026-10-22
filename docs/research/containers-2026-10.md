@@ -161,13 +161,13 @@ machine: the owner runs it once, from the instructions below, and the result dec
   carries them too. The study was right that a recent advisory exists; only the fixing release was unknown.
 - **Requirements of 0.52.1.** Tools version 6.2 (the repository uses 6.4), declared macOS 15 (the repository 26; the README
   asks for macOS 26 on an Apple silicon Mac), Apache-2.0.
-- **Dependency graph.** The package adds 25 pins to `Package.resolved` (itself and the 24 packages it brings; 30 pins instead
-  of 5): an asynchronous networking stack, an RPC stack with its serialization library, an HTTP client, TLS and certificate
-  libraries, a crypto library, a compression library and logging, tracing and configuration libraries. It also links the
-  system archive library. ADR-0001 says the app links system frameworks only, so the dependency is confined: only the
-  `ContainerRunner` target declares it. The app product, `vmr` and every test target do not, and a build of the app product
-  compiled none of it and its binary holds no reference to it (checked with `strings`). `vmr build-app` used to build the whole
-  package; it now builds the `VMRunner` product only, with a test that adds a target that does not compile.
+- **Dependency graph.** The package brings 24 others with it, 29 pins in all: an asynchronous networking stack, an RPC stack
+  with its serialization library, an HTTP client, TLS and certificate libraries, a crypto library, a compression library and
+  logging, tracing and configuration libraries. It also links the system archive library. ADR-0001 keeps the root graph
+  small, so the runner is a package of its own, `Packages/Containers`, with its own committed `Package.resolved`: the root
+  `Package.swift` and `Package.resolved` are unchanged, nothing at the root depends on the package, and a test checks both.
+  The gate reaches it through the `packages` key of `.vmr.json`: `vmr check build` and `vmr check test` also build and test
+  it, each into `.build-packages/Packages-Containers`, from its `Package.resolved` alone.
 - **Kernel.** The package's own `fetch-default-kernel` target takes Kata Containers 3.17.0 for arm64
   (`kata-static-3.17.0-arm64.tar.xz`, 290,581,648 bytes, the size GitHub reports). The release publishes no checksum, so the
   SHA-256 `647c7612e6edf789d5e14698c48c99d8bac15ad139ffaa1c8bb7d229f748d181` was computed from a download made for the runner
@@ -182,38 +182,45 @@ machine: the owner runs it once, from the instructions below, and the result dec
 
 ### What compiled
 
-- `Sources/ContainerRunnerCore`: arguments, the layout under the scratch directory, the pinned kernel archive and its
-  checksum, the verdict and report, an Ethernet frame summary, and a datagram socketpair that stands in for a network. It
-  imports no container library; `Tests/ContainerRunnerTests` has 24 tests of it.
-- `Sources/ContainerRunner`: downloads and checks the kernel, builds a container manager, pulls the image, creates the
+- `Packages/Containers/Sources/ContainerRunnerCore`: arguments, the layout under the scratch directory, the pinned kernel
+  archive and its checksum, the verdict and report, an Ethernet frame summary, and a datagram socketpair that stands in for a
+  network. It imports no container library; `Packages/Containers/Tests/ContainerRunnerTests` has 24 tests of it.
+- `Packages/Containers/Sources/ContainerRunner`: downloads and checks the kernel, builds a container manager, pulls the image, creates the
   container, boots it, runs `uname -a`, waits, stops and deletes it, and prints the report. Everything is under the scratch
   directory given as the argument. The kernel download is one fixed HTTPS address checked against a pinned checksum; it does
   not go through the app's download policy, which the runner cannot import.
-- `vmr container-sign`: builds the product (release by default) and signs it ad hoc with the hardened runtime and
-  `Resources/ContainerRunner.entitlements` (`com.apple.security.virtualization` only, judged against the entitlement policy),
-  then verifies the signature and reads the effective entitlements back. It shares those steps with `vmr build-app` and the
-  sandbox helper.
+- `vmr container-sign`: builds the runner from its package (release by default, into the scratch directory the gate uses) and
+  signs it ad hoc with the hardened runtime and `Resources/ContainerRunner.entitlements`
+  (`com.apple.security.virtualization` only, judged against the entitlement policy), then verifies the signature and reads
+  the effective entitlements back. It shares those steps with `vmr build-app` and the sandbox helper.
+- The `packages` key of `.vmr.json` in `vmr`, with tests against a fixture package (a pass, a failing test, a build error, a
+  missing manifest, the path rules), and a test that the nested package's safety settings are a verbatim copy of the root's.
 
 ### What was verified without a guest
 
-- The whole gate (`swift run vmr check --full`, 12 steps, 41 minutes) passes with the dependency present: format, SwiftLint,
-  documentation, build, tests, the three analyzers, the address, thread and undefined-behaviour sanitizer runs, the release
-  build, the coverage gate and the benchmark gate, with no baseline change. The analyzers also print their existing warnings
-  and notes; none is new.
-- Signing: four tests sign a copy of a system executable and read the result back with `codesign`, and a fifth checks the
-  entitlements file. A real run of `swift run vmr container-sign` built the release runner (410 s on one machine, from a build
-  directory that held only the debug build) and signed it, and the signed binary starts and prints its usage under the
-  hardened runtime.
-- A **clean build of the app product alone** compiles no more than before: the same command into an empty scratch directory
-  took 29.96 s with the packages already fetched (32.69 s before, which included fetching the 5 packages of that time). **A
-  first build in a fresh checkout is slower anyway**, 81.92 s against 32.69 s, because SwiftPM fetches all 30 packages
-  whichever product is built (user CPU 87 s against 98 s: the extra time is fetching, not compiling). If that matters, the
-  runner can move to a package of its own, at the cost of the gate no longer building it.
+- The whole gate (`swift run vmr check --full`, 13 steps, 17 minutes with warm caches) passes with the package present:
+  format, SwiftLint, documentation, policy, build and test (the root and `Packages/Containers`), the three analyzers, the
+  address, thread and undefined-behaviour sanitizer runs, the release build, the coverage gate and the benchmark gate, with
+  no baseline change. The analyzers also print their existing warnings and notes; none is new. The sanitizer, release and
+  coverage steps cover the root package only.
+- Signing: four tests sign a copy of a system executable and read the result back with `codesign`, one builds a fixture
+  package of its own into its scratch directory and signs the result, and one checks the entitlements file. A real
+  `swift run vmr container-sign` built the release runner from `Packages/Containers` (695 s cold on one machine, including
+  `vmr` itself; 910 s of CPU) and signed it; the signed binary starts and prints its usage under the hardened runtime. It
+  lands in `.build-packages/Packages-Containers/release/ContainerRunner`.
+- **The root build does not change.** The root `Package.swift` and `Package.resolved` are identical to main's apart from two
+  comment lines that mark the shared safety settings, and a test checks that the root names neither the package nor its
+  library. A clean `swift build --product VMRunner` into an empty scratch directory took 63.4 s on this branch and 74.0 s on
+  unmodified main (user CPU 65.3 s and 65.0 s; five packages fetched in both). What grows is `vmr check build`, which now
+  also builds the nested package, and the first signing.
+- The three analyzers look only at `Sources` and `Tests`, so they do not see the nested package; run by hand on its sources
+  and tests they report no finding. Making the gate look there needs a root list in the analyzer service, which is not a
+  one-line change.
 - With a temporary hook that was not committed, the runner ran everything up to, and excluding, the boot: the kernel download,
   both checksums and the unpacking; the init image pull and init block (14.3 s cold); the arm64 alpine pull (3.6 s cold);
   unpacking the image to a root filesystem and creating the container object (8.3 s); the cleanup. A second run reused the
   caches (0 s, 0.9 s, 2.2 s), and a kernel with one byte appended was refused and removed. These are debug-build timings on one
-  machine and are not the figures the owner run reports.
+  machine and are not the figures the first run reports.
 - With the same kind of hook, the loopback network handed out its interface (198.18.0.2/24, gateway 198.18.0.1), the interface
   produced a virtualization network device configuration with a file-handle attachment, a second interface was refused, and a
   frame written to the guest end of the pair was read on the host end. The unit tests cover a frame above the 2 KiB default of
@@ -241,26 +248,29 @@ files in a scratch package with the repository's compiler flags and no source ch
 3. The stack's tests (`UserNet*`, `Network*`, the VPN tests in `Tests/VMRunnerTests`) use `@testable import VMRunner` and
    would move to a test target of the new module. The coverage ignore pattern in `.vmr.json` and the sanitizer trigger in
    `ci.yml` both name `Sources/VMRunner/Network` and `Engine` by path and would follow the files.
-4. In the runner, `LoopbackLink` is replaced by the stack's attachment: start the stack before the container boots, stop it
+4. The runner's package would need the module. The root package would have to export it as a library product and
+   `Packages/Containers` depend on the root by path, which adds the root's own packages to the nested graph's resolution
+   (they are not linked); or the stack becomes a package of its own that both depend on, which keeps the two graphs apart.
+5. In the runner, `LoopbackLink` is replaced by the stack's attachment: start the stack before the container boots, stop it
    after, and give the interface the stack's guest address and gateway (already the runner's). The container library
    configures a static address and never asks for DHCP, so the stack's DHCP server would go unused.
 
-### Owner run
+### First run
 
 Needs an Apple silicon Mac on macOS 26 or later, about 600 MB of free disk space and network access to GitHub and two
-registries. It needs no administrator rights and installs nothing outside the checkout's `.build` and the scratch
+registries. It needs no administrator rights and installs nothing outside the checkout's `.build-packages` and the scratch
 directory. Run it in a normal Terminal window, not from an agent.
 
 ```sh
 swift run vmr container-sign
 ```
 
-This builds the release runner (about seven minutes the first time on the machine used here; the container package's graph is
+This builds the release runner (about eleven minutes the first time on the machine used here; the container package's graph is
 compiled) and ends with `entitlements OK (com.apple.security.virtualization)` and `Signed <path>`. The binary is
-`.build/release/ContainerRunner`.
+`.build-packages/Packages-Containers/release/ContainerRunner`.
 
 ```sh
-.build/release/ContainerRunner ~/ContainerRunnerScratch
+.build-packages/Packages-Containers/release/ContainerRunner ~/ContainerRunnerScratch
 ```
 
 The first run downloads the 290 MB kernel archive, so it takes a few minutes. Expected output, with your own numbers:
@@ -286,7 +296,7 @@ path is printed to standard error.
 Then the second check, with the same scratch directory (everything is cached):
 
 ```sh
-.build/release/ContainerRunner --network loopback ~/ContainerRunnerScratch
+.build-packages/Packages-Containers/release/ContainerRunner --network loopback ~/ContainerRunnerScratch
 ```
 
 It adds `frames-seen: N`, up to 20 lines `frame: <source> -> <destination>, <length> bytes, <what>` and
@@ -313,7 +323,7 @@ text and the boot log if there was one; `sw_vers -productVersion` and the Mac's 
 ### Not verified by the runner work
 
 That a virtual machine boots at all with these pins; the figures for the boot and the run; the behaviour of the hardened
-runtime with the library under a real run; the loopback network with a real guest; the CI workflows with the dependency
-present (the same commands pass locally, but the hosted runners were not tried, and the sanitizer jobs build the container
-package's graph whenever `Package.resolved` changes); the licences of the 24 added packages (nothing is shipped, but an
-inventory is due before the app links any of them).
+runtime with the library under a real run; the loopback network with a real guest; the CI workflows with the new package
+(the same commands pass locally, but the hosted runners were not tried, and the build lane compiles the package's graph on
+every run until `.build-packages` is cached); the licences of the 24 packages the library brings in (nothing is shipped, but
+an inventory is due before the app links any of them).

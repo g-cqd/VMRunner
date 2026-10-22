@@ -6,6 +6,8 @@ import Foundation
 /// breaks `EntitlementPolicy`, is refused before anything is built or signed.
 struct ContainerSigner {
     static let productName = "ContainerRunner"
+    /// The package of its own the runner lives in, built into the scratch directory `vmr check build` uses for it.
+    static let package = NestedPackage(path: "Packages/Containers")
 
     let root: URL
     /// An executable that is already built; `nil` builds the product first.
@@ -49,7 +51,7 @@ struct ContainerSigner {
         if let binary {
             target = binary
         } else {
-            let arguments = ["--package-path", root.path, "-c", configuration.rawValue, "--product", Self.productName]
+            let arguments = Self.package.selection(in: root) + ["-c", configuration.rawValue, "--product", Self.productName]
             target = try await BuildTools.build(arguments).appending(path: Self.productName)
         }
         guard FileManager.default.isExecutableFile(atPath: target.path) else { throw ToolError("\(target.path) is not an executable") }

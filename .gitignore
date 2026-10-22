@@ -2,7 +2,6 @@
 .build/
 .build-*/
 .swiftpm/
-Packages/
 
 # App bundle produced by `vmr build-app`
 build/

@@ -15,6 +15,11 @@ struct NestedPackage: Equatable, Sendable {
     /// The `swift build` and `swift test` arguments that select this package and its scratch directory.
     var selection: [String] { ["--package-path", path, "--scratch-path", scratchPath] }
 
+    /// `selection` with absolute paths below `root`, for a command that does not run in the repository root.
+    func selection(in root: URL) -> [String] {
+        ["--package-path", root.appending(path: path).path, "--scratch-path", root.appending(path: scratchPath).path]
+    }
+
     /// Checks the configured `paths` against `root`.
     ///
     /// - Throws: ``ToolError`` for an empty, absolute or parent-relative path, a duplicate, or a directory without a

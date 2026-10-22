@@ -5,6 +5,8 @@ included:
   - Sources
   - Plugins
   - Tests
+  - Packages/Containers/Sources
+  - Packages/Containers/Tests
 
 excluded:
   - Sources/TestKit

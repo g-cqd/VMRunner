@@ -38,6 +38,39 @@ struct ContainerSignTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(8)))
+    func theRunnerIsBuiltFromThePackageOfItsOwnIntoItsScratchDirectoryAndSigned() async throws {
+        try await withTemporaryDirectory { directory in
+            try write(
+                [
+                    "Resources/ContainerRunner.entitlements": AppFixture.entitlements(Self.virtualization),
+                    "Packages/Containers/Package.swift": """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+
+                    let package = Package(
+                      name: "Containers",
+                      platforms: [.macOS(.v14)],
+                      targets: [.executableTarget(name: "ContainerRunner")]
+                    )
+                    """,
+                    "Packages/Containers/Package.resolved": #"{ "pins": [], "version": 3 }"#,
+                    "Packages/Containers/Sources/ContainerRunner/main.swift": "print(\"hello\")\n",
+                ], to: directory)
+            let run = try await VMR.vmr(["container-sign", "debug", "--root", directory.path], in: directory)
+            #expect(run.status == 0, "\(run.combined)")
+            let scratch = directory.appending(path: ".build-packages/Packages-Containers").path
+            let signed = try #require(run.outputLines.first { $0.hasPrefix("Signed ") }, "\(run.output)")
+            #expect(signed.hasPrefix("Signed \(scratch)/"), "the runner builds where vmr check build builds it: \(signed)")
+            #expect(signed.hasSuffix("/ContainerRunner"), "\(signed)")
+            #expect(!FileManager.default.fileExists(atPath: directory.appending(path: ".build").path), "the root is not built")
+
+            let binary = String(signed.dropFirst("Signed ".count))
+            let verify = try await VMR.run("/usr/bin/codesign", ["--verify", "--strict", binary], in: directory)
+            #expect(verify.status == 0, "\(verify.combined)")
+        }
+    }
+
     @Test
     func entitlementsThatDoNotGrantVirtualizationAreRefusedBeforeAnythingIsSigned() async throws {
         try await withFixture(entitlements: ["com.apple.security.device.audio-input": "<true/>"]) { directory, binary in

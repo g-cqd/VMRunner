@@ -14,10 +14,20 @@ updates:
       prefix: ci
 
   # The VMRunner app depends on swift-async-algorithms (and through it swift-collections); the developer tooling
-  # (DevTools, vmr) on swift-subprocess and swift-argument-parser; the container runner (ContainerRunner) on containerization.
-  # All are pinned with `exact:` in Package.swift; this proposes their updates, and any added later.
+  # (DevTools, vmr) on swift-subprocess and swift-argument-parser. All are pinned with `exact:` in Package.swift; this
+  # proposes their updates, and any added later.
   - package-ecosystem: swift
     directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+
+  # The container runner is a package of its own (Packages/Containers, ADR-0017), so that the container library and the
+  # packages it brings in stay out of the root package's graph. It pins its library with `exact:` and commits its own
+  # Package.resolved.
+  - package-ecosystem: swift
+    directory: /Packages/Containers
     schedule:
       interval: weekly
     commit-message:

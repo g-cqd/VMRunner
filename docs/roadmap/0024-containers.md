@@ -17,8 +17,9 @@ returns to the app. Then: container networking through the user-mode stack, and 
 
 The container runner (`ContainerRunner`, built and signed by `vmr container-sign`) is written and tested without a guest;
 the runner section of the study lists what was and was not verified. The dependency is pinned at 0.52.1, the first release
-that fixes the digest advisory, and only the runner links it. Its second check ran against a socketpair, not the app's
-user-mode stack: the study says what a module split would take.
+that fixes the digest advisory, and only the runner links it, from a package of its own (`Packages/Containers`) so that the
+root graph stays small. The runner's second check ran against a socketpair, not the app's user-mode stack: the study says
+what a module split would take.
 
 ## Blocked on
 

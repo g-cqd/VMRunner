@@ -145,9 +145,12 @@ dependency change run `swift package resolve` and commit the file. The same goes
 headless helper of the sandbox spike (roadmap 0025): `swift run vmr sandbox-spike run` launches it under App Sandbox or a
 Seatbelt profile. Without `--boot` it only probes and validates; `--boot` starts a virtual machine and is for the owner.
 
-The container runner (roadmap 0024) is the one place a further package is linked: `Sources/ContainerRunner` links Apple's
-containerization package, pinned with `exact:` like the others, and nothing else does. `swift run vmr container-sign` builds and
-signs it; running it boots a virtual machine, so only its owner does, from `docs/research/containers-2026-10.md`.
+The container runner (roadmap 0024) lives in a package of its own, `Packages/Containers`, with its own committed
+`Package.resolved`: it links the container library of ADR-0017, pinned with `exact:`, and the packages that brings in, none of
+which belongs in the root graph. The root package does not depend on it, and the `packages` key of `.vmr.json` makes
+`vmr check build test` cover it. `swift run vmr container-sign` builds and signs the runner; running it boots a virtual
+machine, so only its owner does, from `docs/research/containers-2026-10.md`. A new package copies the root manifest's
+`// BEGIN shared settings` block verbatim (a test compares them).
 
 ## Continuous integration
 
