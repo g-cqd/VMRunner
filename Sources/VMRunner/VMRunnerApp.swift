@@ -7,7 +7,7 @@ import os
 struct VMRunnerApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     private let library: VMLibrary
-    @AppStorage("hidesToolbarInFullScreen") private var hidesToolbarInFullScreen = true
+    @AppStorage("hidesToolbarInFullScreen", store: PreferencesDomain.defaults) private var hidesToolbarInFullScreen = true
 
     init() {
         AppPaths.refuseUnusableOverride()

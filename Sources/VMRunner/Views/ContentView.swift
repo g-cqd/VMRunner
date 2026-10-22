@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(VMLibrary.self) private var library
-    @AppStorage("hidesToolbarInFullScreen") private var hidesToolbarInFullScreen = true
+    @AppStorage("hidesToolbarInFullScreen", store: PreferencesDomain.defaults) private var hidesToolbarInFullScreen = true
     @State private var window: NSWindow?
     @State private var isFullScreen = false
 
