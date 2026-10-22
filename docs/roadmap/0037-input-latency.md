@@ -25,20 +25,28 @@ stated per stage:
 
 ## Hypotheses to test, in order of likelihood
 
-1. **Debug build.** `swift run` builds without optimisation; every main-thread cycle of the app, which also handles the view's
-   events, is slower. Compare with `vmr build-app` (release).
-2. **App Nap and timer coalescing** throttle an app that the system thinks is idle. A running machine should hold a
-   user-interactive, latency-critical activity assertion (with an energy cost that is stated in the settings help).
-3. **Main-thread work during input.** The framework's view receives events on the main thread, so anything else on it delays
-   them: SwiftUI re-evaluation, the display resizer, flow-log and activity publishing from the network stack (which can flood
-   it), logging, observation churn, toolbar updates, the window reader.
-4. **Device choice.** The Linux guest uses a USB keyboard and a USB absolute pointing device, whose polling interval can add
-   milliseconds that no app code can remove; the macOS guest uses the paravirtual keyboard and trackpad. A "mouse" pointing
-   device on a macOS guest also selects the USB device.
-5. **The view and its container**: first-responder handling, an extra layer or overlay, layer-backed redraw policy, a
-   scaled or resized view, system-key capture.
-6. **Frame pacing**: display refresh, ProMotion behaviour, graphics device configuration, and the guest's own sync.
-7. **Sanitizer or debug-info builds** being the ones the owner runs.
+The order below follows the audit in [the input latency study](../research/input-latency-2026-10.md), which also holds the
+evidence for and against each item and the owner's measurement protocol. The owner runs the bundled release app
+(`swift run vmr build-app`), so the debug build is demoted; the app's own path to the framework is a direct view on the main
+thread with nothing else on it, so the stages outside the app move up. Nothing has been measured yet.
+
+1. **The stages the app does not own**: the framework's delivery to the machine's process, the virtual USB device model (Linux
+   guests, and a macOS guest with the "Mouse" pointer; the API offers no polling or virtio input option), the cursor the guest draws
+   for an absolute pointer, and the guest's own scheduling. Measure with the guest-side timestamp of the protocol; compare Trackpad
+   with Mouse on macOS.
+2. **Main-thread work during input.** The framework's view receives events on the main thread, so anything else on it delays them.
+   One flood path was found and fixed: filtered networking published one main-actor job per flow event (now batched). The latency
+   monitor reports any other stall with the work inside it.
+3. **App Nap and timer coalescing.** A running machine now holds a latency-critical activity assertion (a setting, on by default,
+   with the energy cost stated in help). Its effect is to be measured with the setting on and off.
+4. **The view and its container**: first-responder handling, an extra layer or overlay, layer-backed redraw policy, a scaled or
+   resized view, system-key capture, and the translucent window chrome. No overlay or extra layer was found while a machine runs;
+   compare windowed with full screen. The display code is changed by other work.
+5. **Frame pacing and power**: display refresh, ProMotion behaviour, graphics device configuration, the guest's own sync, battery and
+   Low Power Mode.
+6. **The hardened profile** (`vmr build-app release --hardened`) changes the heap allocator; which profile the owner runs is not known.
+7. **Debug, sanitizer or debug-info builds**: excluded for the bundled release (`-c release`, no unsafe flags, sanitizers only in the
+   `vmr check --full` build directories); revisit only if the bundle carries `get-task-allow`.
 
 ## Done when
 

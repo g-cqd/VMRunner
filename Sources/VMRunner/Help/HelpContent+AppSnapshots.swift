@@ -72,6 +72,13 @@ extension HelpCatalog {
                 "`open VMRunner.app --args --start \"Machine name\"`",
                 "You can use the machine's name or its identifier. The window opens and the machine starts.",
             ],
+            advanced: [
+                "`--input-latency` measures how late keyboard and mouse events reach the app and how long the main thread stays busy. "
+                    + "Add `--input-latency-threshold-ms 1`, `--input-latency-interval 10` and `--input-latency-file /absolute/path` to "
+                    + "change what counts as a stall, the seconds between summaries and where they are also written. The environment "
+                    + "variables `VMR_INPUT_LATENCY`, `VMR_INPUT_LATENCY_THRESHOLD_MS`, `VMR_INPUT_LATENCY_INTERVAL` and "
+                    + "`VMR_INPUT_LATENCY_FILE` do the same. Summaries also go to the system log, category `input`."
+            ],
             related: [.controls]
         ),
         .limits: HelpEntry(
