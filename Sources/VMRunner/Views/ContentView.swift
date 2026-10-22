@@ -119,6 +119,18 @@ extension NSWindow {
     func stopSavingFrameAndState() {
         _ = setFrameAutosaveName("")
         isRestorable = false
+        let window = self
+        contentView?.stopSavingSplitViewState()
+        // SwiftUI creates the window's split view after the window exists, so it is cleared again on the next main-actor turn.
+        Task { @MainActor in window.contentView?.stopSavingSplitViewState() }
+    }
+}
+
+extension NSView {
+    /// Clears the autosave name of every split view in this view's tree, so AppKit stops recording their widths.
+    func stopSavingSplitViewState() {
+        if let splitView = self as? NSSplitView { splitView.autosaveName = nil }
+        for subview in subviews { subview.stopSavingSplitViewState() }
     }
 }
 

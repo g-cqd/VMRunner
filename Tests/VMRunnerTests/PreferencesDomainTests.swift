@@ -28,6 +28,23 @@ struct WindowStateTests {
         #expect(window.frameAutosaveName.isEmpty)
         #expect(!window.isRestorable)
     }
+
+    @Test func aSplitViewDeepInTheWindowStopsSavingItsWidths() {
+        let root = NSView()
+        let wrapper = NSView()
+        let outer = NSSplitView()
+        outer.autosaveName = "VMRunnerTests-outer"
+        let inner = NSView()
+        let deeper = NSSplitView()
+        deeper.autosaveName = "VMRunnerTests-deeper"
+        root.addSubview(wrapper)
+        wrapper.addSubview(outer)
+        outer.addSubview(inner)
+        inner.addSubview(deeper)
+        root.stopSavingSplitViewState()
+        #expect(outer.autosaveName == nil)
+        #expect(deeper.autosaveName == nil)
+    }
 }
 
 struct LaunchDefaultsTests {

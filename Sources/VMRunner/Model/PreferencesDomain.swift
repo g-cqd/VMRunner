@@ -22,7 +22,8 @@ enum PreferencesDomain {
     }
 
     /// Whether this run keeps its settings out of the standard domain. Such a run also neither autosaves its main window's
-    /// frame nor restores its windows, which AppKit would record in the standard domain and the saved application state.
+    /// frame nor restores its windows, which AppKit would record in the standard domain and the saved application state. Nor does
+    /// it record the widths of the split views (the sidebar), which AppKit would also write to the standard domain.
     static var isSeparate: Bool { suiteName(environment: ProcessInfo.processInfo.environment, appIdentifier: Log.subsystem) != nil }
 
     /// Registers (never writes) the defaults every launch needs. `ApplePersistenceIgnoreState` makes AppKit neither restore windows
