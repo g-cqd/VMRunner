@@ -209,7 +209,11 @@ final class VMController {
             let prepared = try await factory.prepare(
                 attempt.config, bundle: attempt.bundle, display: attempt.display.size, suspendAllowed: attempt.suspendAllowed)
             // The run ended while the configuration was built (a forced stop): what was built never started, and is dropped.
-            guard token == run else { return nil }
+            guard token == run else {
+                // The stack was never started; it is stopped explicitly so the stop-on-every-path rule holds without deinit.
+                prepared.network?.stop()
+                return nil
+            }
             adopt(prepared, run: token)
             let canRestore = prepared.suspend == .available && attempt.bundle.hasSavedState
             if !canRestore && attempt.display.source == .savedState {
@@ -220,6 +224,7 @@ final class VMController {
             }
             return .prepared(canRestore: canRestore)
         } catch {
+            guard token == run else { return nil }
             Log.machine.error("Start failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
             return .startFailed(error.localizedDescription)
         }

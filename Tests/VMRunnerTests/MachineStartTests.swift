@@ -287,6 +287,9 @@ struct MachineStartTests {
         gate.open()
         await start.value
         #expect(guest.count(.start) == 0, "the machine built for the stopped run never starts")
+        let events = try await rig.factory.network.wait(forAtLeast: 1)
+        #expect(events.contains("shutdown#1"), "the stack built for the stopped run is stopped")
+        #expect(!events.contains("begin#1"), "the stack built for the stopped run is never begun")
         rig.expectReleased()
     }
 }
