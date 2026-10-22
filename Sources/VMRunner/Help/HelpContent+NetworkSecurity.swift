@@ -94,7 +94,8 @@ extension HelpCatalog {
                     + "virtualization, or vsock, "
                     + "and shared folders become read-only.",
                 "• **Isolated**: Contained, and also no network, no shared folders, extra disks or attached installer image, and no "
-                    + "sound. Linux gets Secure Boot if your Mac supports it.",
+                    + "sound. Linux gets Secure Boot if your Mac supports it and the machine's image can boot with it (Alpine "
+                    + "cannot, so its Secure Boot stays off).",
                 "• **Hardened**: Isolated, and also disposable (changes are discarded), no suspend, no memory balloon, no automatic "
                     + "login or "
                     + "remote login on a new macOS account, and a 2-hour runtime limit.",
@@ -139,6 +140,9 @@ extension HelpCatalog {
                 "It needs a Mac running macOS 27 or later; on older versions the switch is disabled. Debian, CentOS, Fedora, and "
                     + "Ubuntu ship "
                     + "signed boot files. Custom kernels and some small distributions (for example Alpine) will not start.",
+                "A machine made from the Alpine Linux image keeps Secure Boot off: the switch is disabled with the reason, and "
+                    + "no security profile turns it on. A machine made from your own ISO is not restricted, because VMRunner "
+                    + "cannot tell what that image supports.",
             ],
             advanced: [
                 "VMRunner enrolls Apple's platform key plus Microsoft's UEFI keys, so Microsoft-signed distribution loaders work. "

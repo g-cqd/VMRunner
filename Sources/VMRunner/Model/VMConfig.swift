@@ -162,6 +162,10 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var maxRuntimeMinutes = 0
     /// Linux only (macOS 27+): enforce UEFI Secure Boot with the Apple platform key and Microsoft's keys.
     var secureBoot = false
+    /// Linux only: whether the catalog image the machine was made from has a signed boot chain, so Secure Boot can be on. True
+    /// for every other source, including a file the user picked, whose capability is unknown, and for a machine stored before
+    /// this existed. Setup records it from the catalog entry (`recordCatalogImageCapabilities()`).
+    var imageSupportsSecureBoot = true
 
     // Boot
     var bootIntoRecovery = false

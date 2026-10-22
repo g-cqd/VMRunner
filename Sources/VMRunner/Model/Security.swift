@@ -25,7 +25,7 @@ enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
                 + "shared folders become read-only."
         case .isolated:
             "Contained, plus no network, no shared folders, extra disks or attached installer, no sound, "
-                + "and Secure Boot on Linux when the host runs macOS 27 or later."
+                + "and Secure Boot on Linux when the host runs macOS 27 or later and the image can boot with it."
         case .hardened:
             "Isolated, plus a disposable disk (changes are discarded on stop), no suspend files, no memory balloon, "
                 + "no first-boot auto-login or SSH, and a 2-hour runtime limit."
@@ -40,8 +40,60 @@ enum HostCapabilities {
     }
 }
 
+/// Whether Secure Boot can be on for a machine, and if not, why: the host and the machine's image must both be able to use it.
+enum SecureBootAvailability: Equatable, Sendable {
+    /// A guest that has no Secure Boot switch.
+    case notApplicable
+    case available
+    case hostTooOld
+    /// The image this machine was made from has an unsigned boot chain, so it would not start with Secure Boot on.
+    case imageUnsupported
+
+    /// What the editor says under the switch.
+    var note: String {
+        switch self {
+        case .notApplicable: ""
+        case .available: "Only signed bootloaders and kernels run. CentOS, RHEL, Fedora, Ubuntu, and Debian ship signed ones."
+        case .hostTooOld: "Needs macOS 27 or later."
+        case .imageUnsupported:
+            "The image this machine was made from has no signed bootloader and can't start with Secure Boot, "
+                + "so it stays off and no security profile turns it on."
+        }
+    }
+}
+
 extension VMConfig {
-    func applying(_ profile: SecurityProfile) -> VMConfig {
+    /// `hostSupports` is a parameter so tests can cover a host that manages Secure Boot as well as one that does not.
+    func secureBootAvailability(hostSupports: Bool = HostCapabilities.secureBoot) -> SecureBootAvailability {
+        guard guest == .linux else { return .notApplicable }
+        guard imageSupportsSecureBoot else { return .imageUnsupported }
+        return hostSupports ? .available : .hostTooOld
+    }
+
+    /// Whether the Secure Boot switch can be changed. A machine whose image cannot use Secure Boot can only have it turned off.
+    var secureBootIsEditable: Bool {
+        switch secureBootAvailability() {
+        case .available: true
+        case .imageUnsupported: secureBoot
+        case .hostTooOld, .notApplicable: false
+        }
+    }
+
+    /// The note under the switch; says what to do when the switch is on although the image cannot start with it.
+    var secureBootNote: String {
+        let availability = secureBootAvailability()
+        guard availability == .imageUnsupported, secureBoot else { return availability.note }
+        return availability.note + " Turn it off, or the machine will not start."
+    }
+
+    /// Records what the catalog image this machine installs from can do. Setup calls it once the machine's media is chosen;
+    /// any other source, a file the user picked included, is of unknown capability and keeps the default.
+    mutating func recordCatalogImageCapabilities() {
+        guard case .linuxCatalog(let id) = source, let image = LinuxCatalog.image(id: id) else { return }
+        imageSupportsSecureBoot = image.supportsSecureBoot
+    }
+
+    func applying(_ profile: SecurityProfile, hostSupportsSecureBoot: Bool = HostCapabilities.secureBoot) -> VMConfig {
         var config = self
         // Standard restores the channels the stricter profiles close; it leaves your own opt-ins alone.
         config.networkMode = .nat
@@ -70,7 +122,7 @@ extension VMConfig {
         config.sharedFolders = []
         config.extraDisks = []
         config.installerAttached = false
-        config.secureBoot = guest == .linux && HostCapabilities.secureBoot
+        config.secureBoot = secureBootAvailability(hostSupports: hostSupportsSecureBoot) == .available
         guard profile == .hardened else { return config }
 
         config.ephemeral = true
@@ -196,12 +248,7 @@ extension VMConfig {
             ephemeral
                 ? Exposure(level: .none, text: "Disposable: disk and firmware changes are discarded when the VM stops.")
                 : Exposure(level: .low, text: "Persistent: anything the guest writes, including malware, stays in the disk image."))
-        if guest == .linux {
-            items.append(
-                secureBoot
-                    ? Exposure(level: .none, text: "Secure Boot is enforced.")
-                    : Exposure(level: .low, text: "Secure Boot is off: unsigned bootloaders and kernels can run."))
-        }
+        if guest == .linux { items.append(secureBootExposure) }
         if guest == .macOS, provisioning.enabled, !hasBooted {
             if provisioning.logsInAutomatically {
                 items.append(Exposure(level: .medium, text: "The first-boot account logs in automatically."))
@@ -215,6 +262,21 @@ extension VMConfig {
 }
 
 extension VMConfig {
+    fileprivate var secureBootExposure: Exposure {
+        let unusable = secureBootAvailability() == .imageUnsupported
+        if secureBoot {
+            return unusable
+                ? Exposure(level: .low, text: "Secure Boot is on, but this machine's image has no signed bootloader, so it will not start.")
+                : Exposure(level: .none, text: "Secure Boot is enforced.")
+        }
+        return unusable
+            ? Exposure(
+                level: .low,
+                text: "Secure Boot is off and stays off: this machine's image has no signed bootloader, so no profile can turn it on. "
+                    + "Unsigned bootloaders and kernels can run.")
+            : Exposure(level: .low, text: "Secure Boot is off: unsigned bootloaders and kernels can run.")
+    }
+
     /// Filtered networking narrows reach, but it is a young implementation that sits in this app's own process, so the
     /// summary says what it enforces, what it can't, and that the guest's frames are parsed by VMRunner itself.
     fileprivate var filteredNetworkExposures: [Exposure] {

@@ -138,6 +138,8 @@ enum LinuxCatalog {
             provider: .ubuntuServer(release: "26.04")),
     ]
 
+    static func image(id: String) -> LinuxImage? { images.first { $0.id == id } }
+
     /// Verified providers that are deliberately not offered yet: each is one move into `images`, plus its host
     /// in `DownloadPolicy.allowedHosts`, away from being available.
     static let candidates = [

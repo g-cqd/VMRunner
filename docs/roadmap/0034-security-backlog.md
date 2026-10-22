@@ -12,7 +12,9 @@ stack findings and the download findings (including the rollback through the uns
 ## Open
 
 1. A per-provider version floor and version binding so an older genuinely signed release cannot be installed (queued).
-2. The image's Secure Boot capability is never read: Isolated and Hardened turn Secure Boot on, which Alpine cannot boot.
+2. *Fixed.* The image's Secure Boot capability was never read: Isolated and Hardened turned Secure Boot on, which Alpine cannot
+   boot. Setup now records the catalog image's capability in the machine (`imageSupportsSecureBoot`); a profile never turns
+   Secure Boot on for an image that cannot use it, and the editor and the exposure summary say so.
 3. Pins for AlmaLinux, Rocky and each Fedora release; Debian netboot needs the signed archive Release chain; key expiry
    dates per pinned key.
 4. Domain deny rules lose effect when the name table expires: derived address blocks; a DNS worker pool instead of a thread

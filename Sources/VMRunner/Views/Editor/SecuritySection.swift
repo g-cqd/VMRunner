@@ -45,14 +45,10 @@ struct SecuritySection: View {
     @ViewBuilder
     private var secureBootRows: some View {
         Toggle("Secure Boot", isOn: $config.secureBoot)
-            .disabled(!HostCapabilities.secureBoot)
+            .disabled(!config.secureBootIsEditable)
             .settingHelp(.secureBoot)
-        Text(
-            HostCapabilities.secureBoot
-                ? "Only signed bootloaders and kernels run. CentOS, RHEL, Fedora, Ubuntu, and Debian ship signed ones."
-                : "Needs macOS 27 or later."
-        )
-        .font(.caption).foregroundStyle(.secondary)
+        Text(config.secureBootNote)
+            .font(.caption).foregroundStyle(.secondary)
     }
 
     private var exposures: some View {

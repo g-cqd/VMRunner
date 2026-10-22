@@ -30,6 +30,7 @@ enum Provisioner {
     @MainActor
     private static func provisionLinux(_ config: VMConfig, _ library: any MachineStore, _ job: SetupJob) async throws {
         var config = config
+        config.recordCatalogImageCapabilities()
         let bundle = library.bundle(config.id)
 
         let media = try await resolveMedia(config.source, job: job)
@@ -157,7 +158,7 @@ enum Provisioner {
             return try await ImageStore.fetch(
                 latest.url, checksum: checksum, maximumBytes: ImageStore.restoreImageMaximumBytes, job: job)
         case .linuxCatalog(let id):
-            guard let entry = LinuxCatalog.images.first(where: { $0.id == id }) else {
+            guard let entry = LinuxCatalog.image(id: id) else {
                 throw SetupError.missingFile("catalog entry \(id)")
             }
             job.title = "Looking up the newest \(entry.name)"

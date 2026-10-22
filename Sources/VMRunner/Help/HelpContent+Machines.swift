@@ -78,7 +78,7 @@ extension HelpCatalog {
                 "• A **boot ISO** is small and downloads the packages during installation, so the VM needs a network.",
                 "• A **DVD** ISO is large but installs offline.",
                 "• **Alpine Linux** is a small diskless system that runs from memory until you install it to disk. It does not "
-                    + "support Secure Boot, so leave that off for it.",
+                    + "support Secure Boot, so VMRunner keeps that off for it.",
                 "• **Ubuntu Server** is a live-server ISO of about 3 GB that installs offline.",
                 "Every download is checked against the checksum the project publishes. For **Ubuntu Server** and **Alpine Linux**, "
                     + "the project's OpenPGP signature is checked too, against a key built into VMRunner; a missing or wrong signature "
