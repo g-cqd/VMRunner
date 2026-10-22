@@ -110,6 +110,19 @@ struct SeatbeltProfileTests {
     }
 
     @Test
+    func aFilteredNetworkNeedsTheHostSocketsAndItsPolicyFileReadableAtTheStandardLevelOnly() throws {
+        var filtered = machine(network: .filtered)
+        filtered.networkPolicy = "/private/vm/policy.json"
+        let standard = try profile(filtered, level: .standard)
+        #expect(standard.contains(#"(allow network-outbound (remote ip "*:*") (literal "/private/var/run/mDNSResponder"))"#))
+        #expect(standard.contains(#"(allow file-read* (literal "/private/vm/policy.json"))"#))
+        #expect(!standard.contains(#"file-read* file-write* (literal "/private/vm/policy.json")"#), "the policy is read, never written")
+        let strict = try profile(filtered, level: .strict)
+        #expect(!strict.contains("network-"), "a stack that opens host sockets is not allowed at the strict level")
+        #expect(strict.contains(#"(allow file-read* (literal "/private/vm/policy.json"))"#))
+    }
+
+    @Test
     func theProfileIsDeterministic() throws {
         #expect(try profile(machine()) == profile(machine()))
     }

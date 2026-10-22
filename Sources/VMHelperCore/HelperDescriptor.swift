@@ -20,6 +20,18 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
     /// A serial console served on a local socket: the guest's first serial port (`hvc0`) is bridged to it. Absent: the port
     /// goes to the helper's standard error.
     public var console: Console?
+    /// `filtered` only: the network policy the stack enforces, as the JSON the app stores for it. Read when the machine starts
+    /// and again on each `policy` command (`HelperCommand`). Absent: the default policy (the internet, no private networks).
+    public var networkPolicy: String?
+    /// `filtered` only: what the guest sees when the policy denies a TCP connection.
+    public var denyAction: DenyAction
+
+    public enum DenyAction: String, Codable, Sendable {
+        /// The connection is refused at once.
+        case reset
+        /// Nothing is said, so the guest's attempt times out.
+        case drop
+    }
 
     public struct Console: Codable, Equatable, Sendable {
         /// A local socket path holds at most this many bytes (`sockaddr_un.sun_path` minus its terminating NUL).
@@ -83,11 +95,15 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         /// A virtio card on one end of a datagram socket pair; the helper holds the other end. The helper runs no stack on
         /// it, so the guest sees a link that goes nowhere; it exists to show that the attachment works inside a sandbox.
         case fileHandle
+        /// A virtio card on the same kind of socket pair, with the app's user-mode network stack on the other end: the helper
+        /// judges every connection of the guest by `networkPolicy` and reports what it did as `flow` events.
+        case filtered
     }
 
     public init(
         version: Int = Self.currentVersion, name: String, cpuCount: Int = 2, memoryMiB: Int = 1024, boot: Boot, disks: [Disk] = [],
-        installerISO: String? = nil, network: Network = .none, console: Console? = nil
+        installerISO: String? = nil, network: Network = .none, console: Console? = nil, networkPolicy: String? = nil,
+        denyAction: DenyAction = .reset
     ) {
         self.version = version
         self.name = name
@@ -98,6 +114,8 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         self.installerISO = installerISO
         self.network = network
         self.console = console
+        self.networkPolicy = networkPolicy
+        self.denyAction = denyAction
     }
 
     /// `version`, `name` and `boot` are required; everything else has the default the memberwise initializer has.
@@ -112,6 +130,8 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         installerISO = try container.decodeIfPresent(String.self, forKey: .installerISO)
         network = try container.decodeIfPresent(Network.self, forKey: .network) ?? .none
         console = try container.decodeIfPresent(Console.self, forKey: .console)
+        networkPolicy = try container.decodeIfPresent(String.self, forKey: .networkPolicy)
+        denyAction = try container.decodeIfPresent(DenyAction.self, forKey: .denyAction) ?? .reset
     }
 
     // MARK: Reading
@@ -158,6 +178,9 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         guard !disks.isEmpty || installerISO != nil || runsFromMemory else {
             throw HelperFailure.invalidDescriptor("the machine needs a disk, an installerISO or a kernel boot with an initrd")
         }
+        guard network == .filtered || (networkPolicy == nil && denyAction == .reset) else {
+            throw HelperFailure.invalidDescriptor("networkPolicy and denyAction belong to a filtered network")
+        }
         for path in readPaths + readWritePaths {
             try SandboxPath.validate(path)
         }
@@ -173,10 +196,10 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
 
     // MARK: Paths
 
-    /// Files the helper only reads: the ISO, the kernel and the initial ramdisk, and read-only disks.
+    /// Files the helper only reads: the ISO, the kernel and the initial ramdisk, the network policy, and read-only disks.
     public var readPaths: [String] {
         var paths = disks.filter(\.readOnly).map(\.path)
-        paths += [installerISO, boot.kernel, boot.initrd].compactMap(\.self)
+        paths += [installerISO, boot.kernel, boot.initrd, networkPolicy].compactMap(\.self)
         return Self.unique(paths)
     }
 
@@ -209,6 +232,7 @@ public struct HelperDescriptor: Codable, Equatable, Sendable {
         copy.boot.kernel = try boot.kernel.map(resolve)
         copy.boot.initrd = try boot.initrd.map(resolve)
         copy.installerISO = try installerISO.map(resolve)
+        copy.networkPolicy = try networkPolicy.map(resolve)
         copy.disks = try disks.map { Disk(path: try resolve($0.path), readOnly: $0.readOnly) }
         copy.console = try console.map { Console(socket: try resolve($0.socket)) }
         // Resolving can lengthen a path (`/tmp` is `/private/tmp`), so the limits are checked on the result.

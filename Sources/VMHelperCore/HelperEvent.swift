@@ -19,6 +19,16 @@ public struct HelperEvent: Codable, Equatable, Sendable {
         case error
         /// `--dry-run` built and validated the configuration without starting it.
         case validated
+        /// One thing that happened to one connection of a guest on a filtered network; `message` is the line (see
+        /// `FlowEvent` in NetStack for the words) and `check` the transport.
+        case flow
+        /// The stack's verdict on whether the guest runs a VPN of its own changed; `message` says what it is now.
+        case vpn
+        /// The stack's counters as `name=value` pairs in `message`: periodically, on a `statistics` command and when the
+        /// machine ends.
+        case statistics
+        /// The outcome of a `policy` command: `check` is `applied` or `rejected`, `message` says which file or why.
+        case policy
         /// One result of `--probe`: `check` names the operation and `verdict` says whether the sandbox let it through.
         case probe
     }

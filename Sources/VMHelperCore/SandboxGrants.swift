@@ -38,7 +38,7 @@ public struct SandboxGrants: Equatable, Sendable {
         let readWrite = descriptor.readWritePaths
         self.read = Array(Set(read).subtracting(readWrite)).sorted()
         self.readWrite = readWrite
-        hostSockets = level == .standard && descriptor.network == .fileHandle
+        hostSockets = level == .standard && (descriptor.network == .fileHandle || descriptor.network == .filtered)
         consoleSocket = descriptor.console?.socket
         if let consoleSocket { try SandboxPath.validate(consoleSocket) }
     }

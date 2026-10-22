@@ -1,5 +1,7 @@
 import Foundation
 import GuestConsole
+import NetPolicy
+import NetStack
 import VMHelperCore
 import Virtualization
 
@@ -9,12 +11,13 @@ import Virtualization
 /// NAT, a serial console) so the helper does not depend on the app target. Extracting one shared builder is a follow-up: the app's builder
 /// reads `VMConfig` and `VMBundle`, which pull in most of the model layer.
 enum MachineConfiguration {
-    /// A validated configuration plus what must outlive it: the host end of the socket pair of a `fileHandle` network, and the
-    /// bridge's end of the console's socket pair.
+    /// A validated configuration plus what must outlive it: the host end of the socket pair of a `fileHandle` network, the
+    /// bridge's end of the console's socket pair, and the user-mode stack of a `filtered` network (created, not started).
     struct Built {
         let configuration: VZVirtualMachineConfiguration
         let hostDescriptor: Int32?
         let consoleDescriptor: Int32?
+        let networkStack: UserNetStack?
 
         /// Closes what a configuration that is not going to run holds.
         func release() {
@@ -39,7 +42,7 @@ enum MachineConfiguration {
         configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         let console = try console(descriptor)
         configuration.serialPorts = [console.port]
-        let network: (devices: [VZNetworkDeviceConfiguration], hostDescriptor: Int32?)
+        let network: Network
         do {
             network = try self.network(descriptor)
         } catch {
@@ -48,7 +51,9 @@ enum MachineConfiguration {
         }
         configuration.networkDevices = network.devices
 
-        let built = Built(configuration: configuration, hostDescriptor: network.hostDescriptor, consoleDescriptor: console.hostDescriptor)
+        let built = Built(
+            configuration: configuration, hostDescriptor: network.hostDescriptor, consoleDescriptor: console.hostDescriptor,
+            networkStack: network.stack)
         do {
             try configuration.validate()
         } catch {
@@ -142,15 +147,23 @@ enum MachineConfiguration {
         return (port, pair.host)
     }
 
-    private static func network(_ descriptor: HelperDescriptor) throws -> (devices: [VZNetworkDeviceConfiguration], hostDescriptor: Int32?)
-    {
+    /// The network card, if any, and what keeps it alive.
+    private struct Network {
+        var devices: [VZNetworkDeviceConfiguration] = []
+        /// The host end of a `fileHandle` network's socket pair.
+        var hostDescriptor: Int32?
+        /// The user-mode stack of a `filtered` network.
+        var stack: UserNetStack?
+    }
+
+    private static func network(_ descriptor: HelperDescriptor) throws -> Network {
         switch descriptor.network {
         case .none:
-            return ([], nil)
+            return Network()
         case .nat:
             let device = VZVirtioNetworkDeviceConfiguration()
             device.attachment = VZNATNetworkDeviceAttachment()
-            return ([device], nil)
+            return Network(devices: [device])
         case .fileHandle:
             guard let pair = DatagramPair.make() else {
                 throw HelperFailure.virtualMachine("cannot create the datagram socket pair for the network (errno \(errno))")
@@ -159,8 +172,30 @@ enum MachineConfiguration {
             // The attachment owns the guest end; the helper keeps the host end open for as long as the machine runs.
             device.attachment = VZFileHandleNetworkDeviceAttachment(
                 fileHandle: FileHandle(fileDescriptor: pair.guest, closeOnDealloc: true))
-            return ([device], pair.host)
+            return Network(devices: [device], hostDescriptor: pair.host)
+        case .filtered:
+            return try filteredNetwork(descriptor)
         }
+    }
+
+    /// A virtio card on one end of the stack's socket pair, as the app's `UserNetStack.attachment` makes it. That glue needs
+    /// Virtualization.framework, which the stack's library does not link, so the helper has its own copy of the few lines.
+    private static func filteredNetwork(_ descriptor: HelperDescriptor) throws -> Network {
+        var config = UserNetConfig()
+        config.denyAction = descriptor.denyAction == .drop ? .drop : .reset
+        let policy = try PolicyFile.load(descriptor.networkPolicy)
+        let made: (guestDescriptor: Int32, stack: UserNetStack)
+        do {
+            made = try UserNetStack.make(config: config, policy: policy)
+        } catch {
+            throw HelperFailure.virtualMachine("cannot create the user-mode network: \(error)")
+        }
+        let handle = FileHandle(fileDescriptor: made.guestDescriptor, closeOnDealloc: true)
+        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: handle)
+        attachment.maximumTransmissionUnit = config.mtu
+        let device = VZVirtioNetworkDeviceConfiguration()
+        device.attachment = attachment
+        return Network(devices: [device], stack: made.stack)
     }
 }
 

@@ -6,9 +6,11 @@ import Virtualization
 ///
 ///     VMHelper --dry-run [--descriptor PATH|-]            build and validate the configuration, start nothing
 ///     VMHelper --probe   [--descriptor PATH|-]            try the operations a helper needs, inside the sandbox it runs in
-///     VMHelper --start   [--descriptor PATH|-] [--run-seconds N]   boot the machine (the owner's run)
+///     VMHelper --start   [--descriptor PATH|-] [--run-seconds N] [--commands]   boot the machine (the owner's run)
 ///
-/// The descriptor comes from `PATH`, or from standard input when the path is `-` or absent. Standard output carries one JSON
+/// With `--commands` the helper reads command lines from standard input while the machine runs (`HelperCommand`: a new network
+/// policy, the counters); the descriptor then needs a path. The descriptor comes from `PATH`, or from standard input when the
+/// path is `-` or absent. Standard output carries one JSON
 /// event per line (`HelperEvent`); the guest's serial console goes to standard error, unless the descriptor names a console
 /// socket, in which case it is served there. The exit status is the `sysexits.h` value of `HelperFailure`, or 0.
 @main
@@ -23,6 +25,7 @@ struct VMHelper {
         var mode: Mode
         var descriptorPath: String?
         var runSeconds: Int
+        var takesCommands: Bool
 
         static let defaultRunSeconds = 30
 
@@ -30,6 +33,7 @@ struct VMHelper {
             var mode: Mode?
             var path: String?
             var seconds = Self.defaultRunSeconds
+            var commands = false
             var rest = arguments.makeIterator()
             while let argument = rest.next() {
                 if let requested = Mode(rawValue: argument) {
@@ -43,14 +47,20 @@ struct VMHelper {
                         throw HelperFailure.usage("--run-seconds needs a positive number")
                     }
                     seconds = parsed
+                } else if argument == "--commands" {
+                    commands = true
                 } else {
                     throw HelperFailure.usage("unknown argument \(argument)")
                 }
             }
             guard let mode else { throw HelperFailure.usage("give one of --dry-run, --probe and --start") }
+            guard !commands || (mode == .start && path != nil) else {
+                throw HelperFailure.usage("--commands goes with --start and a --descriptor path: standard input carries the commands")
+            }
             self.mode = mode
             descriptorPath = path
             runSeconds = seconds
+            takesCommands = commands
         }
     }
 
@@ -82,7 +92,9 @@ struct VMHelper {
             built.release()
             emitter.emit(.validated)
         case .start:
-            try await MachineRun(descriptor: descriptor, emitter: emitter, runSeconds: arguments.runSeconds).run()
+            var run = MachineRun(descriptor: descriptor, emitter: emitter, runSeconds: arguments.runSeconds)
+            run.takesCommands = arguments.takesCommands
+            try await run.run()
         }
         return 0
     }

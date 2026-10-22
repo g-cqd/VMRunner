@@ -45,6 +45,60 @@ struct DescriptorTests {
         #expect(machine.readWritePaths == ["/vm/root.img"])
     }
 
+    // MARK: Filtered network
+
+    private func filtered(policy: String? = nil, deny: HelperDescriptor.DenyAction = .reset, network: HelperDescriptor.Network = .filtered)
+        -> HelperDescriptor
+    {
+        HelperDescriptor(
+            name: "t", boot: .init(kind: .efi, variableStore: "/vm/efi"), disks: [.init(path: "/vm/disk")], network: network,
+            networkPolicy: policy, denyAction: deny)
+    }
+
+    @Test
+    func aFilteredNetworkReadsItsPolicyFileAndDenyActionFromJson() throws {
+        let text = Self.json.replacing(
+            #""network":"nat""#, with: #""network":"filtered","networkPolicy":"/var/vm/policy.json","denyAction":"drop""#)
+        let machine = try HelperDescriptor.parse(Data(text.utf8))
+        #expect(machine.network == .filtered)
+        #expect(machine.networkPolicy == "/var/vm/policy.json")
+        #expect(machine.denyAction == .drop)
+        #expect(machine.readPaths.contains("/var/vm/policy.json"), "the policy is a file the helper reads, and a sandbox must allow it")
+        #expect(!machine.readWritePaths.contains("/var/vm/policy.json"))
+    }
+
+    @Test
+    func theDefaultsAreTheDefaultPolicyAndAResetForEveryNetwork() throws {
+        let machine = try HelperDescriptor.parse(Data(Self.json.utf8))
+        #expect(machine.networkPolicy == nil && machine.denyAction == .reset)
+        try filtered().validate()
+    }
+
+    @Test
+    func aPolicyOrDenyActionOnAnotherNetworkIsRefusedAndAFilteredPolicyPathIsCheckedLikeAnyPath() {
+        for network in [HelperDescriptor.Network.none, .nat, .fileHandle] {
+            #expect(throws: HelperFailure.self, "\(network)") { try filtered(policy: "/vm/p.json", network: network).validate() }
+            #expect(throws: HelperFailure.self, "\(network)") { try filtered(deny: .drop, network: network).validate() }
+        }
+        for path in ["relative.json", "/a/../p.json", "/a\"b.json", "/a\nb.json"] {
+            #expect(throws: HelperFailure.self, "\(path.debugDescription)") { try filtered(policy: path).validate() }
+        }
+    }
+
+    @Test
+    func canonicalizingResolvesThePolicyPathToo() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "vmhelper-policy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let real = directory.appending(path: "policy.json")
+        try Data("{}".utf8).write(to: real)
+        let link = directory.appending(path: "link.json")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        let canonical = try filtered(policy: link.path).canonicalized()
+        let root = try #require(SandboxPath.realPath(directory.path))
+        #expect(canonical.networkPolicy == root + "/policy.json")
+    }
+
     @Test
     func aKernelBootWithAnInitialRamdiskNeedsNoDiskButEveryOtherMachineDoes() throws {
         let netboot = HelperDescriptor.Boot(kind: .kernel, kernel: "/vm/Image", initrd: "/vm/initrd", commandLine: "console=hvc0")

@@ -41,7 +41,7 @@ struct SandboxRunTests {
     func theNetworkEntitlementComesOnlyWithTheStandardLevelAndAHostedNetwork() throws {
         for (level, network, expected) in [
             (SandboxLevel.standard, HelperDescriptor.Network.fileHandle, true), (.strict, .fileHandle, false), (.standard, .nat, false),
-            (.standard, .none, false),
+            (.standard, .none, false), (.standard, .filtered, true), (.strict, .filtered, false),
         ] {
             let entitlements = AppSandboxEntitlements.entitlements(base: base, grants: try grants(level, network: network))
             #expect((entitlements[AppSandboxEntitlements.networkClient] != nil) == expected, "\(level) \(network)")

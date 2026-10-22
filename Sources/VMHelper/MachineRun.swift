@@ -9,6 +9,8 @@ struct MachineRun {
     let descriptor: HelperDescriptor
     let emitter: Emitter
     let runSeconds: Int
+    /// Read command lines from standard input while the machine runs (`--commands`).
+    var takesCommands = false
 
     /// How a run ended.
     enum Outcome: Sendable {
@@ -27,13 +29,38 @@ struct MachineRun {
 
         // The console is served before the machine starts, so the first client sees the guest's first output.
         let console = try serveConsole(built)
+        let network = built.networkStack.map { FilteredNetwork(stack: $0, emitter: emitter, policyPath: descriptor.networkPolicy) }
+        network?.start()
+        let commands = takesCommands ? readCommands(for: network) : nil
         do {
             try await runMachine(built)
         } catch {
+            commands?.cancel()
             await stop(console)
+            await network?.stop()
             throw error
         }
+        commands?.cancel()
         await stop(console)
+        await network?.stop()
+    }
+
+    /// Applies the command lines the launcher writes to standard input until the machine ends.
+    private func readCommands(for network: FilteredNetwork?) -> Task<Void, Never> {
+        Task { @MainActor in
+            for await line in StandardInputCommands.stream() {
+                switch line {
+                case .command(let command):
+                    if let network {
+                        network.apply(command)
+                    } else {
+                        emitter.emit(.policy, message: "this machine has no filtered network", check: "rejected")
+                    }
+                case .unreadable(let reason):
+                    emitter.emit(.policy, message: reason, check: "rejected")
+                }
+            }
+        }
     }
 
     private func serveConsole(_ built: MachineConfiguration.Built) throws -> ConsoleBridge? {
