@@ -164,6 +164,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
     private func attach(_ machine: VZVirtualMachine) -> VZVirtualMachine {
         machine.delegate = self
         virtualMachine = machine
+        LatencyActivity.shared.hold(for: ObjectIdentifier(self))
         observe(machine)
         return machine
     }
@@ -251,6 +252,7 @@ final class VMController: NSObject, VZVirtualMachineDelegate {
         activeBundle = nil
         observation = nil
         virtualMachine = nil
+        LatencyActivity.shared.release(for: ObjectIdentifier(self))
         state = .stopped
     }
 

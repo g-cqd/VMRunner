@@ -28,8 +28,10 @@ extension HelpCatalog {
                 "• **Downloaded images**: shows how much space downloaded installers use, and lets you delete them. Machines are not "
                     + "affected.",
                 "• **Default Mac model**: only used for the ipsw.me list, and has no effect on what you can install.",
+                "• **Keep input responsive**: stops macOS from slowing the app while a machine runs, at some cost in battery. On by "
+                    + "default.",
             ],
-            related: [.macRestoreImage, .duplicateDelete]
+            related: [.macRestoreImage, .duplicateDelete, .inputResponsiveness]
         ),
         .shortcuts: HelpEntry(
             area: .app,

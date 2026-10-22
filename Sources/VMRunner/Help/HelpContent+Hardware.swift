@@ -219,6 +219,27 @@ extension HelpCatalog {
             ],
             related: [.fullScreen, .shortcuts]
         ),
+        .inputResponsiveness: HelpEntry(
+            area: .display,
+            title: "Keep input responsive",
+            summary: "Stops macOS from slowing the app while a machine runs, at a small cost in battery.",
+            paragraphs: [
+                "While a machine runs, the app asks macOS not to put it into App Nap and not to delay its timers. Without this, "
+                    + "macOS may hold back an app it thinks is idle by a few milliseconds, which can feel like lag between a key press "
+                    + "and the guest reacting.",
+                "• **Cost**: the processor wakes more often and rests less deeply, so a Mac on battery uses somewhat more power "
+                    + "while a machine runs. Your Mac still goes to sleep when idle, as usual.",
+                "• **Where**: **Settings ▸ Keep input responsive while a machine runs**. It is on by default. Turn it off for a "
+                    + "machine you leave running without using it.",
+                "It cannot remove delay that comes from the guest, from your display's refresh rate or from Apple's virtualization "
+                    + "framework.",
+            ],
+            advanced: [
+                "The app holds one user-initiated, latency-critical activity (`ProcessInfo.beginActivity`) while at least one machine "
+                    + "runs, and ends it when the last one stops. It does not use the option that keeps the Mac from sleeping when idle."
+            ],
+            related: [.settings, .pointingDevice, .captureKeys]
+        ),
         .audio: HelpEntry(
             area: .display,
             title: "Sound output and microphone",
