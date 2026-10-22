@@ -27,7 +27,8 @@ stack findings and the download findings (including the rollback through the uns
    lookups in turn; the guest transmit queue is bounded in bytes (8 MiB) as well as frames; a DNS-over-TCP answer that finds
    the guest's buffer full resets the session and is counted; repeated DNS answers are folded into one event with a count. An
    opt-in to lift one kind of the floor (ADR-0029) is not built: ADR-0029 left it out on purpose, and the owner decides
-   whether a guest ever needs it.
+   whether a guest ever needs it. A block rule for a name on some ports stops applying to an address 12 hours after the guest
+   last resolved it.
    Since then: a lookup that waited for a resolver thread past the proxy's query timeout is answered SERVFAIL without being
    run, and a derived address block lives 12 hours after the proxy last gave its address, so past the bound of 1,024 the
    oldest goes first, and the stack's housekeeping prunes them with the name table.

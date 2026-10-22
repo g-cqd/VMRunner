@@ -94,7 +94,8 @@ extension HelpCatalog {
                     + "one address (common with content networks), a rule for one name can affect the others, and a guest that "
                     + "already knows an address can connect without asking DNS. A rule for a name on some ports "
                     + "(`example.com:22`) keeps holding for the addresses VMRunner gave the guest for that name after the answer "
-                    + "expires. Use address rules when it must hold.",
+                    + "expires. A block rule for a name on some ports stops applying to an address 12 hours after the guest last "
+                    + "resolved it. Use address rules when it must hold.",
                 "• **Encrypted DNS is not intercepted.** Ordinary DNS (port 53) is always answered by VMRunner, even if the guest "
                     + "asks another server. DNS over HTTPS, DNS over TLS and DNS over QUIC look like normal encrypted traffic, so "
                     + "domain rules can be dodged that way. Block those servers by address or port (853).",

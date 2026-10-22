@@ -123,7 +123,8 @@ extension HelpCatalog {
             advanced: [
                 "Only values macOS reports as managed count: a value written with `defaults write` does not. A managed value "
                     + "of the wrong type restricts: an `Allow…` key that is not a Boolean turns the feature off, and a "
-                    + "`MaxRuntimeMinutes` other than 0 that is not a whole number from 15 to 1440 becomes 15.",
+                    + "`MaxRuntimeMinutes` other than 0 that is not a whole number from 15 to 1440 becomes 15 (a Boolean false "
+                    + "counts as not a number: 15).",
                 "The policy is read from the app's own domain, also when `VMRUNNER_DATA_DIR` gives the settings a domain of "
                     + "their own. Machines are checked against the policy read at launch: quit and reopen VMRunner after a "
                     + "profile changes.",

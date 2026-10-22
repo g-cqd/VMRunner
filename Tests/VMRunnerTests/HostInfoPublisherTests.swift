@@ -39,7 +39,7 @@ struct HostInfoPublisherTests {
         feed.finish()
     }
 
-    @Test func aRewriteKeepsTheSameFileSoAGuestNeverFindsItMissing() async throws {
+    @Test func aRewriteKeepsTheSameFileSoAGuestShouldNotFindItMissing() async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let clock = TestClock()

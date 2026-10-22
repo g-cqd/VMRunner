@@ -78,7 +78,8 @@ final class HostInfoPublisher {
 
     /// Writes `data` over `file` in place: the file keeps its name and inode, and is truncated and then written with its
     /// whole content in one call. A guest reading it through the share sees the old text, the new text or, for a moment, an
-    /// empty file, never a missing one: a replace by rename made the name vanish for about a second in a Linux guest, whose
+    /// empty file. A guest should not find one missing (not yet verified in a guest): a replace by rename made the name vanish
+    /// for about a second in a Linux guest, whose
     /// virtio-fs entry cache still held the old file. The file is opened without following a link: a link at that name
     /// makes the write fail instead of writing through it.
     private static func overwrite(_ file: URL, with data: Data) throws {
