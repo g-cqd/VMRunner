@@ -91,6 +91,8 @@ struct VMBundle: Sendable {
     var machineIdentifier: URL { url.appending(path: "MachineIdentifier") }
     var efiVariables: URL { url.appending(path: "EFIVariables.fd") }
     var savedState: URL { url.appending(path: "SavedState.vzvmsave") }
+    /// Where a suspend writes the memory image before `commitSavedState()` renames it to `savedState`.
+    var savedStateStaging: URL { url.appending(path: "SavedState.vzvmsave.tmp") }
     /// The machine's own copy of the installer that setup downloaded.
     var installer: URL { url.appending(path: Self.installerName) }
     static let installerName = "Installer.iso"
@@ -126,13 +128,33 @@ struct VMBundle: Sendable {
         try AppPaths.createPrivateDirectory(url)
     }
 
+    /// Removes the saved memory image, and anything a suspend left under its temporary name.
     func discardSavedState() {
         remove(savedState)
+        discardStagedSavedState()
     }
 
-    /// Makes the saved memory image readable by the current user only. The guest's memory is in it, secrets included.
-    func restrictSavedState() throws {
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: savedState.path)
+    /// Removes the image a suspend was writing, or a crash interrupted. It is never a usable image: only `savedState` is.
+    func discardStagedSavedState() {
+        remove(savedStateStaging)
+    }
+
+    /// Makes a saved memory image (by default the final one) readable by the current user only. The guest's memory is in it,
+    /// secrets included.
+    func restrictSavedState(_ file: URL? = nil) throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: (file ?? savedState).path)
+    }
+
+    /// Turns the image a suspend wrote under its temporary name into the saved state: private, flushed to disk, then renamed
+    /// over the final name in one step, so the final name never holds a partial image, whatever happens in between. The
+    /// temporary lies beside the final file, which keeps the rename on one volume.
+    func commitSavedState() throws {
+        try restrictSavedState(savedStateStaging)
+        let handle = try FileHandle(forUpdating: savedStateStaging)
+        defer { try? handle.close() }
+        try handle.synchronize()
+        // The new file's own metadata stays: an older image's permissions must not come back with its name.
+        _ = try FileManager.default.replaceItemAt(savedState, withItemAt: savedStateStaging, options: .usingNewMetadataOnly)
     }
 
     /// Bytes actually allocated on disk (the disk image is sparse).

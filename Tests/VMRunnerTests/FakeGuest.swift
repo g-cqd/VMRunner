@@ -79,13 +79,10 @@ final class FakeGuest: GuestMachine {
     }
 
     func saveState(to url: URL) async throws {
-        do {
-            try await run(.save, from: [.paused], through: .saving, to: .paused)
-        } catch {
-            // A failed save can leave a partial file behind.
-            try? Data("partial".utf8).write(to: url)
-            throw error
-        }
+        // The framework creates the file as it starts writing, so a save that fails, or is cut short, leaves a partial one.
+        // A call refused in the wrong state writes nothing.
+        if state == .paused { try? Data("partial".utf8).write(to: url) }
+        try await run(.save, from: [.paused], through: .saving, to: .paused)
         try Data("memory".utf8).write(to: url)
     }
 

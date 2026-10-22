@@ -77,6 +77,8 @@ final class VMController {
         // locked-down machines must never leave one behind.
         let mayResume = config.allowsSuspend && !config.ephemeral
         if !mayResume { bundle.discardSavedState() }
+        // A suspend that a crash cut short leaves its temporary file; it is never an image to restore.
+        bundle.discardStagedSavedState()
         let restoring = bundle.hasSavedState
         let decision = StartDisplay.decide(for: config, window: windowSize, restoring: restoring)
         decision.log(config: config, window: windowSize, restoring: restoring)
@@ -359,20 +361,23 @@ final class VMController {
                 try await machine.pause()
                 paused = true
             }
-            try await machine.saveState(to: bundle.savedState)
+            // The image is written under a temporary name and takes the final one only when it is complete, so a crash or a
+            // failure in the middle leaves no partial image where a restore would look.
+            try await machine.saveState(to: bundle.savedStateStaging)
             // The run ended while the image was being written: nobody who ended it knew an image was coming, and it would
             // outlive a machine that is already let go.
             guard token == run else {
                 bundle.discardSavedState()
                 return .suspendFailed("The machine was released first.", paused: true)
             }
-            try bundle.restrictSavedState()
+            try bundle.commitSavedState()
             stopIssued = true
             try await machine.stop()
             return .suspendSucceeded
         } catch {
             // A memory image next to a disk that keeps changing would restore into a corrupted guest. When the run has
-            // ended meanwhile, whoever ended it already dealt with the file.
+            // ended meanwhile, whoever ended it already dealt with the saved state; the temporary file is this call's own.
+            bundle.discardStagedSavedState()
             if token == run {
                 bundle.discardSavedState()
                 stopIssued = false

@@ -75,7 +75,8 @@ after a cancel) stays in the library's job table and no longer overlaps a new jo
 
 - Whether the framework allows `stop()` while a machine starts, pauses or saves (the design works either way), whether it
   calls the delegate after a successful `stop()`, and whether the state observation ever fired: all need a guest.
-- The memory image is written in place; a crash in the middle of a suspend can leave a partial image, which a later restore
-  rejects and falls back from. Writing it under a temporary name and renaming it is a separate change.
+- *Done:* the memory image used to be written in place, so a crash in the middle of a suspend left a partial image for a later
+  restore to reject. It is now written under a temporary name beside the final one, flushed, and renamed over it
+  (`VMBundle.commitSavedState`); a failure removes the temporary, and the next start sweeps one a crash left.
 - The latency activity (roadmap 0037) is held when the controller receives a prepared machine and ended where the machine is
   let go, so it is released on every path that releases the machine; the tests check it after every ending.
