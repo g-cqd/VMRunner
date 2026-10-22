@@ -174,6 +174,7 @@ swift run vmr container-sign [debug|release]     # container runner: build it an
 swift run vmr sandbox run --engine seatbelt|app-sandbox|none --descriptor d.json   # sandbox helper; --boot starts a VM, owner only
 swift run vmr guest fetch alpine-netboot --directory /tmp/g   # a signed Alpine netboot image in a scratch directory
 swift run vmr guest start|exec|console|stop ...   # a small Linux guest behind a console socket; start boots a VM, owner-authorised runs only
+swift run vmr guest start --net filtered --policy p.json; vmr guest policy|flows SOCKET ...   # the filtered network on a real guest
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files
 ```

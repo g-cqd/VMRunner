@@ -192,6 +192,20 @@ swift run vmr guest stop --directory /tmp/vmr-guest
 rm -rf /tmp/vmr-guest
 ```
 
+The guest can sit on the app's filtered network instead of the framework's NAT, to test a policy against a real guest
+(roadmap 0030, ADR-0053):
+
+```sh
+swift run vmr guest start --directory /tmp/vmr-guest --net filtered --policy policy.json [--deny-action drop]
+swift run vmr guest policy /private/tmp/vmr-guest/guest/console.sock new-policy.json   # replaces the policy while the guest runs
+swift run vmr guest flows /private/tmp/vmr-guest/guest/console.sock --last 20          # what its connections did, and the counters
+```
+
+`policy.json` is the JSON the app stores for a `NetworkPolicy` (`{}` is the default policy); a guest is named by its console
+socket, its helper's pid or its scratch directory. Note that the stack treats the Mac's own LAN address as a private
+address: it is reachable only when the policy has `"blockPrivateRanges": false`, which is how a server on the Mac can be
+used as a fast target. A policy that blocks the package mirror stops the image from booting.
+
 `start` prints the socket path (the real path: `/tmp` is `/private/tmp`). The console takes one client at a time, so
 `exec` retries for three seconds while another client leaves and then fails with status 125; a command that runs out of time
 fails with 124. Anything else a guest does is the guest's: with NAT it can reach the network, so run only what you would run
