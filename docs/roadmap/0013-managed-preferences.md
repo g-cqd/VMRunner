@@ -15,6 +15,7 @@ library applies it to every machine it loads, adds or changes. Keys: `AllowShare
 `AllowMicrophone`, `AllowSuspend`, `AllowHostInformation`, `RequireDisposableMachines`, `MaxRuntimeMinutes`, and the
 app's own settings, which are now one list (`AppSetting`). A restricted control shows a lock (`.managedLock`); the help
 topic *Settings your organisation manages* lists the keys.
+A forced `MaxRuntimeMinutes` of 0 sets no limit, by the owner's decision; any other value outside 15 to 1440 becomes 15.
 
 ## Owed
 

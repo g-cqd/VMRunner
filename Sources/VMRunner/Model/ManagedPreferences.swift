@@ -19,7 +19,7 @@ struct ManagedPreferences: Equatable, Sendable {
     private(set) var denied: Set<ManagedKey> = []
     /// `RequireDisposableMachines` forced to anything but `false`.
     private(set) var requiresDisposable = false
-    /// The longest run `MaxRuntimeMinutes` allows, when it is forced.
+    /// The longest run `MaxRuntimeMinutes` allows, when it is forced to a limit; nil when it is not forced or forced to 0.
     private(set) var maxRuntimeMinutes: Int?
     /// The app's own settings whose value the organisation forced.
     private(set) var forcedSettings: Set<AppSetting> = []
@@ -38,14 +38,25 @@ struct ManagedPreferences: Equatable, Sendable {
             case .requireDisposableMachines:
                 requiresDisposable = (value as? Bool) != false
             case .maxRuntimeMinutes:
-                // A value that is not a whole number, or lies outside what the editor offers, becomes the shortest limit.
-                let offered = EditorLimits.runtimeStepMinutes...EditorLimits.runtimeMinutes.upperBound
-                maxRuntimeMinutes = (value as? Int).flatMap { offered.contains($0) ? $0 : nil } ?? EditorLimits.runtimeStepMinutes
+                maxRuntimeMinutes = Self.runtimeLimit(forced: value)
             default:
                 if (value as? Bool) != true { denied.insert(key) }
             }
         }
         forcedSettings = Set(AppSetting.allCases.filter { forcedValue($0.rawValue) != nil })
+    }
+
+    /// The limit a forced `MaxRuntimeMinutes` sets. 0 sets none: the organisation imposes no cap, and the control stays
+    /// unlocked. Any other value that is not a whole number from 15 to 1440 (a Boolean, a string, a negative number, a
+    /// number out of range) becomes the shortest limit, 15 minutes: a value of the wrong type restricts.
+    private static func runtimeLimit(forced value: Any) -> Int? {
+        // A Boolean bridges to 0 or 1 as a number: tell it apart first, so a forced `false` never reads as no limit.
+        guard CFGetTypeID(value as CFTypeRef) != CFBooleanGetTypeID(), let minutes = value as? Int else {
+            return EditorLimits.runtimeStepMinutes
+        }
+        if minutes == 0 { return nil }
+        let offered = EditorLimits.runtimeStepMinutes...EditorLimits.runtimeMinutes.upperBound
+        return offered.contains(minutes) ? minutes : EditorLimits.runtimeStepMinutes
     }
 
     /// The policy forced in the app's own domain now. Cheap enough to read when a view is drawn.

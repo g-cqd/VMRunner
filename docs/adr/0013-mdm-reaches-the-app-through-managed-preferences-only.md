@@ -21,3 +21,8 @@ A policy engine that reads forced keys and locks the matching controls is the wo
 ## What this does not decide
 
 Which settings are lockable first.
+
+(Update 2026-10-22: a first set of keys is built under this proposal: `AllowSharedFolders`, `AllowClipboardSharing`,
+`AllowMicrophone`, `AllowSuspend`, `AllowHostInformation`, `RequireDisposableMachines`, `MaxRuntimeMinutes` and the app's
+own settings. A forced value of the wrong type restricts. A forced `MaxRuntimeMinutes` of 0 sets no limit, by the owner's
+decision; any other value outside 15 to 1440 becomes 15. The status stays proposed until the owner accepts the key set.)

@@ -50,6 +50,24 @@ struct ManagedPreferencesTests {
         #expect(clamped.maxRuntimeMinutes == EditorLimits.runtimeStepMinutes)
     }
 
+    @Test func aForcedRuntimeOfZeroSetsNoLimitAndLocksNothing() {
+        let policy = forced(["MaxRuntimeMinutes": 0])
+        #expect(policy.maxRuntimeMinutes == nil && !policy.isLocked(.maxRuntimeMinutes))
+        var config = openMachine()
+        #expect(policy.clamp(config) == config, "a machine without a limit keeps none")
+        config.maxRuntimeMinutes = 120
+        #expect(policy.clamp(config) == config, "and one with a limit keeps its own")
+    }
+
+    @Test func anyOtherForcedRuntimeOutsideTheEditorRangeBecomesFifteenMinutes() {
+        let values: [Any] = [false, true, -5, 1, 1_441, "0"]
+        for value in values {
+            let policy = forced(["MaxRuntimeMinutes": value])
+            #expect(policy.maxRuntimeMinutes == EditorLimits.runtimeStepMinutes, "\(value)")
+            #expect(policy.isLocked(.maxRuntimeMinutes), "\(value)")
+        }
+    }
+
     @Test func aValueTheUserWroteIsNotPolicy() throws {
         let name = "ManagedPreferencesTests-\(UUID().uuidString)"
         let suite = try #require(UserDefaults(suiteName: name))
