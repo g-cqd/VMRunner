@@ -29,3 +29,15 @@ struct WindowStateTests {
         #expect(!window.isRestorable)
     }
 }
+
+struct LaunchDefaultsTests {
+    @Test func theLaunchDefaultIsRegisteredInMemoryAndNeverWritten() throws {
+        let name = "LaunchDefaultsTests-\(UUID().uuidString)"
+        let suite = try #require(UserDefaults(suiteName: name))
+        defer { UserDefaults.standard.removePersistentDomain(forName: name) }
+        #expect(suite.object(forKey: PreferencesDomain.launchKey) == nil)
+        PreferencesDomain.registerLaunchDefaults(on: suite)
+        #expect(suite.bool(forKey: PreferencesDomain.launchKey))
+        #expect(suite.persistentDomain(forName: name)?[PreferencesDomain.launchKey] == nil, "registered, not written")
+    }
+}

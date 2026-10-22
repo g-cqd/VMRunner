@@ -24,4 +24,14 @@ enum PreferencesDomain {
     /// Whether this run keeps its settings out of the standard domain. Such a run also neither autosaves its main window's
     /// frame nor restores its windows, which AppKit would record in the standard domain and the saved application state.
     static var isSeparate: Bool { suiteName(environment: ProcessInfo.processInfo.environment, appIdentifier: Log.subsystem) != nil }
+
+    /// Registers (never writes) the defaults every launch needs. `ApplePersistenceIgnoreState` makes AppKit neither restore windows
+    /// from saved application state nor save it: the app has no documents to restore, and a stale entry in the system's
+    /// restoration store once made every launch open no window at all.
+    static func registerLaunchDefaults(on defaults: UserDefaults = .standard) {
+        defaults.register(defaults: [launchKey: true])
+    }
+
+    /// The AppKit key `registerLaunchDefaults` registers.
+    static let launchKey = "ApplePersistenceIgnoreState"
 }

@@ -11,6 +11,7 @@ struct VMRunnerApp: App {
 
     init() {
         AppPaths.refuseUnusableOverride()
+        PreferencesDomain.registerLaunchDefaults()
         library = VMLibrary.shared
     }
 

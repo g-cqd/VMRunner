@@ -188,3 +188,5 @@ several quits), and running the bundle's binary directly on 3 of 4 (the failure 
 without a window had no `Starting display` line and no windows in the accessibility tree; the cause was not found and is not known
 to be in the app. The machine view also does not take the keyboard by itself: after a start, a click
 in the view is needed before typing reaches the guest (a follow-up, not changed).
+
+A real run showed a second cause of "the window state is wrong": a stale entry in the system's restoration store for the app's bundle id made every launch open no window (the log said the app had state to restore and then created nothing; a reopen event, or launching with the ignore-state default, opened it). The app has no documents to restore, so it now registers `ApplePersistenceIgnoreState` at every launch (in memory, never written), and never restores windows.
