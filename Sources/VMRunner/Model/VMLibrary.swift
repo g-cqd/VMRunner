@@ -44,17 +44,21 @@ final class VMLibrary {
     @ObservationIgnored private var approvals: HostPathApprovals
     @ObservationIgnored private let makeController: @MainActor () -> VMController
     @ObservationIgnored private let provision: Provision
+    /// What the organisation forced; every configuration the library holds is within it.
+    @ObservationIgnored private let managed: ManagedPreferences
 
     /// `approvalsFile` defaults to a file beside the machines folder (outside every bundle). `makeController` and `provision`
-    /// default to the real controller and the real provisioner.
+    /// default to the real controller and the real provisioner, and `managed` to the policy forced in the app's domain.
     init(
         machinesDirectory: URL = AppPaths.machines, saveDelay: Duration = .milliseconds(400), approvalsFile: URL? = nil,
+        managed: ManagedPreferences = ManagedPreferences(),
         makeController: @escaping @MainActor () -> VMController = { VMController() },
         provision: @escaping Provision = { try await Provisioner.run(config: $0, library: $1, job: $2) }
     ) {
         self.machinesDirectory = machinesDirectory
         self.makeController = makeController
         self.provision = provision
+        self.managed = managed
         approvals = HostPathApprovals(
             file: approvalsFile
                 ?? machinesDirectory.deletingLastPathComponent().appending(path: "\(machinesDirectory.lastPathComponent).approvals.json"))
@@ -95,6 +99,7 @@ final class VMLibrary {
             .filter { $0.pathExtension == "vm" }
             .filter(isNotSymbolicLink)
             .compactMap(loadConfig)
+            .map { managed.clamp($0) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         selection = selection ?? machines.first?.id
         discardAllEphemeral()
@@ -188,7 +193,8 @@ final class VMLibrary {
         )
     }
 
-    func add(_ config: VMConfig) throws {
+    func add(_ proposed: VMConfig) throws {
+        let config = managed.clamp(proposed)
         try bundle(config.id).create()
         try persist(config)
         // The user made this machine in the New Machine sheet, including a local installer image they picked there.
@@ -198,7 +204,8 @@ final class VMLibrary {
         insert(config)
     }
 
-    func update(_ config: VMConfig) {
+    func update(_ proposed: VMConfig) {
+        let config = managed.clamp(proposed)
         guard let index = machines.firstIndex(where: { $0.id == config.id }) else { return }
         let previous = machines[index]
         // Secure Boot lives in the firmware variable store, not in the VZ configuration, so the framework

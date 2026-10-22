@@ -1,0 +1,83 @@
+import Foundation
+import Testing
+
+@testable import VMRunner
+
+/// Managed preferences (ADR-0013): only a forced value is policy, a forced value of the wrong type restricts, and what the
+/// policy allows is left alone.
+struct ManagedPreferencesTests {
+    private func forced(_ values: [String: Any]) -> ManagedPreferences {
+        ManagedPreferences(forcedValue: { values[$0] })
+    }
+
+    private func openMachine() -> VMConfig {
+        var config = VMConfig.new(name: "m", guest: .linux)
+        config.sharedFolders = [SharedFolder(path: "/tmp/a")]
+        config.sharesClipboard = true
+        config.audioInput = true
+        config.allowsSuspend = true
+        config.hostInfo.battery = true
+        config.maxRuntimeMinutes = 0
+        return config
+    }
+
+    @Test func nothingForcedChangesNothing() {
+        let config = openMachine()
+        #expect(ManagedPreferences(forcedValue: { _ in nil }).clamp(config) == config)
+    }
+
+    @Test func everyForcedRestrictionIsApplied() {
+        let policy = forced([
+            "AllowSharedFolders": false, "AllowClipboardSharing": false, "AllowMicrophone": false, "AllowSuspend": false,
+            "AllowHostInformation": false, "RequireDisposableMachines": true, "MaxRuntimeMinutes": 60,
+        ])
+        let clamped = policy.clamp(openMachine())
+        #expect(clamped.sharedFolders.isEmpty && !clamped.sharesClipboard && !clamped.audioInput && !clamped.allowsSuspend)
+        #expect(clamped.hostInfo.isEmpty && clamped.ephemeral && clamped.maxRuntimeMinutes == 60)
+    }
+
+    @Test func whatThePolicyAllowsIsKept() {
+        var config = openMachine()
+        config.maxRuntimeMinutes = 30
+        let policy = forced(["AllowSharedFolders": true, "RequireDisposableMachines": false, "MaxRuntimeMinutes": 60])
+        #expect(policy.clamp(config) == config, "allowed stays, and a shorter limit of the user's own is kept")
+    }
+
+    @Test func aForcedValueOfTheWrongTypeRestricts() {
+        let policy = forced(["AllowMicrophone": "yes", "RequireDisposableMachines": "no", "MaxRuntimeMinutes": "lots"])
+        let clamped = policy.clamp(openMachine())
+        #expect(!clamped.audioInput && clamped.ephemeral)
+        #expect(clamped.maxRuntimeMinutes == EditorLimits.runtimeStepMinutes)
+    }
+
+    @Test func aValueTheUserWroteIsNotPolicy() throws {
+        let name = "ManagedPreferencesTests-\(UUID().uuidString)"
+        let suite = try #require(UserDefaults(suiteName: name))
+        defer { UserDefaults.standard.removePersistentDomain(forName: name) }
+        for key in ManagedKey.allCases { suite.set(false, forKey: key.rawValue) }
+        #expect(ManagedPreferences(reading: suite) == ManagedPreferences(forcedValue: { _ in nil }))
+    }
+}
+
+/// The library brings every configuration it adds, changes or loads within the policy.
+@MainActor
+struct ManagedLibraryTests {
+    @Test func theLibraryAppliesThePolicyToWhatItAddsChangesAndLoads() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let policy = ManagedPreferences(forcedValue: { $0 == ManagedKey.allowSharedFolders.rawValue ? false as Any : nil })
+        let library = VMLibrary(machinesDirectory: directory, saveDelay: .seconds(3600), managed: policy)
+        var config = VMConfig.new(name: "m", guest: .linux)
+        config.sharedFolders = [SharedFolder(path: "/tmp/a")]
+        try library.add(config)
+        #expect(library.machine(config.id)?.sharedFolders.isEmpty == true)
+        library.update(config)
+        #expect(library.machine(config.id)?.sharedFolders.isEmpty == true)
+
+        // A file written before the policy arrived is brought within it as it loads.
+        try config.encoded().writePrivately(to: library.bundle(config.id).config)
+        let reloaded = VMLibrary(machinesDirectory: directory, managed: policy)
+        reloaded.load()
+        #expect(reloaded.machine(config.id)?.sharedFolders.isEmpty == true)
+    }
+}
