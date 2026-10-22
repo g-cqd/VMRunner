@@ -59,6 +59,12 @@ struct ManagedPreferencesTests {
         #expect(policy.clamp(config) == config, "and one with a limit keeps its own")
     }
 
+    @Test func aRealNumberFromAProfileCountsAsAWholeNumber() {
+        // A profile delivers <real> as an NSNumber, which reads as a whole number when it has no fraction.
+        #expect(forced(["MaxRuntimeMinutes": NSNumber(value: 0.0)]).maxRuntimeMinutes == nil)
+        #expect(forced(["MaxRuntimeMinutes": NSNumber(value: 60.0)]).maxRuntimeMinutes == 60)
+    }
+
     @Test func anyOtherForcedRuntimeOutsideTheEditorRangeBecomesFifteenMinutes() {
         let values: [Any] = [false, NSNumber(value: false), true, -5, 1, 1_441, "0"]
         for value in values {
