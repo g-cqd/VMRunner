@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-21
 ---
 # 0017 — Containers use Apple's containerization package
@@ -21,10 +21,14 @@ features, and, ideally, macOS containers.
 
 ## Consequences
 
-The first step is a small container runner that pulls and runs an arm64 Alpine image. It is written and waits for its first
-run by the owner; until the result is in, the package is pinned at 0.52.1 for the runner only and the app does not link it. See
-`docs/research/containers-2026-10.md` and roadmap 0024.
+The first step, a small container runner that pulls and runs an arm64 Alpine image, ran on 2026-10-22: a container started
+with only the virtualization entitlement under an ad-hoc signature, `uname -a` printed `aarch64` and the exit status came
+back, with the exact-pinned package at 0.52.1 and the Kata 3.17.0 kernel (Linux 6.12.28). The package stays pinned for the
+runner only and the app does not link it yet. See `docs/research/containers-2026-10.md` and roadmap 0024.
 
 ## What this does not decide
 
-Whether containers can use the user-mode network stack through a custom interface; the first run must confirm it.
+Whether containers can use the real user-mode network stack: a custom interface on a file-handle attachment delivers the
+guest's frames and the guest accepts the static address (shown on a socketpair), but the stack itself lives in the app target
+and was not plugged in. Also open: the newer kernel the package's examples use, the licences of the packages the library brings
+in, and how the app links the library without growing the root dependency graph.

@@ -327,3 +327,62 @@ runtime with the library under a real run; the loopback network with a real gues
 (the same commands pass locally, but the hosted runners were not tried, and the build lane compiles the package's graph on
 every run until `.build-packages` is cached); the licences of the 24 packages the library brings in (nothing is shipped, but
 an inventory is due before the app links any of them).
+
+## First run results (2026-10-22)
+
+The first run of the runner was done under the owner's authorisation, on a Mac15,12 (Apple M3) with macOS 26.7.1 (`sw_vers`),
+with a scratch directory under `/tmp`, no administrator rights and no window. The container was capped by the runner itself at
+two CPUs and 512 MiB (plus the framework's overhead). `swift run vmr container-sign` built the release runner (the cold build,
+compiling the container package's graph, took about eight minutes on a busy machine) and ended with `entitlements OK
+(com.apple.security.virtualization)` and `Signed ...`.
+
+**The kernel pinned in the study worked; the fallback was not needed.** Kata 3.17.0 (Linux 6.12.28) and the init image 0.52.1
+booted a container on the first try, so the pin and the tests are unchanged. The newer Kata release (3.26.0) was not tried.
+
+First run, empty scratch directory:
+
+```
+kernel: downloading https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz
+kernel: /tmp/.../kernel/vmlinux (unpacked, checksum ok)
+init-image-seconds: 13.48
+pull-seconds: 3.28
+create-seconds: 0.06
+boot-seconds: 0.27
+run-seconds: 0.05
+output: Linux runner-cbcf2e6c 6.12.28 #1 SMP Tue May 20 15:19:05 UTC 2025 aarch64 Linux
+exit-status: 0
+verdict: passed
+```
+
+A second cold run (scratch directory removed, same machine) gave 13.20, 2.98, 0.05, 0.29 and 0.05 s, and took 70 s wall clock
+in all, so the kernel download and unpacking (290 MB over the network, then a 14 MB kernel) cost about 53 s of it. Both runs
+exit 0. The `--network loopback` run, with everything cached (4 s wall clock), gave `init-image-seconds: 0.00`, `pull-seconds:
+0.87`, `create-seconds: 0.05`, `boot-seconds: 0.28`, `run-seconds: 2.04` (this one runs a ping as well), `exit-status: 0`,
+`verdict: passed`, `frames-seen: 7` and `network-verdict: passed`; the frames were `ARP who-has 198.18.0.1 tell 198.18.0.2` (twice) and
+five IPv6 neighbour and multicast frames from the guest's MAC address. These are release-build figures; the debug-build
+figures of the section above (8.3 s to create) were not reproduced, the same step took 0.05 s.
+
+### The six questions
+
+1. **A virtual machine starts with only the virtualization entitlement**, under an ad-hoc signature with the hardened runtime
+   and no vmnet entitlement: yes. No error named an entitlement.
+2. **The pinned kernel (6.12.28) and the init image 0.52.1 work together**: yes. The guest reports `6.12.28`.
+3. **Cost, cold:** init image 13.2 to 13.5 s, alpine pull 3.0 to 3.3 s, create 0.05 s, boot to a ready guest agent 0.27 to
+   0.29 s, starting `uname -a` in the booted guest 0.05 s; the one-off kernel download dominates a first run (about 53 s here).
+4. **`uname -a` prints `aarch64`, and the exit status returns to the host**: yes (`exit-status: 0`, the runner's own exit
+   status 0, verdict `passed`).
+5. **A custom interface on a file-handle attachment delivers the guest's frames to the host**: yes (seven frames in the loopback
+   run), **and the guest accepts the static address without a DHCP server**: the ARP request names 198.18.0.2 as the sender,
+   and the guest sent no DHCP request among the frames (all seven were listed; the runner prints up to 20).
+6. **Anything outside the scratch directory: one thing.** `~/Library/Caches/ContainerRunner` (80 KB: `Cache.db`, its journal
+   and an empty `fsCachedData`), the default URL cache of the kernel download, which uses the shared URL session. It was removed
+   afterwards. The runner's scratch directory itself held 532 MB (277 MB of downloads, 14 MB of kernel, 241 MB of image store),
+   and no container directory was left after a pass. The documented claim that the runner installs nothing outside the checkout and the scratch
+   directory was therefore false by one cache directory; a download session without a cache fixes it (a follow-up).
+
+### What the run does not show
+
+The real user-mode stack in place of the socketpair (the module split above is still due); a command that needs the network
+from inside the guest; a pull with credentials; the Kata 3.26.0 kernel; the licences of the packages the library brings in;
+the behaviour of the runner under a sandbox (App Sandbox or a Seatbelt profile); and any run longer than the few seconds
+`uname -a` takes.
