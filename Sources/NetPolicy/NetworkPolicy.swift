@@ -109,7 +109,7 @@ package struct NetworkPolicy: Hashable, Sendable, Codable {
     package var allowedConnections: [ConnectionRule] = []
     /// In allow-list mode, when not empty, an http URL must also start with one of these (https paths are invisible).
     var allowedURLPrefixes: [URLRule] = []
-    var vpn = VPNRequirement.ignore
+    package var vpn = VPNRequirement.ignore
 
     package init() {}
 

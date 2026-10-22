@@ -218,6 +218,7 @@ extension VMConfig {
         case .none: items.append(Exposure(level: .none, text: "Network: none."))
         case .filtered: items += filteredNetworkExposures
         }
+        if networkMode.hasNetworkDevice { items += networkCutoffExposures }
         for folder in sharedFolders {
             items.append(
                 folder.readOnly
@@ -284,6 +285,24 @@ extension VMConfig {
                 text: "Secure Boot is off and stays off: this machine's image has no signed bootloader, so no profile can turn it on. "
                     + "Unsigned bootloaders and kernels can run.")
             : Exposure(level: .low, text: "Secure Boot is off: unsigned bootloaders and kernels can run.")
+    }
+
+    /// The kill switch closes rather than opens, so its lines are level `.none`: they say what it watches.
+    fileprivate var networkCutoffExposures: [Exposure] {
+        var items: [Exposure] = []
+        switch networkPolicy.vpn {
+        case .required:
+            items.append(Exposure(level: .none, text: "Kill switch: the network is cut while no VPN is up on this Mac."))
+        case .forbidden:
+            items.append(Exposure(level: .none, text: "Kill switch: the network is cut while a VPN is up on this Mac."))
+        case .ignore:
+            break
+        }
+        if networkCutsOnMeteredPath {
+            items.append(
+                Exposure(level: .none, text: "The network is cut while this Mac's connection is metered or in Low Data Mode."))
+        }
+        return items
     }
 
     /// Filtered networking narrows reach, but it is a young implementation that sits in this app's own process, so the

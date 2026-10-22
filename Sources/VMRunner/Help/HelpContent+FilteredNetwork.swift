@@ -154,9 +154,34 @@ extension HelpCatalog {
                     + "can make it misleading either way.",
                 "The guest signal scores fingerprints of handshakes and keepalives (WireGuard initiation packets, the OpenVPN "
                     + "reset opcode, IKE on ports 500 and 4500, ESP and GRE, and a few well-known VPN names in DNS). The "
-                    + "per-machine policy has no \"VPN required\" switch yet: the indicators are informational.",
+                    + "indicators only inform; the kill switch (see *Kill switch*) is what acts on the Mac signal.",
             ],
-            related: [.networkPolicy, .policyLimits, .networkMode]
+            related: [.networkPolicy, .policyLimits, .networkMode, .killSwitch]
+        ),
+        .killSwitch: HelpEntry(
+            area: .network,
+            title: "Kill switch",
+            summary: "Disconnects the guest's network while your Mac's VPN or connection breaks this machine's rule.",
+            paragraphs: [
+                "Two rules can cut the guest's network while the machine runs, with NAT or with the filtered network:",
+                "• **VPN on this Mac**: **Required** cuts it while no VPN is up on your Mac; **Forbidden** cuts it while one "
+                    + "is. Until VMRunner has read your Mac's network, a moment after the start, the VPN state is unknown and "
+                    + "both rules cut, so the guest can start without a network for that moment.",
+                "• **Cut the network on a metered or Low Data Mode connection**: cuts it while your Mac uses a connection macOS "
+                    + "marks as expensive (a phone's hotspot, a cellular link) or has Low Data Mode on.",
+                "The network comes back by itself when the rule is met again; open connections in the guest break and have to "
+                    + "reconnect. While it is cut, the toolbar shows **Network cut**, and its tooltip says why.",
+                "It watches your **Mac**, not the guest: a VPN on your Mac usually carries the guest's traffic, but one that "
+                    + "covers only some destinations may not, and a VPN started inside the guest is not seen (see *VPN "
+                    + "indicators*). Changes apply the next time the machine starts.",
+            ],
+            advanced: [
+                "The switch takes the attachment off the guest's virtual network card and puts the same one back, like "
+                    + "pulling and replugging a cable: the guest sees its link go down and come up. The Mac's VPN state is read "
+                    + "from the system's network path, the same way as the Mac VPN indicator.",
+                "Not yet verified with a real guest: how quickly each guest notices that the link is back.",
+            ],
+            related: [.guestVpn, .networkMode, .networkPolicy]
         ),
     ]
 }

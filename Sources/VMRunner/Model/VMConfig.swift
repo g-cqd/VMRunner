@@ -137,13 +137,17 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     // Network
     var networkMode = NetworkMode.nat
     var macAddress: String?
-    /// Rules for `.filtered` networking; kept (and ignored) in the other modes so switching back loses nothing.
+    /// Rules for `.filtered` networking; kept (and ignored) in the other modes so switching back loses nothing. Its VPN rule
+    /// (`vpn`) is the kill switch's, and applies in every mode with a network card.
     var networkPolicy = NetworkPolicy()
     /// `.filtered` only: what the guest sees when a TCP connection is denied. Fixed when the machine starts.
     var networkDenyAction = DenyAction.reset
     /// `.filtered` only: reset open connections when the Mac changes network (Wi-Fi to Ethernet, a VPN connects), so the guest
     /// reconnects over the new path instead of stalling. Fixed when the machine starts.
     var networkResetsOnHostChange = true
+    /// Kill switch: disconnect the network card while the Mac's connection is metered or in Low Data Mode. Fixed when the
+    /// machine starts.
+    var networkCutsOnMeteredPath = false
 
     // Sharing
     var sharedFolders: [SharedFolder] = []

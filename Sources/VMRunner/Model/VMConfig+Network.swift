@@ -11,6 +11,17 @@ extension DenyAction {
     }
 }
 
+extension VPNRequirement {
+    /// What the kill switch's VPN picker says for each rule.
+    var label: String {
+        switch self {
+        case .ignore: "Doesn't matter"
+        case .required: "Required: cut the network without one"
+        case .forbidden: "Forbidden: cut the network while one is up"
+        }
+    }
+}
+
 extension VMConfig {
     /// The user-mode stack's settings for this machine: everything else keeps the stack's defaults.
     var userNetConfig: UserNetConfig {
