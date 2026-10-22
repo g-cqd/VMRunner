@@ -170,7 +170,10 @@ that folder instead of `~/Library/Application Support/VMRunner`, and is how a re
 point it at a fresh folder under `/tmp`. The folder must be an absolute path without `..`; one that exists must be a real
 folder (not a link) of the current user and closed to others, and a missing one is created private. A value that cannot be
 used stops the launch with the reason (exit status 78); the app never falls back to the default folder for it. The setting
-does not move the app's preferences (`UserDefaults`) or the unified log.
+also keeps the app's settings in a defaults domain of their own (the app's identifier followed by
+`.data-directory-override`) and turns off window restoration and the main window's frame autosave (the app also never
+restores windows from saved state in any run); state AppKit autosaves by itself elsewhere (a split view's divider) still goes
+to the app's own domain. It does not move the unified log.
 
 ## Real-guest runs with `vmr guest`
 
