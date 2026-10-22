@@ -267,7 +267,7 @@ package final class UserNetStack: Sendable {
     }
 
     /// A snapshot of the counters, refreshed after every loop iteration.
-    var stats: UserNetStats { shared.stats.withLock { $0 } }
+    package var stats: UserNetStats { shared.stats.withLock { $0 } }
 
     /// The current VPN verdict.
     var vpnState: GuestVPNState { shared.vpnState.withLock { $0 } }

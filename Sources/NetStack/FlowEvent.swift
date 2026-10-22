@@ -1,4 +1,4 @@
-import Foundation
+package import Foundation
 package import NetPolicy
 
 /// The kind of traffic a ``FlowEvent`` is about.
@@ -55,19 +55,19 @@ package struct FlowEvent: Sendable, Hashable {
     }
 
     /// Unique per flow within one stack; the `opened` and `closed` events of a flow share it.
-    let flowID: UInt64
+    package let flowID: UInt64
     package let transport: FlowTransport
     package let phase: Phase
     package let destinationAddress: IPAddress
     package let destinationPort: UInt16
     /// The DNS name the guest was given for this address (or asked for, for DNS events), if any.
     package let destinationName: String?
-    let time: TimeInterval
+    package let time: TimeInterval
     /// Bytes relayed guest to host and host to guest; set on `closed`, zero otherwise.
-    let bytesToHost: UInt64
-    let bytesToGuest: UInt64
+    package let bytesToHost: UInt64
+    package let bytesToGuest: UInt64
     /// Lifetime of the flow; set on `closed`, zero otherwise.
-    let duration: TimeInterval
+    package let duration: TimeInterval
     /// How many attempts the event stands for: 1, except for a denial event that sums up the identical refusals held
     /// back since the last one for the same destination (see ``DenialSuppression``). A UI shows "x N" for more than one.
     package let count: Int

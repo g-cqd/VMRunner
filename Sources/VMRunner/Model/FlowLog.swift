@@ -36,7 +36,7 @@ struct FlowLogEntry: Identifiable, Hashable, Sendable {
     init?(event: FlowEvent, id: Int) {
         self.id = id
         transport = event.transport
-        destination = Self.describe(event)
+        destination = event.destinationText
         count = Self.attempts(of: event)
         switch event.phase {
         case .opened:
@@ -47,98 +47,12 @@ struct FlowLogEntry: Identifiable, Hashable, Sendable {
             detail = count > 1 ? "\(denial.explanation) × \(count)" : denial.explanation
         case .answered(let code):
             outcome = .allowed
-            detail = Self.describeAnswer(code)
+            detail = FlowEvent.answerText(responseCode: code)
         case .closed(.policyRevoked(let reason)):
             outcome = .denied
             detail = "Closed after a policy change: \(reason.explanation)"
         case .closed:
             return nil
-        }
-    }
-
-    private static func describe(_ event: FlowEvent) -> String {
-        let address: String
-        switch event.destinationAddress {
-        case .v4: address = event.destinationAddress.description
-        case .v6: address = "[\(event.destinationAddress)]"
-        }
-        let endpoint = event.destinationPort == 0 ? address : "\(address):\(event.destinationPort)"
-        guard let name = event.destinationName else { return endpoint }
-        return event.transport == .dns ? name : "\(name) (\(endpoint))"
-    }
-
-    private static func describeAnswer(_ code: UInt8) -> String {
-        switch code {
-        case 0: "Name resolved"
-        case 3: "No such name"
-        case 5: "Refused"
-        default: "Answered (code \(code))"
-        }
-    }
-}
-
-extension FlowTransport {
-    var label: String {
-        switch self {
-        case .tcp: "TCP"
-        case .udp: "UDP"
-        case .icmp: "ICMP"
-        case .dns: "DNS"
-        }
-    }
-}
-
-extension FlowDenial {
-    /// A plain-language reason, for the log and its tooltips.
-    var explanation: String {
-        switch self {
-        case .policy(let reason): reason.explanation
-        case .gatewayService(let port): "Only DNS is served at the gateway (port \(port) is not)."
-        case .flowLimit: "Too many connections are open at once."
-        case .unroutable: "Multicast and broadcast traffic isn't forwarded."
-        }
-    }
-}
-
-extension NetworkPolicy.Reason {
-    /// A plain-language reason naming the rule that decided.
-    var explanation: String {
-        switch self {
-        case .malformedHost: "The destination name is malformed."
-        case .nonCanonicalAddress: "The address is written in an unusual form that could hide where it really points."
-        case .malformedURL: "The URL could not be understood."
-        case .unsupportedScheme(let scheme): "Only http and https URLs are judged (\(scheme) is not)."
-        case .blockedPort(let port): "Port \(port) is blocked."
-        case .blockedConnection(let rule): "Matches the blocked connection \(rule)."
-        case .portNotAllowListed(let port): "Port \(port) is not on the allowed ports."
-        case .urlNotAllowListed: "The URL does not start with an allowed prefix."
-        case .reservedRange(let kind, let address):
-            "\(address) is \(kind.explanation), and "
-                + (kind.isFloor ? "the guest is never let reach those." : "private ranges are blocked.")
-        case .blockedAddress(let rule, let address): "\(address) is inside the blocked address rule \(rule)."
-        case .blockedDomain(let rule): "The name matches the blocked domain \(rule)."
-        case .blockedURL(let rule): "The URL starts with the blocked prefix \(rule)."
-        case .notAllowListed: "Not on the allow-list."
-        case .unresolved: "The name did not resolve to an address."
-        case .reservedName: "Names ending in .local or .arpa are not looked up for the guest."
-        }
-    }
-}
-
-extension ReservedRangeKind {
-    fileprivate var explanation: String {
-        switch self {
-        case .cloudMetadata: "a cloud metadata address"
-        case .hostGateway: "your Mac's side of the virtual network"
-        case .privateNetwork: "a private network address"
-        case .loopback: "a loopback address"
-        case .linkLocal: "a link-local address"
-        case .carrierGradeNAT: "a shared (carrier-grade NAT) address"
-        case .uniqueLocal, .siteLocal: "a local IPv6 address"
-        case .multicast: "a multicast address"
-        case .unspecified: "an unspecified address"
-        case .reserved: "a reserved address"
-        case .benchmarking: "in the range the virtual network itself uses"
         }
     }
 }

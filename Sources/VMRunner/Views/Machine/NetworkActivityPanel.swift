@@ -1,3 +1,4 @@
+import NetStack
 import SwiftUI
 
 /// Toolbar button for a running filtered machine: the VPN symbol, and a popover with the details.
