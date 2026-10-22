@@ -23,6 +23,8 @@ enum StartDisplay {
         case fixedSize = "fixed size"
         /// The configured size, because there is no usable window yet.
         case configuredSizeWithoutWindow = "configured size, no usable window"
+        /// The guest's default size, because the stored size is not a size a screen can have.
+        case defaultSize = "default size, stored size invalid"
     }
 
     /// What the width cap did to a start size.
@@ -70,27 +72,49 @@ enum StartDisplay {
     }
 
     /// `size(for:window:restoring:)` with the rule that decided it.
+    ///
+    /// A stored size (the fixed size, or the remembered one) that is outside what the editor offers is not a screen: zero, a
+    /// negative number, a few pixels or an absurd number comes from a damaged or hand-edited configuration. It is not used; the
+    /// start falls back to the window, and without a usable window to the guest's default size.
     static func decide(for config: VMConfig, window: CGSize?, restoring: Bool) -> Decision {
-        let remembered = config.lastDisplayWidth != nil && config.lastDisplayHeight != nil
-        if restoring, let width = config.lastDisplayWidth, let height = config.lastDisplayHeight {
-            return Decision(width: width, height: height, source: .savedState, cap: .notApplicable, rememberedSizeIgnored: false)
+        var remembered: (width: Int, height: Int)?
+        if let width = config.lastDisplayWidth, let height = config.lastDisplayHeight, isValid(width: width, height: height) {
+            remembered = (width, height)
         }
-        let capped = config.guest == .linux && (config.fitsWindowAtStart || config.automaticallyReconfiguresDisplay)
+        if restoring, let remembered {
+            return Decision(
+                width: remembered.width, height: remembered.height, source: .savedState, cap: .notApplicable,
+                rememberedSizeIgnored: false)
+        }
+        let configuredIsValid = isValid(width: config.displayWidth, height: config.displayHeight)
+        let capped = config.guest == .linux && (config.fitsWindowAtStart || config.automaticallyReconfiguresDisplay || !configuredIsValid)
         func decision(_ size: (width: Int, height: Int), _ source: Source, requested: Double) -> Decision {
             let cap: Cap = !capped ? .notApplicable : (requested > Double(legibleWidth) ? .reduced : .withinCap)
-            return Decision(width: size.width, height: size.height, source: source, cap: cap, rememberedSizeIgnored: remembered)
+            return Decision(width: size.width, height: size.height, source: source, cap: cap, rememberedSizeIgnored: remembered != nil)
         }
-        if config.fitsWindowAtStart, let window, window.width >= usableWindow.width, window.height >= usableWindow.height {
+        if config.fitsWindowAtStart || !configuredIsValid, let window, window.width >= usableWindow.width,
+            window.height >= usableWindow.height
+        {
             let width = window.width * config.displayScale
             let size = fitted(width, window.height * config.displayScale, capped: capped)
             return decision(size, .window, requested: width)
         }
-        let source: Source = config.fitsWindowAtStart ? .configuredSizeWithoutWindow : .fixedSize
-        if capped, config.displayWidth > legibleWidth {
-            let size = fitted(Double(config.displayWidth), Double(config.displayHeight), capped: true)
-            return decision(size, source, requested: Double(config.displayWidth))
+        let source: Source = !configuredIsValid ? .defaultSize : (config.fitsWindowAtStart ? .configuredSizeWithoutWindow : .fixedSize)
+        let width = configuredIsValid ? config.displayWidth : defaultSize(for: config.guest).width
+        let height = configuredIsValid ? config.displayHeight : defaultSize(for: config.guest).height
+        if capped, width > legibleWidth {
+            return decision(fitted(Double(width), Double(height), capped: true), source, requested: Double(width))
         }
-        return decision((config.displayWidth, config.displayHeight), source, requested: Double(config.displayWidth))
+        return decision((width, height), source, requested: Double(width))
+    }
+
+    private static func isValid(width: Int, height: Int) -> Bool {
+        EditorLimits.displayWidth.contains(width) && EditorLimits.displayHeight.contains(height)
+    }
+
+    /// What `VMConfig.new` gives a guest.
+    private static func defaultSize(for guest: GuestOS) -> (width: Int, height: Int) {
+        guest == .linux ? (1280, 800) : (1920, 1200)
     }
 
     private static func fitted(_ width: Double, _ height: Double, capped: Bool) -> (width: Int, height: Int) {

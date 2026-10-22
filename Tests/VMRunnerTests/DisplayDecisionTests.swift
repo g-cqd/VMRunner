@@ -108,4 +108,86 @@ struct DisplayDecisionTests {
         }
         #expect(checked == windows.count * sizes.count * 4 * 3 * remembered.count)
     }
+
+    // MARK: A stored size that cannot be a screen is not used
+
+    private struct Stored: CustomTestStringConvertible {
+        var width: Int
+        var height: Int
+        var testDescription: String { "\(width)x\(height)" }
+    }
+
+    private static let invalid = [
+        Stored(width: 0, height: 0), Stored(width: -1920, height: -1200), Stored(width: 1920, height: 0),
+        Stored(width: 0, height: 1200), Stored(width: 1, height: 1), Stored(width: 100, height: 100),
+        Stored(width: 639, height: 800), Stored(width: 1280, height: 479), Stored(width: 100_000, height: 100_000),
+        Stored(width: Int.min, height: Int.min), Stored(width: Int.max, height: Int.max),
+    ]
+
+    @Test(arguments: invalid)
+    private func anInvalidFixedSizeFallsBackToTheWindowEvenWhenMatchWindowIsOff(stored: Stored) {
+        let config = linux {
+            $0.fitsWindowAtStart = false
+            $0.displayWidth = stored.width
+            $0.displayHeight = stored.height
+        }
+        let decision = StartDisplay.decide(for: config, window: retinaWindow, restoring: false)
+        #expect(decision.source == .window && decision.width == 1280 && decision.height == 760, "\(decision)")
+    }
+
+    @Test(arguments: invalid)
+    private func anInvalidConfiguredSizeFallsBackToTheGuestsDefaultWithoutAWindow(stored: Stored) {
+        for fits in [true, false] {
+            let linuxConfig = linux {
+                $0.fitsWindowAtStart = fits
+                $0.displayWidth = stored.width
+                $0.displayHeight = stored.height
+            }
+            #expect(StartDisplay.decide(for: linuxConfig, window: nil, restoring: false).size == (1280, 800))
+            var macConfig = VMConfig.new(name: "m", guest: .macOS)
+            macConfig.fitsWindowAtStart = fits
+            macConfig.displayWidth = stored.width
+            macConfig.displayHeight = stored.height
+            let decision = StartDisplay.decide(for: macConfig, window: nil, restoring: false)
+            #expect(decision.size == (1920, 1200) && decision.source == .defaultSize)
+        }
+    }
+
+    @Test func aFixedSizeThatTheGuestWouldKeepIsNotKeptWhenItIsInvalid() {
+        let config = linux {
+            $0.fitsWindowAtStart = false
+            $0.automaticallyReconfiguresDisplay = false
+            $0.displayWidth = 0
+            $0.displayHeight = 0
+        }
+        let decision = StartDisplay.decide(for: config, window: retinaWindow, restoring: false)
+        #expect(decision.source == .window && decision.width <= StartDisplay.legibleWidth)
+    }
+
+    @Test(arguments: invalid)
+    private func anInvalidRememberedSizeIsNotRestoredInto(stored: Stored) {
+        let config = linux {
+            $0.lastDisplayWidth = stored.width
+            $0.lastDisplayHeight = stored.height
+        }
+        let decision = StartDisplay.decide(for: config, window: retinaWindow, restoring: true)
+        #expect(decision.source == .window && decision.width == 1280)
+    }
+
+    @Test func theLimitsOfTheEditorAreValidSizes() {
+        let config = linux {
+            $0.fitsWindowAtStart = false
+            $0.automaticallyReconfiguresDisplay = false
+            $0.displayWidth = EditorLimits.displayWidth.lowerBound
+            $0.displayHeight = EditorLimits.displayHeight.lowerBound
+        }
+        #expect(StartDisplay.size(for: config, window: nil, restoring: false) == (640, 480))
+        let largest = linux {
+            $0.fitsWindowAtStart = false
+            $0.automaticallyReconfiguresDisplay = false
+            $0.displayWidth = EditorLimits.displayWidth.upperBound
+            $0.displayHeight = EditorLimits.displayHeight.upperBound
+        }
+        #expect(StartDisplay.size(for: largest, window: nil, restoring: false) == (7680, 4320))
+    }
 }
