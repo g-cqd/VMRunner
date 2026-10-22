@@ -344,3 +344,116 @@ either engine, and boot time. Also: the user-mode network stack hosted in a help
 security-scoped bookmark or a container-staged disk as the App Sandbox file mechanism, `network.server` for binding, whether
 an ad-hoc re-signed helper bundle can be launched by a notarized app, and the wording of a later Apple engineer comment about
 the macOS 27 descendants client.
+
+## Boot run results (2026-10-22)
+
+The owner's boot run above was done under the owner's authorisation on the host of the probe results (Mac15,12, Apple M3,
+macOS 26.7.1), with a scratch directory under `/tmp`, two CPUs and 2048 MiB per guest, no window opened and no GUI driven.
+Commands were the documented five (`vmr sandbox run --engine ... --descriptor ... --boot --run-seconds 40`), run with the
+already built `vmr` binary because a container build held the package lock; the report text is the tool's own.
+
+**Image.** Alpine 3.24.2 `virt` for aarch64 (93,304,832 bytes), the newest release with an `.asc`: 3.24.3 is listed on the
+mirror with `.iso`, `.sha256` and `.sha512` but its `.asc` answers 404. SHA-256 `a57ba668...bf43dbf6` matched the published
+file, and `gpg --verify` against `ncopa.asc` from alpinelinux.org/keys reported a good signature by the key
+`0482D84022F52DF1C4E7CD43293ACD0907D9495A` (the key is not in a web of trust, as gpg says).
+
+### The five documented runs (EFI boot of the ISO)
+
+| Run | Boots | Booting to running | Start phase | Denials in the start phase |
+|---|---|---|---|---|
+| `none`, file-handle NIC | yes | 0.193 s (0.213 s from the helper's start) | exit 0, 42.6 s | none |
+| `seatbelt`, file-handle NIC, as shipped | **no**: "Invalid virtual machine configuration. The boot loader is invalid." | - | exit 70 after 0.15 s | 36 in the run, see below |
+| `seatbelt`, file-handle NIC, `hw.pagesize_compat` allowed | yes | 0.090 s (0.101 s) | exit 0, 40.1 s | 3: `/dev/dtracehelper`, the `syslog` socket, `mach-task-name` of the machine service |
+| `app-sandbox`, file-handle NIC | yes | 0.080 s (0.090 s) | exit 0, 40.1 s | none |
+| `seatbelt`, NAT | yes | 0.083 s (0.094 s) | exit 0, 40.2 s | the same 3 |
+| `app-sandbox`, NAT | yes | 0.081 s (0.091 s) | exit 0, 40.2 s | none |
+
+Every run printed `the guest wrote nothing to its console`: the ISO's boot loader does not use the virtio console, so these
+runs prove only that the framework reported a running machine (and that firmware ran: `efi.nvram`, 131,072 bytes, was
+written). The helper has no user interface code, so no window or prompt is expected; the screen was not watched. `~/Library/Containers/com.example.VMRunner.VMHelper`
+appeared with the first App Sandbox run (32 KB) and `efi.nvram` exists afterwards.
+
+### A guest that talks: kernel boot from the same ISO
+
+To see the guest run, the kernel and initial ramdisk were taken out of the verified ISO (`boot/vmlinuz-virt` is an EFI
+"zboot" image; its gzip payload is the arm64 `Image` the framework's Linux loader takes) and started with the descriptor's
+kernel boot and `console=hvc0`. Every run below ended with Alpine's `localhost login:` prompt (152 console lines, `Linux
+6.18.52-0-virt (aarch64)`), exit status 0, a 40.1 to 40.3 s start phase.
+
+| Engine, level, network | Booting to running | First console line, after booting |
+|---|---|---|
+| `none`, standard, file-handle | 0.099 s | 0.204 s |
+| `seatbelt`, standard, file-handle | 0.089 s | 0.186 s |
+| `seatbelt`, strict, file-handle | 0.087 s | 0.192 s |
+| `seatbelt`, standard, NAT | 0.090 s | 0.192 s |
+| `app-sandbox`, standard, file-handle | 0.096 s | 0.199 s |
+| `app-sandbox`, strict, file-handle | 0.175 s | 0.406 s |
+| `app-sandbox`, standard, NAT | 0.090 s | 0.192 s |
+
+The first console line is Alpine's initramfs (`Alpine Init 3.14.1-r0`). With `ip=dhcp` on the command line and the NAT
+attachment, the guest got a lease (`udhcpc: lease of 192.168.64.x obtained from 192.168.64.1`) at 2.95 s of guest time with no
+sandbox, 2.94 s under Seatbelt and 2.90 s under App Sandbox: NAT is provided by the framework's own service and needs
+nothing from the helper's sandbox in either engine. The file-handle NIC is attached to a socket pair that nothing serves, so
+a guest network through the user-mode stack in a helper is still untested.
+
+### What the helper itself could do inside the sandbox (its probe)
+
+| Operation | none | Seatbelt standard, file-handle | App Sandbox standard, file-handle | strict, or NAT (either engine) |
+|---|---|---|---|---|
+| connect TCP, send UDP, ICMP echo socket | allowed | allowed | allowed | refused |
+| resolve `example.com` | allowed | allowed | allowed | refused |
+| `/etc/hosts`, resolve `localhost` | allowed | allowed | allowed | Seatbelt refuses both; App Sandbox allows both |
+| bind a UDP socket on loopback | allowed | refused | refused | refused |
+| home directory, a new file in `/private/tmp` | allowed | refused | refused | refused |
+
+The host sockets of the standard level exist only when the helper hosts the network (file-handle). A NAT descriptor at the
+standard level gets the strict column, which is intended: the framework's service does the NAT.
+
+### The one missing rule, and how it was found
+
+Under the profile as shipped the start failed in 0.15 s with the "boot loader is invalid" error although `validate()` passed. The
+log held, for the start, `sysctl-read hw.pagesize_compat`; `file-read-data` of the helper's own directory (3x);
+`mach-lookup com.apple.system.opendirectoryd.libinfo` with `file-read-data` and `file-read-metadata` of `/private/etc/passwd`
+(6x each); `mach-task-name` of the machine service; `/dev/dtracehelper`; the `syslog` socket. The helper was then run by
+hand under copies of the profile, one rule added at a time, three seconds each:
+
+| Added to the profile | Start |
+|---|---|
+| `(allow mach-task-name)` | fails, same error |
+| `(allow file-issue-extension)` | fails |
+| `libinfo` Mach lookup and `/private/etc/passwd` | fails |
+| read of the helper's directory | fails |
+| `(sysctl-name "hw.pagesize_compat")` alone | **runs** |
+| all five together | runs |
+
+So the only rule added to the generator is `hw.pagesize_compat` (commit "Let the Seatbelt profile read hw.pagesize_compat",
+with a test). The other denials stay denied: a machine runs without them. Removing the Mach lookup of
+`com.apple.Virtualization.VirtualMachine`, which the generator had listed as a guess, fails the start ("Internal
+Virtualization error. The virtual machine failed to start.") with `deny(1) mach-lookup
+com.apple.Virtualization.VirtualMachine (xpc)` in the log, so it is confirmed and needed. The framework's other lookups
+found earlier (`diskimagescontroller`, `logd`, `notification_center`) stayed in the list and the machines started; each was
+found by a denial in the previous round, and none was re-tested by removal. The framework also logs that it falls back to
+direct preferences access ("Update your sandbox profile to allow cfprefsd access!"); the machine starts regardless, so no
+rule was added for it.
+
+### Answers to the open questions
+
+- **Does a machine boot inside either engine?** Yes, both, at both levels, with NAT and with the file-handle NIC, headless.
+  Seatbelt needed the one sysctl above. App Sandbox needed no more than the entitlements the helper bundle already has (the
+  path exceptions, `virtualization`, and `network.client` at standard).
+- **Which Mach services does a boot need?** `com.apple.Virtualization.VirtualMachine` (the per-machine service),
+  `com.apple.diskimagescontroller`, `com.apple.logd`, `com.apple.system.notification_center`; no other Mach lookup was logged as
+  denied during a start (the log undercounts, but the machines started).
+- **Boot time.** The framework reports a running machine 0.08 to 0.2 s after `booting` in every engine (App Sandbox strict was the
+  slowest, 0.175 s in one run); a guest's first console line follows about 0.1 s later; the guest's own clock shows its network up
+  at about 2.9 s. No engine is measurably slower in these single runs; the differences are within what repeated runs of the
+  `none` control would show (not measured).
+- **Does the model hold?** Yes: see ADR-0016, now accepted. The three engines are renderings of the same grants, and the two
+  levels are the host-socket switch.
+
+### Still not verified
+
+The user-mode network stack hosted in a helper (it was not extracted from the app); `network.server` for binding; a
+security-scoped bookmark or container-staged disk as the App Sandbox file mechanism; a notarized app launching an ad-hoc
+re-signed helper; the `custom` level; repeated runs for a spread of boot times; whether the unified log's throttling hid a
+denial in any run (the machines started, so no missing rule was left unexplained); any run longer than 40 s.

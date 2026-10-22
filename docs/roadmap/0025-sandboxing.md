@@ -20,17 +20,23 @@ entitlement only, receiving descriptors over XPC; measure boot time and sandbox 
 - Run for real, without a machine: every engine and level validated both test configurations; the probe shows which
   operations each refuses. Results and what they mean for the engine and level model: the study's "Probe results".
 
-## Blocked on the owner: one boot run
+## Done: the boot run (2026-10-22)
 
-Agents never start a virtual machine, so whether a guest boots inside either engine is open until the owner runs the five
-commands in the study's "The owner's boot run" and reports the output. A failure under `seatbelt` is expected to be a missing
-Mach service or file rule that the report's denials name.
+The five documented commands were run, plus kernel-boot runs that show a guest talking. An Alpine aarch64 guest starts
+and reaches its login prompt under no sandbox, under App Sandbox and under a generated Seatbelt profile, at the standard and
+strict levels, with the file-handle NIC and with NAT, headless; a NAT guest gets a DHCP lease under all three. The framework
+reports a running machine 0.08 to 0.2 s after `booting` and the first console line follows about 0.1 s later. The profile
+as shipped failed with "The boot loader is invalid": one missing kernel value, `hw.pagesize_compat`, found from the log and
+by adding rules one at a time, is now in the generator with a test. The numbers, the table of the bisection and what stays
+denied are in the study's "Boot run results (2026-10-22)". ADR-0016 is accepted.
 
-## After the boot run
+## Next
 
-1. Fold the Mach services and rules the boot needs into the profile generator, and record boot time per engine.
-2. Extract the user-mode network stack and the configuration builder from the app target into libraries the helper can link,
-   so a helper hosts a real guest network (today its NIC is on a socket pair nothing serves).
-3. Decide how App Sandbox helpers get files (per-workload signing with exceptions, or disks cloned into the container) and
-   record it in the ADR's "What this does not decide".
-4. Settings model, per-workload override and interface (`SandboxEngine`, `SandboxLevel`), keeping graphical machines in the app.
+1. Extract the user-mode network stack and the configuration builder from the app target into libraries the helper can link,
+   so a helper hosts a real guest network (today the file-handle NIC is on a socket pair nothing serves). Then repeat the boot
+   at both levels with a guest that uses the network, which also answers whether the stack works unchanged under App Sandbox.
+2. Decide how App Sandbox helpers get files (per-workload signing with exceptions is what works and what `vmr sandbox` does;
+   disks cloned into the container or bookmarks were not tried) and, if it changes, record it in a new ADR.
+3. Settings model, per-workload override and interface (`SandboxEngine`, `SandboxLevel`), keeping graphical machines in the
+   app. The model is settled by ADR-0016; the `custom` level is not exercised.
+4. A regression test that boots a workload at each level, reading the helper's events and the guest's console, not the log.
