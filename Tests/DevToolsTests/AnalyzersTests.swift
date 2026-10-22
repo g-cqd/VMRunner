@@ -131,7 +131,8 @@ struct AnalyzersTests {
             let versions = try await fixture.vmr(["analyzers", "versions"])
             #expect(
                 versions.outputLines.dropLast()
-                    == AnalyzerTool.allCases.map { "\($0.rawValue) 1.2.3 (commit \(AnalyzerFixture.commit(of: $0)))" })
+                    == ReleaseSpec.pinnedReleases.map { "\($0.name) 1.2.3 (commit \(AnalyzerFixture.commit(of: $0)))" })
+            #expect(versions.output.contains("swiftlint 1.2.3 (commit \(String(repeating: "d", count: 40)))"), "SwiftLint is listed")
         }
     }
 

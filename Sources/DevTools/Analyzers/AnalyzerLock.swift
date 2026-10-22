@@ -50,6 +50,9 @@ struct ReleaseSpec: Equatable, Sendable {
     /// The portable SwiftLint release: a universal binary and its license in a flat zip.
     static let swiftlint = Self(
         name: "swiftlint", owner: "realm", repository: "SwiftLint", tagPrefix: "", archive: .flatZip(name: "portable_swiftlint.zip"))
+
+    /// Every release `Scripts/analyzers.lock` pins, in the order `vmr analyzers versions` lists them.
+    static var pinnedReleases: [Self] { AnalyzerTool.allCases.map(\.release) + [.swiftlint] }
 }
 
 /// The three static analyzers the gate runs.

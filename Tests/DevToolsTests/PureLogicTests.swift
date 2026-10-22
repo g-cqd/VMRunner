@@ -63,7 +63,7 @@ struct PureLogicTests {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let lock = try AnalyzerLock.load(root: root)
         let hex = Set("0123456789abcdef")
-        for release in AnalyzerTool.allCases.map(\.release) + [.swiftlint] {
+        for release in ReleaseSpec.pinnedReleases {
             let pin = try lock.pin(for: release)
             #expect(pin.commit.count == 40 && pin.commit.allSatisfy(hex.contains), "\(release.name) commit: \(pin.commit)")
             #expect(pin.sha256.count == 64 && pin.sha256.allSatisfy(hex.contains), "\(release.name) checksum: \(pin.sha256)")

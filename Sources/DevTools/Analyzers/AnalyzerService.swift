@@ -69,9 +69,9 @@ struct AnalyzerService: Sendable {
 
     func versions() throws {
         let lock = try AnalyzerLock.load(root: root)
-        for tool in AnalyzerTool.allCases {
-            let pin = try lock.pin(for: tool)
-            Output.out("\(tool.rawValue) \(pin.version) (commit \(pin.commit))")
+        for release in ReleaseSpec.pinnedReleases {
+            let pin = try lock.pin(for: release)
+            Output.out("\(release.name) \(pin.version) (commit \(pin.commit))")
         }
     }
 

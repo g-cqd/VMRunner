@@ -8,7 +8,7 @@ import Foundation
 struct AnalyzerFixture {
     static let version = "1.2.3"
     /// The analyzers and SwiftLint: every release the lock pins.
-    static let releases = AnalyzerTool.allCases.map(\.release) + [.swiftlint]
+    static let releases = ReleaseSpec.pinnedReleases
 
     let root: URL
     let release: URL
