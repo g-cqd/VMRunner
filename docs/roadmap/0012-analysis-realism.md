@@ -24,3 +24,5 @@ An authorised real-guest run on 2026-10-22 saw a Linux guest's disk on NVMe, the
 guest reads it, and an address with each vendor prefix (and a locally administered one) get a DHCP lease and carry HTTP
 on NAT. Still owed: a disposable macOS guest started with a new identifier. The three prefixes match the public IEEE
 registry of manufacturer prefixes.
+
+2026-10-22: a real run showed a disposable run's address saved into the machine; fixed: it is used for the run only.

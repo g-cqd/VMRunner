@@ -134,7 +134,8 @@ extension HelpCatalog {
                 "• **Disk serial number**: what a virtio disk reports as its serial, at most 20 plain characters. An NVMe "
                     + "drive reports none.",
                 "• **New identity at each start** (disposable machines): a new MAC address and machine identifier every time, "
-                    + "so two runs cannot be matched by them. A macOS guest sees a new serial number each time.",
+                    + "so two runs cannot be matched by them. A macOS guest sees a new serial number each time. "
+                    + "The fresh address is used for that run only; the machine's own address is not changed.",
                 "**What a guest can still tell.** None of this hides the virtual machine from a guest that looks closely: a "
                     + "macOS guest is told by its kernel that it runs under a hypervisor and sees the virtual Mac model of its "
                     + "restore image; a Linux guest sees virtio devices and the firmware of Apple's virtualization; timing and "

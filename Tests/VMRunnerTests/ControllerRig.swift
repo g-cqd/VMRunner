@@ -21,6 +21,8 @@ final class FakeFactory: MachineFactory {
     private(set) var preparations = 0
     /// The display size each preparation was asked for, in order.
     private(set) var displays: [Size] = []
+    /// The configuration each preparation booted, in order.
+    private(set) var bootedConfigs: [VMConfig] = []
     var suspend = SuspendSupport.available
     var withNetwork = true
     /// `prepare` throws this once, then behaves again.
@@ -50,6 +52,7 @@ final class FakeFactory: MachineFactory {
     ) async throws -> PreparedMachine {
         preparations += 1
         displays.append(Size(width: display.width, height: display.height))
+        bootedConfigs.append(config)
         if let gate = preparationGate {
             preparationGate = nil
             held.record("held#\(preparations)")

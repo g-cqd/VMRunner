@@ -62,8 +62,9 @@ struct GuestIdentityStartTests {
 
         let first = rig.factory.add()
         await rig.start()
-        let firstAddress = rig.config.macAddress
-        #expect(firstAddress != "02:00:00:00:00:01")
+        let firstAddress = rig.factory.bootedConfigs.last?.macAddress
+        #expect(firstAddress != nil && firstAddress != "02:00:00:00:00:01")
+        #expect(rig.config.macAddress == "02:00:00:00:00:01", "the run's address is not saved into the machine")
         #expect(FileManager.default.fileExists(atPath: rig.bundle.ephemeralMachineIdentifier.path))
         first.powerOff()
         rig.expectReleased()
@@ -71,7 +72,7 @@ struct GuestIdentityStartTests {
 
         let second = rig.factory.add()
         await rig.start()
-        #expect(rig.config.macAddress != firstAddress)
+        #expect(rig.factory.bootedConfigs.last?.macAddress != firstAddress)
         second.powerOff()
         rig.expectReleased()
     }

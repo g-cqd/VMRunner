@@ -71,9 +71,11 @@ final class VMController {
         var config = config
         // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable; a disposable
         // machine with a fresh identity gets a new one at each start (`needsNewMACAddress`).
+        let storedMACAddress = config.macAddress
         if config.networkMode.hasNetworkDevice, config.needsNewMACAddress {
             config.macAddress = config.macVendor.makeAddress()
-            library.update(config)
+            // The fresh address of a disposable machine is for this run only, so it is not saved here.
+            if !(config.ephemeral && config.freshIdentityPerStart) { library.update(config) }
         }
         // A memory snapshot is only valid for the exact disk it was taken against, and disposable or
         // locked-down machines must never leave one behind.
@@ -87,10 +89,11 @@ final class VMController {
         if !restoring {
             config.lastDisplayWidth = decision.width
             config.lastDisplayHeight = decision.height
-            library.update(config)
+            library.update(config.persistable(storedMACAddress: storedMACAddress))
         }
         launch = MachineLaunch(
-            config: config, bundle: bundle, library: library, display: decision, windowSize: windowSize, suspendAllowed: mayResume)
+            config: config, bundle: bundle, library: library, display: decision, windowSize: windowSize, suspendAllowed: mayResume,
+            storedMACAddress: storedMACAddress)
         await drive(.startRequested, run: run)
     }
 
@@ -179,7 +182,9 @@ final class VMController {
         case .discardSavedState:
             launch?.bundle.discardSavedState()
         case .recordFirstBoot:
-            if let launch, let library = launch.library { recordFirstBoot(of: launch.config, in: library) }
+            if let launch, let library = launch.library {
+                recordFirstBoot(of: launch.config, storedMACAddress: launch.storedMACAddress, in: library)
+            }
         case .showNotice:
             errorMessage = notice
             notice = nil
@@ -233,12 +238,12 @@ final class VMController {
 
     /// Provisioning is only consumed by a boot that keeps its result: a disposable clone or a recovery boot
     /// would discard the account that was just created.
-    private func recordFirstBoot(of config: VMConfig, in library: any MachineStore) {
+    private func recordFirstBoot(of config: VMConfig, storedMACAddress: String?, in library: any MachineStore) {
         guard !config.hasBooted, !config.ephemeral, !config.bootIntoRecovery else { return }
         var updated = config
         updated.hasBooted = true
         updated.provisioning.password = ""
-        library.update(updated)
+        library.update(updated.persistable(storedMACAddress: storedMACAddress))
     }
 
     private func armRuntimeLimit(run token: UInt64) {
