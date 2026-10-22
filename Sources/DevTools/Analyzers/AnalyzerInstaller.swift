@@ -108,13 +108,25 @@ struct AnalyzerInstaller: Sendable {
                 + "Remove them from the index (git rm -r --cached) and from the tree; vmr downloads the pinned release itself")
     }
 
-    /// The hex SHA-256 of a file, hashed in chunks so a large archive is never held in memory.
+    /// The app's read size (`Checksums` in the app): one buffer of it is reused for every read of an archive.
+    static let readSize = 4 << 20
+
+    /// The hex SHA-256 of a file, read through one reusable buffer so a large archive is never held in memory and no read
+    /// allocates.
     static func sha256(ofFileAt url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         var hasher = SHA256()
-        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
-            hasher.update(data: chunk)
+        var buffer = [UInt8](repeating: 0, count: readSize)
+        while true {
+            // `bytes` spans the whole buffer for the duration of the call; `read` writes at most `bytes.count` bytes into it.
+            let count = buffer.withUnsafeMutableBytes { bytes in unsafe read(handle.fileDescriptor, bytes.baseAddress, bytes.count) }
+            if count == 0 { break }
+            guard count > 0 else {
+                if errno == EINTR { continue }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            hasher.update(data: buffer[..<count])
         }
         return hasher.finalize().map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined()
     }

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 
@@ -174,5 +175,20 @@ struct PureLogicTests {
         #expect(try config.resolvedCoverageMinimum(environment: [:]) == 60)
         #expect(try config.resolvedCoverageMinimum(environment: ["COVERAGE_MIN": "70"]) == 70)
         #expect(try ProjectConfig().resolvedCoverageMinimum(environment: [:]) == ProjectConfig.defaultCoverageMinimum)
+    }
+
+    @Test
+    func theArchiveDigestCoversAFileLongerThanOneReadAndAnEmptyOne() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "vmr-digest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bytes = Data((0..<(2 * AnalyzerInstaller.readSize + 5)).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+        let file = directory.appending(path: "long.bin")
+        try bytes.write(to: file)
+        let expected = SHA256.hash(data: bytes).map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined()
+        #expect(try AnalyzerInstaller.sha256(ofFileAt: file) == expected)
+        let empty = directory.appending(path: "empty.bin")
+        try Data().write(to: empty)
+        #expect(try AnalyzerInstaller.sha256(ofFileAt: empty) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
     }
 }
