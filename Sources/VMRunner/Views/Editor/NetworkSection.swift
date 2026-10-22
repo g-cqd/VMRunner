@@ -1,3 +1,4 @@
+import NetStack
 import SwiftUI
 import Virtualization
 

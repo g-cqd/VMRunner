@@ -1,4 +1,5 @@
 import Foundation
+import NetStack
 import Testing
 
 @testable import VMRunner

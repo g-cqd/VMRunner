@@ -4,7 +4,7 @@
   "skipTestsWhenInstrumented": ["DevToolsTests"],
   "coverage": {
     "minimum": 55,
-    "testBundles": ["VMRunnerTests", "NetPolicyTests"],
+    "testBundles": ["VMRunnerTests", "NetPolicyTests", "NetStackTests"],
     "ignoreRegex": "Tests/|\\.build|/Views/|VMRunnerApp|VMController|Provisioner|ConfigurationBuilder"
   }
 }

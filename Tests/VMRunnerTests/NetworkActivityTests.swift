@@ -4,6 +4,7 @@ import Observation
 import TestKit
 import Testing
 
+@testable import NetStack
 @testable import VMRunner
 
 /// Drives a `NetworkActivity` with plain streams, a test clock for its batches and recording closures: no sockets, no virtual

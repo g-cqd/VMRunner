@@ -35,10 +35,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "VMRunner",
-            dependencies: ["NetPolicy", .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
+            dependencies: ["NetPolicy", "NetStack", .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
             path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(
-            name: "VMRunnerTests", dependencies: ["VMRunner", "NetPolicy", "TestKit"], path: "Tests/VMRunnerTests",
+            name: "VMRunnerTests", dependencies: ["VMRunner", "NetPolicy", "NetStack", "TestKit"], path: "Tests/VMRunnerTests",
             swiftSettings: hardening),
 
         // The network policy (rules, host and IP parsing, the gate): system frameworks only, no app type. The app, the
@@ -46,6 +46,14 @@ let package = Package(
         .target(name: "NetPolicy", path: "Sources/NetPolicy", swiftSettings: hardening),
         .testTarget(
             name: "NetPolicyTests", dependencies: ["NetPolicy", "TestKit"], path: "Tests/NetPolicyTests", swiftSettings: hardening),
+
+        // The user-mode network stack (Ethernet, ARP, DHCP, DNS, TCP and UDP flows, the guest VPN detector), judged by NetPolicy.
+        // It links system frameworks and NetPolicy only: no Virtualization, no app type, and its logger is injected. Its
+        // per-packet path stays inside this module; what the app and the helper call is `package`.
+        .target(name: "NetStack", dependencies: ["NetPolicy"], path: "Sources/NetStack", swiftSettings: hardening),
+        .testTarget(
+            name: "NetStackTests", dependencies: ["NetStack", "NetPolicy", "TestKit"], path: "Tests/NetStackTests",
+            swiftSettings: hardening),
 
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
         // engine chosen by `vmr sandbox`. It links the system frameworks and VMHelperCore only, never the app.

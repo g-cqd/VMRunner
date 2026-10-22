@@ -93,7 +93,7 @@ These settings narrow the host–guest channels. They don't make an untrusted gu
 ## Filtered network (user-mode)
 
 Settings ▸ Network ▸ **Filtered (user-mode)** connects the guest to VMRunner's own network stack
-(`Sources/VMRunner/Network`) instead of Apple's NAT. Every connection is checked against a per-machine policy before
+(`Sources/NetStack`) instead of Apple's NAT. Every connection is checked against a per-machine policy before
 it is made:
 
 - **Block list** (everything except what you block) or **Allow list** (nothing except what you allow); a block always
@@ -146,12 +146,12 @@ library and its copies on the same APFS volume (it is, by default: `~/Library/Ap
 
 ```
 Sources/NetPolicy   the network policy: rules, host and IP parsing, the gate that judges a connection (system frameworks only)
+Sources/NetStack    the user-mode network stack behind Filtered networking (links NetPolicy; no Virtualization, no app type)
 Sources/VMRunner
   Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
             Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)
   Engine/   ConfigurationBuilder (VMConfig -> VZVirtualMachineConfiguration), Provisioner (media + install),
             VMController (run/pause/suspend/restore, runtime limit), NetworkActivity (filtered-network log and VPN signals), Downloads, Catalogs (ipsw.me and the Linux vendors)
-  Network/  the user-mode network stack behind Filtered networking
   Views/    ContentView, MachineView (toolbar, display), ConfigEditor, NewMachineSheet (+ Settings)
 Machines live in ~/Library/Application Support/VMRunner/Machines/<uuid>.vm
 ```

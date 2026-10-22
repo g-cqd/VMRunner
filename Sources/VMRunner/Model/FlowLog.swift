@@ -1,5 +1,6 @@
 import Foundation
 import NetPolicy
+import NetStack
 
 /// One line of the recent-connections log: what the guest tried to reach and what the policy decided.
 struct FlowLogEntry: Identifiable, Hashable, Sendable {

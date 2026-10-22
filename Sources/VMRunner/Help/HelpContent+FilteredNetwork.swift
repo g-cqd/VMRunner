@@ -1,3 +1,5 @@
+import NetStack
+
 extension HelpCatalog {
     /// The stack's defaults, so the limits the help states are the limits it enforces.
     private static let limits = UserNetConfig()

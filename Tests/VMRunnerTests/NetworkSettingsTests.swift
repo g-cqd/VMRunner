@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import NetPolicy
+@testable import NetStack
 @testable import VMRunner
 
 struct NetworkConfigTests {

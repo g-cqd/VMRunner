@@ -11,11 +11,16 @@ import Testing
 struct ChecksumBenchmarks {
     private static let size = 64 << 20
 
+    /// Bytes that vary along the file, so a digest cannot be cached by repetition.
+    private static func pattern(_ count: Int) -> [UInt8] {
+        (0..<count).map { UInt8(truncatingIfNeeded: ($0 &* 31) &+ ($0 >> 8)) }
+    }
+
     @Test(arguments: [("sha256", Checksum.Algorithm.sha256), ("sha1", .sha1)])
     func digestThroughput(name: String, algorithm: Checksum.Algorithm) async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let bytes = Data(pattern(Self.size))
+        let bytes = Data(Self.pattern(Self.size))
         let file = directory.appending(path: "buffer.bin")
         try bytes.write(to: file)
         let expected =

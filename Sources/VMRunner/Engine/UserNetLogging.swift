@@ -1,3 +1,4 @@
+import NetStack
 import os
 
 /// The app's logger for the user-mode network stack: lines go to the `network` category, destinations redacted.

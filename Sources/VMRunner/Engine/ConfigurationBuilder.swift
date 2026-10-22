@@ -1,4 +1,5 @@
 import Foundation
+import NetStack
 import Virtualization
 
 /// Translates a `VMConfig` plus its on-disk bundle into a validated `VZVirtualMachineConfiguration`.

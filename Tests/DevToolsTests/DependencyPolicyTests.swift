@@ -42,7 +42,7 @@ struct DependencyPolicyTests {
     func theAppTargetDependsOnExactlyThePackagesTheAdrNames() throws {
         let app = try Self.appDependencies()
         #expect(app.packages == (try Self.adrPackages()), "Package.swift and ADR-0001 disagree about what the app links")
-        #expect(app.targets == ["NetPolicy"], "the app target names only the library targets of this package: \(app.targets)")
+        #expect(app.targets == ["NetPolicy", "NetStack"], "the app target names only the library targets of this package: \(app.targets)")
         #expect(app.packages.isDisjoint(with: ["swift-subprocess", "swift-argument-parser"]), "tooling packages stay out of the app")
     }
 
