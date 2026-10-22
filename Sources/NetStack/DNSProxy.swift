@@ -204,7 +204,7 @@ final class DNSProxy {
         for record in vetted.records where record.type == DNSCode.typeA {
             let address = record.data.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
             let ttl = TimeInterval(min(max(record.ttl, Self.minimumTTL), Self.maximumTTL))
-            for name in vetted.chain { gate.names.record(name: name, address: address, ttl: ttl, now: now) }
+            for name in vetted.chain { gate.remember(name: name, address: address, ttl: ttl, now: now) }
         }
     }
 }

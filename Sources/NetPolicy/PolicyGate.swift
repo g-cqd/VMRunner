@@ -74,6 +74,10 @@ package enum GateVerdict: Hashable, Sendable {
 package struct PolicyGate {
     package var policy: NetworkPolicy
     package var names = NameTable()
+    /// The addresses the DNS proxy gave the guest for a name that a block rule with ports names (`evil.example:22`), kept after
+    /// ``names`` forgets them. Such a rule is applied per connection through the name an address came with, and would lapse when
+    /// the record's TTL ends while the guest still uses the address. Bounded like ``names``; consulted for blocks only.
+    var derivedBlocks = NameTable(capacity: 1_024)
     /// Floor ranges not enforced; always empty outside the integration tests (see `UserNetConfig.exemptedFloorKinds`).
     let floorExemptions: Set<ReservedRangeKind>
 
@@ -84,6 +88,13 @@ package struct PolicyGate {
 
     private func evaluate(_ host: String, port: UInt16, resolvedAddresses: [IPAddress]) -> NetworkPolicy.Decision {
         policy.evaluate(host: host, port: port, resolvedAddresses: resolvedAddresses, exempting: floorExemptions)
+    }
+
+    /// Remembers that the DNS proxy gave the guest `address` for `name`: for `ttl` seconds in ``names``, and for as long as the
+    /// gate lives in ``derivedBlocks`` when a block rule with ports names `name`.
+    package mutating func remember(name: String, address: UInt32, ttl: TimeInterval, now: TimeInterval) {
+        names.record(name: name, address: address, ttl: ttl, now: now)
+        if isPortScopedBlockTarget(name) { derivedBlocks.record(name: name, address: address, ttl: .infinity, now: now) }
     }
 
     /// Judges a connection to `address:port`. Allocates (strings and arrays): called once per new flow, never per packet.
@@ -100,6 +111,11 @@ package struct PolicyGate {
             case .deny(let reason):
                 if Self.isBlock(reason) { return .deny(reason, name: name) }
                 softDenial = softDenial ?? reason
+            }
+        }
+        for name in derivedBlocks.names(for: address, now: now) where !known.contains(name) {
+            if case .deny(let reason) = evaluate(name, port: port, resolvedAddresses: [ip]), Self.isBlock(reason) {
+                return .deny(reason, name: name)
             }
         }
         switch literal {
@@ -181,6 +197,16 @@ package struct PolicyGate {
             if case .name(let domain) = rule.target, domain.matches(normalized) { return .blockedConnection(rule) }
         }
         return nil
+    }
+
+    /// Whether a block rule that names `name` applies to some ports only. A rule for every port refuses the name before it is
+    /// resolved (``nameBlock(for:)``); these are the rules that are applied per connection and need ``derivedBlocks``.
+    private func isPortScopedBlockTarget(_ name: String) -> Bool {
+        guard let form = try? HostForm(parsing: name), case .name(let normalized) = form else { return false }
+        return policy.blockedConnections.contains { rule in
+            guard !rule.ports.isEmpty, case .name(let domain) = rule.target else { return false }
+            return domain.matches(normalized)
+        }
     }
 
     private static func isBlock(_ reason: NetworkPolicy.Reason) -> Bool {

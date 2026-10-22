@@ -207,6 +207,25 @@ struct UserNetDomainPolicyTests {
         #expect(resolve(onePort, "evil.test", addresses: ["6.6.6.6"]).responseCode == 0)
     }
 
+    @Test func aPortRuleForANameStillHoldsAfterTheNameTableForgetsTheAnswer() throws {
+        let rig = CoreRig(policy: try policy { $0.blockedConnections = [try ConnectionRule("evil.test:22")] })
+        #expect(resolve(rig, "evil.test", addresses: ["6.6.6.6"]).responseCode == 0)
+        #expect(attempt(rig, to: (ipv4("6.6.6.6"), 22)) == .refused)
+        rig.advance(120)  // past the answer's 60-second TTL and the name table's next pruning
+        #expect(rig.core.gate.names.names(for: ipv4("6.6.6.6"), now: rig.core.currentTime()).isEmpty, "the answer is forgotten")
+        #expect(attempt(rig, to: (ipv4("6.6.6.6"), 22), port: 50_001) == .refused, "the rule still holds for the address it named")
+        #expect(attempt(rig, to: (ipv4("6.6.6.6"), 443), port: 50_002) == .connected, "and only on its ports")
+    }
+
+    @Test func onlyTheAddressOfANameAPortRuleNamesIsKeptPastItsAnswer() throws {
+        let rig = CoreRig(policy: try policy { $0.blockedConnections = [try ConnectionRule("evil.test:22")] })
+        _ = resolve(rig, "fine.test", addresses: ["7.7.7.7"])
+        _ = resolve(rig, "evil.test", addresses: ["6.6.6.6"])
+        let derived = rig.core.gate.derivedBlocks
+        #expect(derived.names(for: ipv4("7.7.7.7"), now: rig.core.currentTime()).isEmpty)
+        #expect(derived.names(for: ipv4("6.6.6.6"), now: rig.core.currentTime()) == ["evil.test"])
+    }
+
     @Test func aConnectionToAnAnsweredAddressIsJudgedByItsName() throws {
         let rig = CoreRig(
             policy: try policy {

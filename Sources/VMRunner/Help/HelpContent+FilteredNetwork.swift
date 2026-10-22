@@ -92,7 +92,9 @@ extension HelpCatalog {
                     + "(checked on a real guest). To keep a site out, block its domain or its addresses.",
                 "• **Domain rules are advisory.** VMRunner learns names from the guest's DNS questions. When several names share "
                     + "one address (common with content networks), a rule for one name can affect the others, and a guest that "
-                    + "already knows an address can connect without asking DNS. Use address rules when it must hold.",
+                    + "already knows an address can connect without asking DNS. A rule for a name on some ports "
+                    + "(`example.com:22`) keeps holding for the addresses VMRunner gave the guest for that name after the answer "
+                    + "expires. Use address rules when it must hold.",
                 "• **Encrypted DNS is not intercepted.** Ordinary DNS (port 53) is always answered by VMRunner, even if the guest "
                     + "asks another server. DNS over HTTPS, DNS over TLS and DNS over QUIC look like normal encrypted traffic, so "
                     + "domain rules can be dodged that way. Block those servers by address or port (853).",
