@@ -17,6 +17,8 @@ enum NetworkPolicyError: Error, Hashable, Sendable {
     case invalidPort(String)
     /// A connection rule with broken brackets or an empty port list.
     case invalidConnection(String)
+    /// The rule, as stored, is longer than `EditorLimits.maxRuleLength`.
+    case ruleTooLong
 }
 
 extension NetworkPolicyError: LocalizedError {
@@ -33,6 +35,7 @@ extension NetworkPolicyError: LocalizedError {
         case .unsupportedURLComponent(let component): "A URL rule cannot contain \(component)."
         case .invalidPort(let text): "\"\(text)\" is not a port (1-65535) or a range like 8000-8100."
         case .invalidConnection(let text): "\"\(text)\" is not a valid connection rule like example.com:443 or [2001:db8::/32]:443."
+        case .ruleTooLong: "A rule can be at most \(EditorLimits.maxRuleLength) characters."
         }
     }
 }

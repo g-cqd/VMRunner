@@ -82,6 +82,10 @@ final class ConfigEditorModel {
                 alertMessage = HostPathError.insideMachinesFolder(url.path).localizedDescription
                 return
             }
+            guard config.extraDisks.count < EditorLimits.maxHostItems else {
+                alertMessage = "A machine can have at most \(EditorLimits.maxHostItems) extra disks."
+                return
+            }
             config.extraDisks.append(ExtraDisk(path: url.path))
             grant = HostPathGrant(.extraDisk, url.path, writable: true)
         case .installerISO:
@@ -97,6 +101,10 @@ final class ConfigEditorModel {
     /// Adds the folder the user picked to the machine's shared folders.
     func addSharedFolder(_ url: URL) {
         guard var config = library.machine(id) else { return }
+        guard config.sharedFolders.count < EditorLimits.maxHostItems else {
+            alertMessage = "A machine can have at most \(EditorLimits.maxHostItems) shared folders."
+            return
+        }
         config.sharedFolders.append(SharedFolder(path: url.path))
         library.update(config)
         library.approveHostPaths([HostPathGrant(.sharedFolder, url.path, writable: true)], for: id)

@@ -17,6 +17,15 @@ enum EditorLimits {
     static let runtimeStepMinutes = 15
     /// Rules one policy list may hold. Every rule is checked on each new connection, so the list is kept human-sized.
     static let maxRulesPerList = 200
+    /// Longest rule, in the canonical text a policy stores it as. A URL prefix is the longest kind.
+    static let maxRuleLength = 2048
+    /// Characters in a short free-text field: a machine or snapshot name, the first-boot account's full name and user name, a
+    /// MAC address, a guest version.
+    static let maxTextLength = 255
+    /// Longest host path, in bytes: the system's `PATH_MAX`.
+    static let maxPathLength = 1024
+    /// Shared folders, and extra disks, one machine may have.
+    static let maxHostItems = 64
     /// Lines the live connection log keeps; older ones fall off.
     static let recentFlowLimit = 200
 }

@@ -27,9 +27,14 @@ extension VMConfig {
         }
     }
 
-    /// Throws `DecodingError.dataCorrupted` for a value outside the ranges the editor offers, and for a host path that
-    /// isn't absolute (a relative path would depend on the directory the app happened to start in).
+    /// Throws `DecodingError.dataCorrupted` for a value outside the ranges the editor offers, a host path that isn't
+    /// absolute (a relative path would depend on the directory the app happened to start in), and a text or a list longer
+    /// than the editor lets anyone make it (`EditorLimits`). The editor enforces the same bounds, so it can't write what
+    /// this refuses.
     func validate() throws {
+        try validateText()
+        try validateHostPaths()
+        try validateRules()
         try Self.require(diskGiB, in: 1...EditorLimits.maxDiskGiB, "diskGiB")
         try Self.require(displayWidth, in: EditorLimits.displayWidth, "displayWidth")
         try Self.require(displayHeight, in: EditorLimits.displayHeight, "displayHeight")
@@ -38,14 +43,43 @@ extension VMConfig {
         try Self.require(maxRuntimeMinutes, in: EditorLimits.runtimeMinutes, "maxRuntimeMinutes")
         if let lastDisplayWidth { try Self.require(lastDisplayWidth, in: EditorLimits.displayWidth, "lastDisplayWidth") }
         if let lastDisplayHeight { try Self.require(lastDisplayHeight, in: EditorLimits.displayHeight, "lastDisplayHeight") }
-        for folder in sharedFolders { try Self.requireAbsolute(folder.path, "sharedFolders") }
+    }
+
+    private func validateText() throws {
+        try Self.requireLength(name, "name")
+        try Self.requireLength(provisioning.fullName, "provisioning.fullName")
+        try Self.requireLength(provisioning.username, "provisioning.username")
+        if let guestVersion { try Self.requireLength(guestVersion, "guestVersion") }
+        if let macAddress { try Self.requireLength(macAddress, "macAddress") }
+    }
+
+    private func validateHostPaths() throws {
+        try Self.requireCount(sharedFolders.count, "sharedFolders")
+        try Self.requireCount(extraDisks.count, "extraDisks")
+        for folder in sharedFolders { try Self.requirePath(folder.path, "sharedFolders") }
         for disk in extraDisks {
-            try Self.requireAbsolute(disk.path, "extraDisks")
+            try Self.requirePath(disk.path, "extraDisks")
             if AppPaths.isInside(URL(filePath: disk.path), AppPaths.machines) {
                 throw Self.corrupted("extraDisks", "must not name a file inside the Machines folder")
             }
         }
-        if let installerISO { try Self.requireAbsolute(installerISO, "installerISO") }
+        if let installerISO { try Self.requirePath(installerISO, "installerISO") }
+        if case .local(let path) = source { try Self.requirePath(path, "source") }
+    }
+
+    /// Each rule list holds at most `maxRulesPerList` rules of at most `maxRuleLength` characters, measured on the text the
+    /// policy stores, which is also what `NetworkPolicy.add` measures.
+    private func validateRules() throws {
+        for list in PolicyList.allCases {
+            let rules = networkPolicy.rules(in: list)
+            guard rules.count <= EditorLimits.maxRulesPerList else {
+                throw Self.corrupted("networkPolicy.\(list.rawValue)", "must hold at most \(EditorLimits.maxRulesPerList) rules")
+            }
+            guard rules.allSatisfy({ $0.utf8.count <= EditorLimits.maxRuleLength }) else {
+                throw Self.corrupted(
+                    "networkPolicy.\(list.rawValue)", "must hold rules of at most \(EditorLimits.maxRuleLength) characters")
+            }
+        }
     }
 
     private static func require(_ value: Int, in range: ClosedRange<Int>, _ key: String) throws {
@@ -54,8 +88,21 @@ extension VMConfig {
         }
     }
 
-    private static func requireAbsolute(_ path: String, _ key: String) throws {
+    private static func requirePath(_ path: String, _ key: String) throws {
         guard path.hasPrefix("/") else { throw corrupted(key, "must name absolute paths") }
+        guard path.utf8.count <= EditorLimits.maxPathLength else {
+            throw corrupted(key, "must name paths of at most \(EditorLimits.maxPathLength) bytes")
+        }
+    }
+
+    private static func requireLength(_ text: String, _ key: String) throws {
+        guard text.count <= EditorLimits.maxTextLength else {
+            throw corrupted(key, "must be at most \(EditorLimits.maxTextLength) characters")
+        }
+    }
+
+    private static func requireCount(_ count: Int, _ key: String) throws {
+        guard count <= EditorLimits.maxHostItems else { throw corrupted(key, "must hold at most \(EditorLimits.maxHostItems) entries") }
     }
 
     private static func corrupted(_ key: String, _ problem: String) -> DecodingError {

@@ -241,7 +241,9 @@ final class VMLibrary {
         // A clone of a disk the guest is writing is not a consistent disk.
         guard controllers[id]?.isActive != true else { throw LibraryError.machineInUse }
         copy.id = UUID()
-        copy.name += " Copy"
+        // The name stays within what a stored configuration may hold, or the copy would not load again.
+        let suffix = " Copy"
+        copy.name = String(copy.name.prefix(EditorLimits.maxTextLength - suffix.count)) + suffix
         copy.macAddress = nil
         copy.lastDisplayWidth = nil
         copy.lastDisplayHeight = nil

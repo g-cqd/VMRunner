@@ -47,17 +47,52 @@ struct Snapshot: Codable, Identifiable, Hashable, Sendable {
     var diskGiB: Int
 }
 
+/// `snapshot.json` is data from disk, which a copied bundle controls: it is refused, never clamped, when it is too large or
+/// holds a value the app could not have written.
+extension Snapshot {
+    /// The largest `snapshot.json` the app reads. A real one is a few hundred bytes.
+    static let maxFileBytes = 64 << 10
+
+    /// Reads and decodes a snapshot file, refusing one over `maxFileBytes` without reading the rest of it.
+    static func load(from file: URL) throws -> Snapshot {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        // One byte past the limit is enough to know the file is too large.
+        return try decode(from: try handle.read(upToCount: maxFileBytes + 1) ?? Data())
+    }
+
+    static func decode(from data: Data) throws -> Snapshot {
+        guard data.count <= maxFileBytes else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The snapshot is larger than 64 KiB"))
+        }
+        let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
+        // Restoring a snapshot copies its size into the settings, so a size the editor couldn't have set is refused.
+        guard (1...EditorLimits.maxDiskGiB).contains(snapshot.diskGiB) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The snapshot's disk size is out of range"))
+        }
+        guard snapshot.name.count <= EditorLimits.maxTextLength else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The snapshot's name is too long"))
+        }
+        return snapshot
+    }
+}
+
 extension VMBundle {
     private func snapshotDirectory(_ id: UUID) -> URL { snapshots.appending(path: id.uuidString, directoryHint: .isDirectory) }
 
     func listSnapshots() -> [Snapshot] {
         let directories = (try? FileManager.default.contentsOfDirectory(at: snapshots, includingPropertiesForKeys: nil)) ?? []
-        let decoder = JSONDecoder()
         return
             directories
             .compactMap { directory -> Snapshot? in
-                guard let snapshot = try? decoder.decode(Snapshot.self, from: Data(contentsOf: directory.appending(path: "snapshot.json")))
-                else { return nil }
+                let snapshot: Snapshot
+                do {
+                    snapshot = try Snapshot.load(from: directory.appending(path: "snapshot.json"))
+                } catch {
+                    Log.storage.error(
+                        "Ignoring snapshot folder \(directory.lastPathComponent, privacy: .private) (\(error.logKind, privacy: .public))")
+                    return nil
+                }
                 // The folder name is the identity: a copied folder carries the original's id and would alias it.
                 guard directory.lastPathComponent == snapshot.id.uuidString else {
                     Log.storage.error(
@@ -66,8 +101,6 @@ extension VMBundle {
                 }
                 return snapshot
             }
-            // Restoring a snapshot copies its size into the settings, so a size the editor couldn't have set is refused.
-            .filter { (1...EditorLimits.maxDiskGiB).contains($0.diskGiB) }
             .sorted { $0.date > $1.date }
     }
 

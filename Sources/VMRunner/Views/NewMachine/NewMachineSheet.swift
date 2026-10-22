@@ -9,7 +9,7 @@ struct NewMachineSheet: View {
     var body: some View {
         Form {
             Section {
-                TextField("Name", text: $model.config.name)
+                TextField("Name", text: $model.config.name.limited())
                 Picker("Guest", selection: $model.config.guest) {
                     ForEach(GuestOS.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
                 }

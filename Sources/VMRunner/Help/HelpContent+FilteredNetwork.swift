@@ -52,7 +52,8 @@ extension HelpCatalog {
             summary: "What each list in the network policy matches, with examples.",
             paragraphs: [
                 "Type a rule and press Return or **Add**. A rule that cannot be understood is explained under the field and is not "
-                    + "added. Each list holds up to \(EditorLimits.maxRulesPerList) rules.",
+                    + "added. Each list holds up to \(EditorLimits.maxRulesPerList) rules of up to "
+                    + "\(EditorLimits.maxRuleLength) characters.",
                 "• **Domains**: `example.com` is exactly that name. `*.example.com` is every subdomain (`a.example.com`, "
                     + "`a.b.example.com`) but not `example.com` itself; add both to cover both.",
                 "• **IP addresses**: one address (`203.0.113.7`) or a block in CIDR form (`203.0.113.0/24`).",

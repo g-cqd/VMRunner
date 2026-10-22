@@ -41,19 +41,27 @@ final class NewMachineModel {
     // MARK: Derived
 
     var canCreate: Bool {
-        guard !config.name.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        let name = config.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, name.count <= EditorLimits.maxTextLength else { return false }
         switch config.guest {
         case .macOS:
             switch macSource {
             case .latest: return true
             case .ipswMe: return selectedBuild != nil
-            case .file: return localPath != nil
+            case .file: return hasStorableLocalPath
             }
         case .linux:
-            if case .file = linuxSource { return localPath != nil }
+            if case .file = linuxSource { return hasStorableLocalPath }
             return true
         }
     }
+
+    /// A configuration refuses a local file whose path is not absolute, or longer than a host path can be.
+    static func canStore(localPath path: String) -> Bool {
+        path.hasPrefix("/") && path.utf8.count <= EditorLimits.maxPathLength
+    }
+
+    private var hasStorableLocalPath: Bool { localPath.map(Self.canStore) ?? false }
 
     /// The config for the current choices, with its media source filled in.
     func makeConfig() -> VMConfig {
@@ -76,6 +84,16 @@ final class NewMachineModel {
     }
 
     // MARK: Actions
+
+    /// Takes the file the user picked as the installation media, unless a configuration could not store its location.
+    func chooseLocalFile(_ url: URL) {
+        guard url.isFileURL, Self.canStore(localPath: url.path) else {
+            creationError = "That file's location can't be used. Pick a file on this Mac."
+            return
+        }
+        localPath = url.path
+        creationError = nil
+    }
 
     /// Switching guest resets the resources to that guest's defaults but keeps a name the user typed.
     func guestChanged(to guest: GuestOS) {

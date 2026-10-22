@@ -38,7 +38,8 @@ struct NetworkSection: View {
     private var macRows: some View {
         HStack {
             TextField(
-                "MAC address", text: Binding(get: { config.macAddress ?? "" }, set: { config.macAddress = $0.isEmpty ? nil : $0 }),
+                "MAC address",
+                text: Binding(get: { config.macAddress ?? "" }, set: { config.macAddress = $0.isEmpty ? nil : $0 }).limited(),
                 prompt: Text("Automatic")
             )
             .help("The guest network card's hardware address. Leave empty for an automatic one that is kept between starts.")

@@ -16,7 +16,10 @@ final class SnapshotsModel {
         self.bundle = bundle
     }
 
-    var canTake: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
+    var canTake: Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        return !trimmed.isEmpty && trimmed.count <= EditorLimits.maxTextLength
+    }
 
     func reload() async {
         let bundle = bundle
@@ -25,7 +28,7 @@ final class SnapshotsModel {
 
     func take(guest: GuestOS, diskGiB: Int) async {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard canTake else { return }
         do {
             var config = VMConfig.new(name: "", guest: guest)
             config.diskGiB = diskGiB

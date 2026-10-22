@@ -72,8 +72,8 @@ struct BootSection: View {
             Section {
                 Toggle("Create account automatically", isOn: $provisioning.enabled)
                 if provisioning.enabled {
-                    TextField("Full name", text: $provisioning.fullName)
-                    TextField("Username", text: $provisioning.username)
+                    TextField("Full name", text: $provisioning.fullName.limited())
+                    TextField("Username", text: $provisioning.username.limited())
                     SecureField("Password", text: $provisioning.password)
                     Toggle("Log in automatically", isOn: $provisioning.logsInAutomatically)
                     Toggle("Enable Remote Login (SSH)", isOn: $provisioning.enablesRemoteLogin)

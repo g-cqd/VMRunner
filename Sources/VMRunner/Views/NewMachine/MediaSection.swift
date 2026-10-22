@@ -20,7 +20,7 @@ struct MediaSection: View {
         .fileImporter(
             isPresented: $importing, allowedContentTypes: model.config.guest == .macOS ? [ipswType] : [.diskImage, .data]
         ) { result in
-            if let url = try? result.get() { model.localPath = url.path }
+            if let url = try? result.get() { model.chooseLocalFile(url) }
         }
     }
 

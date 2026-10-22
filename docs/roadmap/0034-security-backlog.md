@@ -19,7 +19,9 @@ stack findings and the download findings (including the rollback through the uns
    dates per pinned key.
 4. Domain deny rules lose effect when the name table expires: derived address blocks; a DNS worker pool instead of a thread
    per lookup; a byte-bounded guest transmit queue.
-5. Bounds on `snapshot.json` and on free-text fields of `config.json`; absolute paths for `ImageSource.local`.
+5. *Fixed.* Bounds on `snapshot.json` (64 KiB, refused before it is parsed) and on the free-text fields and lists of
+   `config.json` (`EditorLimits`: names, paths, counts, rule length), enforced when the file is read and in the editor;
+   `ImageSource.local` must name an absolute path, at decode and in the file picker.
 6. A coverage-guided fuzz target for the signature, DNS and packet parsers.
 7. The cause of the gate-lock test's rare failure is unproven (a retry hides it).
 8. `actionlint` and `zizmor` have never run on the workflows; CI has never run on GitHub.

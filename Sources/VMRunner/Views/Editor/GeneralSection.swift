@@ -10,7 +10,7 @@ struct GeneralSection: View {
 
     var body: some View {
         Section {
-            TextField("Name", text: $name)
+            TextField("Name", text: $name.limited())
             LabeledContent("Guest", value: guest.label)
             if let version { LabeledContent("Version", value: version) }
             LabeledContent("Disk usage", value: ByteCountFormatter.string(fromByteCount: allocatedBytes, countStyle: .file))

@@ -95,7 +95,7 @@ struct ConfigValidationTests {
     }
 
     @Test func bracketsInsideStringsDoNotCountAsNesting() throws {
-        let brackets = String(repeating: "[", count: 500) + #"\"[{"#
+        let brackets = String(repeating: "[", count: 200) + #"\"[{"#
         let config = try decode(#"{"guest":"linux","name":"\#(brackets)"}"#)
         #expect(config.name.hasPrefix("[["))
     }
@@ -116,10 +116,11 @@ struct ConfigValidationTests {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appending(path: "config.json")
+        // A key the app doesn't know carries the bulk, so the size is tested without a name past its own bound.
         let padding = String(repeating: "a", count: VMConfig.maxFileBytes - 100)
-        try Data(#"{"guest":"linux","name":"\#(padding)"}"#.utf8).write(to: file)
+        try Data(#"{"guest":"linux","name":"big","padding":"\#(padding)"}"#.utf8).write(to: file)
 
-        #expect(try VMConfig.load(from: file).name.count == padding.count)
+        #expect(try VMConfig.load(from: file).name == "big")
     }
 }
 

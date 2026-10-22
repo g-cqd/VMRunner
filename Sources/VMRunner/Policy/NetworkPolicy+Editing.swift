@@ -89,8 +89,16 @@ extension NetworkPolicy {
 
     /// Parses `text` as a rule of this list's kind and appends it, unless an equal rule is already there.
     ///
-    /// - Throws: the engine's own parse error (``NetworkPolicyError``); the policy is unchanged then.
+    /// - Throws: the engine's own parse error (``NetworkPolicyError``), or ``NetworkPolicyError/ruleTooLong`` when the rule
+    ///   as stored is longer than a stored configuration may hold; the policy is unchanged then.
     mutating func add(_ text: String, to list: PolicyList) throws(NetworkPolicyError) {
+        var updated = self
+        try updated.insertRule(text, to: list)
+        guard updated.rules(in: list).allSatisfy({ $0.utf8.count <= EditorLimits.maxRuleLength }) else { throw .ruleTooLong }
+        self = updated
+    }
+
+    private mutating func insertRule(_ text: String, to list: PolicyList) throws(NetworkPolicyError) {
         switch list {
         case .allowedDomains: Self.insert(try DomainRule(text), into: &allowedDomains)
         case .allowedAddresses: Self.insert(try AddressRule(text), into: &allowedAddresses)

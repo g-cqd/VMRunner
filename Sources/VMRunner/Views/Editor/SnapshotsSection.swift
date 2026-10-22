@@ -24,7 +24,7 @@ struct SnapshotsSection: View {
                 }
             }
             HStack {
-                TextField("Name", text: $model.name, prompt: Text("Snapshot name"))
+                TextField("Name", text: $model.name.limited(), prompt: Text("Snapshot name"))
                 Button("Take Snapshot") { Task { await model.take(guest: guest, diskGiB: diskGiB) } }
                     .disabled(!model.canTake)
             }
