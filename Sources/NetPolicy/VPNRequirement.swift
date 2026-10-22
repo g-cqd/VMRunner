@@ -16,7 +16,7 @@ extension VPNRequirement {
     /// **Unknown fails closed for both requirements.** Each is a promise about the network the guest's traffic
     /// takes; with no evidence the promise cannot be kept. The cost is bounded: `.unknown` only occurs before the
     /// first path update (milliseconds after the host monitor starts) or while a tunnel is half-configured.
-    func allowsNetwork(vpn state: VPNState) -> Bool {
+    package func allowsNetwork(vpn state: VPNState) -> Bool {
         switch (self, state) {
         case (.ignore, _), (.required, .active), (.forbidden, .inactive): true
         default: false

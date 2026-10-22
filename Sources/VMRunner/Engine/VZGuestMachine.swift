@@ -12,15 +12,22 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     private let console: ConsoleBridge?
     /// Evaluated at start, not at creation: a restore never needs them, and a bad provisioning setup must fail the start.
     private let startOptions: () throws -> VZMacOSVirtualMachineStartOptions?
+    /// The kill switch of this run, when the machine has a VPN or metered-network rule. It starts with the machine and
+    /// ends when this object is released.
+    let networkCutoff: NetworkCutoff?
+    /// The attachment the kill switch took off the network card, kept to put back.
+    private var detachedAttachment: VZNetworkDeviceAttachment?
 
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
 
     init(
-        machine: VZVirtualMachine, console: ConsoleBridge? = nil, startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
+        machine: VZVirtualMachine, console: ConsoleBridge? = nil, networkCutoff: NetworkCutoff? = nil,
+        startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
     ) {
         self.machine = machine
         self.console = console
+        self.networkCutoff = networkCutoff
         self.startOptions = startOptions
         super.init()
         machine.delegate = self
@@ -36,17 +43,38 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         } else {
             try await machine.start()
         }
+        startNetworkCutoff()
     }
 
     func restoreState(from url: URL) async throws {
         console?.start()
         try await machine.restoreMachineStateFrom(url: url)
+        startNetworkCutoff()
     }
     func saveState(to url: URL) async throws { try await machine.saveMachineStateTo(url: url) }
     func pause() async throws { try await machine.pause() }
     func resume() async throws { try await machine.resume() }
     func requestStop() throws { try machine.requestStop() }
     func stop() async throws { try await machine.stop() }
+
+    /// Starts the kill switch once the framework has the machine, so its network card can be reached.
+    private func startNetworkCutoff() {
+        networkCutoff?.start { [weak self] connected in self?.setNetworkConnected(connected) }
+    }
+
+    /// Takes the attachment off the network card (`false`) or puts the one it had back (`true`), like pulling and
+    /// replugging a cable. A change the framework refuses is reported to the delegate and leaves the card disconnected.
+    private func setNetworkConnected(_ connected: Bool) {
+        guard let device = machine.networkDevices.first else { return }
+        if connected {
+            guard let attachment = detachedAttachment else { return }
+            device.attachment = attachment
+            detachedAttachment = nil
+        } else if let attachment = device.attachment {
+            detachedAttachment = attachment
+            device.attachment = nil
+        }
+    }
 
     nonisolated func guestDidStop(_ virtualMachine: VZVirtualMachine) {
         Task { @MainActor in self.onGuestStopped?() }
@@ -70,7 +98,10 @@ struct VZMachineFactory: MachineFactory {
             of: built.configuration, allowed: suspendAllowed, filtered: config.networkMode == .filtered)
         let machine = VZVirtualMachine(configuration: built.configuration)
         return PreparedMachine(
-            machine: VZGuestMachine(machine: machine, console: built.consoleBridge, startOptions: { try Self.startOptions(for: config) }),
+            machine: VZGuestMachine(
+                machine: machine, console: built.consoleBridge,
+                networkCutoff: config.hasNetworkCutoff ? NetworkCutoff(config: config) : nil,
+                startOptions: { try Self.startOptions(for: config) }),
             network: network,
             suspend: suspend
         )

@@ -1,5 +1,6 @@
 import Foundation
 import NetPolicy
+import TestKit
 import Testing
 
 @testable import VMRunner
@@ -61,5 +62,86 @@ struct NetworkCutoffSettingsTests {
             #expect(text.contains(phrase), "missing: \(phrase)")
         }
         #expect(HelpTopic.guestVpn.entry.related.contains(.killSwitch))
+    }
+}
+
+/// The kill switch's rules: the VPN rule first, an unknown VPN state breaking both VPN rules, then the metered switch.
+struct NetworkCutoffRuleTests {
+    @Test func theVPNRuleDecidesFirstAndAnUnknownStateBreaksIt() {
+        var config = VMConfig.new(name: "k", guest: .linux)
+        #expect(!config.hasNetworkCutoff)
+        #expect(config.networkCutoffReason(on: HostNetworkPath()) == nil, "no rule, nothing to cut")
+        config.networkPolicy.vpn = .required
+        #expect(config.hasNetworkCutoff)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .unknown)) == .vpnRequired)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .inactive)) == .vpnRequired)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .active)) == nil)
+        config.networkPolicy.vpn = .forbidden
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .active)) == .vpnForbidden)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .unknown)) == .vpnForbidden)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .inactive)) == nil)
+    }
+
+    @Test func theMeteredSwitchCutsAnExpensiveOrConstrainedPathOnly() {
+        var config = VMConfig.new(name: "k", guest: .linux)
+        config.networkCutsOnMeteredPath = true
+        #expect(config.hasNetworkCutoff)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .inactive)) == nil)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .inactive, isExpensive: true)) == .meteredPath)
+        #expect(config.networkCutoffReason(on: HostNetworkPath(vpn: .inactive, isConstrained: true)) == .meteredPath)
+    }
+
+    @Test func aMachineWithoutANetworkCardHasNothingToCut() {
+        var config = VMConfig.new(name: "k", guest: .linux)
+        config.networkPolicy.vpn = .required
+        config.networkCutsOnMeteredPath = true
+        config.networkMode = .none
+        #expect(!config.hasNetworkCutoff)
+        #expect(config.networkCutoffReason(on: HostNetworkPath()) == nil)
+    }
+}
+
+/// The watcher: it cuts at once when an unknown path breaks a rule, and calls `connect` only when the answer changes.
+@MainActor
+struct NetworkCutoffWatchTests {
+    private func machine(_ vpn: VPNRequirement, metered: Bool = false) -> VMConfig {
+        var config = VMConfig.new(name: "k", guest: .linux)
+        config.networkPolicy.vpn = vpn
+        config.networkCutsOnMeteredPath = metered
+        return config
+    }
+
+    @Test func aRequiredVPNCutsTheCardUntilOneIsUpAndAgainWhenItGoes() async throws {
+        let (paths, feed) = AsyncStream.makeStream(of: HostNetworkPath.self)
+        let cutoff = NetworkCutoff(config: machine(.required), source: { paths })
+        let calls = AsyncEventProbe<Bool>()
+        cutoff.start { calls.record($0) }
+        #expect(calls.events == [false], "an unknown VPN state cuts the card before the first sample")
+        #expect(cutoff.reason == .vpnRequired)
+
+        feed.yield(HostNetworkPath(vpn: .active))
+        _ = try await calls.wait(forAtLeast: 2)
+        #expect(cutoff.reason == nil)
+        feed.yield(HostNetworkPath(vpn: .active, isExpensive: true))
+        feed.yield(HostNetworkPath(vpn: .inactive))
+        _ = try await calls.wait(forAtLeast: 3)
+        #expect(calls.events == [false, true, false], "a sample that changes nothing calls nothing")
+        #expect(cutoff.reason == .vpnRequired)
+        feed.finish()
+    }
+
+    @Test func aMeteredOrLowDataPathCutsTheCardWhenTheSwitchIsOn() async throws {
+        let (paths, feed) = AsyncStream.makeStream(of: HostNetworkPath.self)
+        let cutoff = NetworkCutoff(config: machine(.ignore, metered: true), source: { paths })
+        let calls = AsyncEventProbe<Bool>()
+        cutoff.start { calls.record($0) }
+        #expect(calls.events.isEmpty, "an unknown path is not a metered one")
+        feed.yield(HostNetworkPath(vpn: .inactive, isConstrained: true))
+        _ = try await calls.wait(forAtLeast: 1)
+        #expect(cutoff.reason == .meteredPath)
+        feed.yield(HostNetworkPath(vpn: .inactive))
+        _ = try await calls.wait(forAtLeast: 2)
+        #expect(calls.events == [false, true])
+        feed.finish()
     }
 }
