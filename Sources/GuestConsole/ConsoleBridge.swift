@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 import Synchronization
 
 /// Serves a guest's serial console on a private local socket.
@@ -48,6 +48,19 @@ public final class ConsoleBridge: Sendable {
     public struct GuestPair: Sendable {
         public let guest: Int32
         public let host: Int32
+
+        /// The guest end as the two file handles a serial port attachment takes, one to read from and one to write to. Each
+        /// owns a descriptor and closes it when released, so `guest` belongs to them from here on: do not close it.
+        /// On a failure `guest` is closed here and `host` is left to the caller.
+        public func guestHandles() throws -> (reading: FileHandle, writing: FileHandle) {
+            let duplicate = dup(guest)
+            guard duplicate >= 0 else {
+                let code = errno
+                ConsoleSocket.close(guest)
+                throw ConsoleError.system(call: "dup", code: code)
+            }
+            return (FileHandle(fileDescriptor: duplicate, closeOnDealloc: true), FileHandle(fileDescriptor: guest, closeOnDealloc: true))
+        }
     }
 
     fileprivate enum Lifecycle { case ready, running, stopped }

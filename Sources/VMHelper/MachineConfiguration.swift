@@ -132,16 +132,13 @@ enum MachineConfiguration {
         } catch {
             throw HelperFailure.virtualMachine("cannot create the console's socket pair: \(error)")
         }
-        // The attachment wants a handle to read from and one to write to; each owns a descriptor and closes it when released.
-        let reading = dup(pair.guest)
-        guard reading >= 0 else {
-            close(pair.guest)
+        do {
+            let handles = try pair.guestHandles()
+            port.attachment = VZFileHandleSerialPortAttachment(fileHandleForReading: handles.reading, fileHandleForWriting: handles.writing)
+        } catch {
             close(pair.host)
-            throw HelperFailure.virtualMachine("cannot duplicate the console's descriptor (errno \(errno))")
+            throw HelperFailure.virtualMachine("cannot hand the console's socket to the serial port: \(error)")
         }
-        port.attachment = VZFileHandleSerialPortAttachment(
-            fileHandleForReading: FileHandle(fileDescriptor: reading, closeOnDealloc: true),
-            fileHandleForWriting: FileHandle(fileDescriptor: pair.guest, closeOnDealloc: true))
         return (port, pair.host)
     }
 
