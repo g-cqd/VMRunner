@@ -51,7 +51,8 @@ final class UserNetBridge: UserNetHost {
         self.resolver = resolver
         self.inbox = inbox
         self.logger = logger
-        transmitQueue = GuestTxQueue(slotCapacity: mtu + EthernetHeader.length + 64, maximumSlots: 2_048)
+        transmitQueue = GuestTxQueue(
+            slotCapacity: mtu + EthernetHeader.length + 64, maximumSlots: 2_048, maximumBytes: GuestTxQueue.byteBudget)
         pendingChanges.reserveCapacity(64)
         pendingChanges.append(ReadinessChange(descriptor: guestDescriptor, token: 0, isRead: true, enabled: true))
     }

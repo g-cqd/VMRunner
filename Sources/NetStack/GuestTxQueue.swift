@@ -2,7 +2,8 @@
 ///
 /// Slots are allocated the first time the queue has to hold a frame and reused afterwards, so a socket that never
 /// blocks costs nothing and one that blocks occasionally stops allocating after the first burst. The queue is
-/// bounded; a full queue refuses frames, which for TCP means a retransmission and for UDP a lost datagram.
+/// bounded in frames and in bytes (the slots together never take more than the byte budget, so a large MTU means fewer
+/// slots); a full queue refuses frames, which for TCP means a retransmission and for UDP a lost datagram.
 final class GuestTxQueue {
     private struct Slot {
         let buffer: RawBuffer
@@ -16,9 +17,16 @@ final class GuestTxQueue {
     private var head = 0
     private var allocated = 0
 
-    init(slotCapacity: Int, maximumSlots: Int) {
+    /// The most bytes of slots one guest link keeps: 2,048 frames at the default MTU, 127 at the largest.
+    static let byteBudget = 8 << 20
+
+    /// - Parameters:
+    ///   - slotCapacity: The largest frame a slot holds.
+    ///   - maximumSlots: The most frames the queue holds.
+    ///   - maximumBytes: The most bytes all slots may take together; at least one slot is always allowed.
+    init(slotCapacity: Int, maximumSlots: Int, maximumBytes: Int) {
         self.slotCapacity = slotCapacity
-        self.maximumSlots = maximumSlots
+        self.maximumSlots = max(1, min(maximumSlots, maximumBytes / max(slotCapacity, 1)))
     }
 
     var isEmpty: Bool { head == queued.count }
