@@ -128,7 +128,11 @@ family) and a refusal of everything else, named for `com.apple.security.cs.*` (h
 entitlement files before it builds anything, and again to the effective entitlements it reads back from the signed
 bundle, which must also equal the file used to sign. It also rejects a double hyphen inside an XML comment of an
 entitlement file (the kernel's parser does). A new entitlement therefore needs a change to the policy, which review sees.
-Do not start virtual machines from automated checks.
+`vmr check` and CI never start virtual machines. Real-guest runs are separate and deliberate: the owner, or an agent the owner
+has authorised for the session, runs them by hand against a scratch data directory (never the owner's own library), with
+the resources of the guest capped, only the app's own window captured or driven (never the foreground, never the whole
+screen), and everything the run created (machines, downloaded images, processes) removed afterwards. Their results go into
+the diary with what was and was not observed.
 
 ## Developer tooling
 
