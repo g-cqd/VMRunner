@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import Virtualization
 
 @testable import VMRunner
 
@@ -58,5 +59,57 @@ struct HostInfoSharingTests {
             #expect(text.contains(phrase), "missing: \(phrase)")
         }
         #expect(SecurityProfile.isolated.summary.contains("host information"))
+    }
+}
+
+/// The share: none when nothing is shared; otherwise read-only, under its tag, over a folder made fresh and private, and
+/// never over the target of a link planted where the folder goes.
+struct HostInfoShareTests {
+    @Test func aMachineThatSharesNothingGetsNoShareAndNoFolder() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundle = VMBundle(url: directory)
+        #expect(try ConfigurationBuilder.hostInfoShare(for: VMConfig.new(name: "x", guest: .linux), bundle: bundle) == nil)
+        #expect(!FileManager.default.fileExists(atPath: bundle.hostInfoFolder.path))
+    }
+
+    @Test func theShareIsReadOnlyUnderItsTagOverAFreshPrivateFolder() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundle = VMBundle(url: directory)
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.hostInfo.timeZone = true
+        try FileManager.default.createDirectory(at: bundle.hostInfoFolder, withIntermediateDirectories: true)
+        try Data("planted".utf8).write(to: bundle.hostInfoFolder.appending(path: "battery"))
+
+        let device = try #require(try ConfigurationBuilder.hostInfoShare(for: config, bundle: bundle))
+        #expect(device.tag == ConfigurationBuilder.hostInfoTag)
+        try VZVirtioFileSystemDeviceConfiguration.validateTag(ConfigurationBuilder.hostInfoTag)
+        let share = try #require(device.share as? VZSingleDirectoryShare)
+        #expect(share.directory.isReadOnly)
+        #expect(share.directory.url.resolvingSymlinksInPath().path == bundle.hostInfoFolder.resolvingSymlinksInPath().path)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: bundle.hostInfoFolder.path).isEmpty, "what was there is gone")
+        #expect(try AppPaths.verifyPrivateDirectory(bundle.hostInfoFolder))
+    }
+
+    @Test func aLinkPlantedWhereTheFolderGoesIsReplacedAndItsTargetKept() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let elsewhere = directory.appending(path: "elsewhere")
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        try Data("secret".utf8).write(to: elsewhere.appending(path: "secret"))
+        let bundle = VMBundle(url: directory.appending(path: "m.vm"))
+        try FileManager.default.createDirectory(at: bundle.url, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: bundle.hostInfoFolder, withDestinationURL: elsewhere)
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.hostInfo.battery = true
+
+        _ = try ConfigurationBuilder.hostInfoShare(for: config, bundle: bundle)
+        #expect(try AppPaths.verifyPrivateDirectory(bundle.hostInfoFolder), "a real private folder, not the link")
+        #expect(FileManager.default.fileExists(atPath: elsewhere.appending(path: "secret").path), "the link's target is untouched")
+    }
+
+    @Test func theHelpNamesTheTag() {
+        #expect(HelpTopic.hostInformation.entry.paragraphs.joined(separator: " ").contains(ConfigurationBuilder.hostInfoTag))
     }
 }

@@ -8,6 +8,8 @@ enum ConfigurationBuilder {
     /// Tag that makes macOS guests mount shared folders under /Volumes/My Shared Files automatically.
     static let linuxShareTag = "share"
     static let rosettaTag = "rosetta"
+    /// The tag a guest mounts the host-information share by (`mount -t virtiofs vmrunner-host <folder>`).
+    static let hostInfoTag = "vmrunner-host"
 
     static var cpuRange: ClosedRange<Int> {
         VZVirtualMachineConfiguration.minimumAllowedCPUCount...VZVirtualMachineConfiguration.maximumAllowedCPUCount
@@ -60,7 +62,7 @@ enum ConfigurationBuilder {
         if config.entropyDevice { vz.entropyDevices = [VZVirtioEntropyDeviceConfiguration()] }
         if config.memoryBalloon { vz.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()] }
         if config.socketDevice { vz.socketDevices = [VZVirtioSocketDeviceConfiguration()] }
-        vz.directorySharingDevices += try directoryShares(for: config)
+        vz.directorySharingDevices += try directoryShares(for: config, bundle: bundle)
         let console = try serialConsole(for: config, bundle: bundle)
         if let console { vz.serialPorts = [console.port] }
 
@@ -255,7 +257,7 @@ enum ConfigurationBuilder {
         return sound
     }
 
-    private static func directoryShares(for config: VMConfig) throws -> [VZDirectorySharingDeviceConfiguration] {
+    private static func directoryShares(for config: VMConfig, bundle: VMBundle) throws -> [VZDirectorySharingDeviceConfiguration] {
         var devices: [VZDirectorySharingDeviceConfiguration] = []
 
         if !config.sharedFolders.isEmpty {
@@ -282,7 +284,18 @@ enum ConfigurationBuilder {
             device.share = try VZLinuxRosettaDirectoryShare()
             devices.append(device)
         }
+        if let hostInfo = try hostInfoShare(for: config, bundle: bundle) { devices.append(hostInfo) }
         return devices
+    }
+
+    /// The read-only share the guest reads this Mac's facts from, when the machine shares any (`VMConfig.hostInfo`). Its
+    /// folder is made fresh for each start; the files are written while the machine runs.
+    static func hostInfoShare(for config: VMConfig, bundle: VMBundle) throws -> VZVirtioFileSystemDeviceConfiguration? {
+        guard !config.hostInfo.isEmpty else { return nil }
+        let folder = try bundle.freshHostInfoFolder()
+        let device = VZVirtioFileSystemDeviceConfiguration(tag: hostInfoTag)
+        device.share = VZSingleDirectoryShare(directory: VZSharedDirectory(url: folder, readOnly: true))
+        return device
     }
 }
 

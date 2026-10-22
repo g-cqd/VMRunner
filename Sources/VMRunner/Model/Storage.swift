@@ -137,6 +137,9 @@ struct VMBundle: Sendable {
     var ephemeralAuxiliaryStorage: URL { url.appending(path: "AuxiliaryStorage.ephemeral") }
     var ephemeralEFIVariables: URL { url.appending(path: "EFIVariables.ephemeral.fd") }
     var snapshots: URL { url.appending(path: "Snapshots", directoryHint: .isDirectory) }
+    /// The folder the host-information share serves to the guest, read-only. No directory hint: the path has no trailing
+    /// slash, so a link planted here is removed itself, never followed.
+    var hostInfoFolder: URL { url.appending(path: "HostInfo") }
 
     /// The installer to attach for a configuration that stores `path`.
     ///
@@ -161,6 +164,14 @@ struct VMBundle: Sendable {
 
     func create() throws {
         try AppPaths.createPrivateDirectory(url)
+    }
+
+    /// Removes whatever is at `hostInfoFolder` and makes the folder again, private. Files or a link a copied bundle left
+    /// there are gone before a guest can see them.
+    func freshHostInfoFolder() throws -> URL {
+        remove(hostInfoFolder)
+        try AppPaths.createPrivateDirectory(hostInfoFolder)
+        return hostInfoFolder
     }
 
     /// Removes the saved memory image, and anything a suspend left under its temporary name.
