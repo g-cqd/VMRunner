@@ -18,6 +18,9 @@ struct GuestScratch: Equatable {
     var socket: URL { runDirectory.appending(path: "console.sock") }
     var pidFile: URL { runDirectory.appending(path: "helper.pid") }
     var logFile: URL { runDirectory.appending(path: "helper.log") }
+    /// The network policy a filtered guest enforces (the descriptor names it), and the named pipe its helper reads commands from.
+    var policyFile: URL { runDirectory.appending(path: "policy.json") }
+    var commandPipe: URL { runDirectory.appending(path: "commands.fifo") }
 
     /// The directory `path` names (relative to `workingDirectory`). Refuses the root of the disk, the home folder and
     /// anything inside the user's `Library`, where the app keeps its machines, whatever links lead there.

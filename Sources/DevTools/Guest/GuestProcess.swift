@@ -25,8 +25,9 @@ enum GuestProcess {
     // MARK: Starting
 
     /// Starts `executable` in a session of its own, so that it outlives this command and its terminal, with standard input
-    /// closed and standard output and error appended to `log` (created 0600). Returns the pid.
-    static func spawnDetached(executable: String, arguments: [String], log: URL) throws -> Int32 {
+    /// read from `standardInput` (closed when it is nil) and standard output and error appended to `log` (created 0600).
+    /// Returns the pid.
+    static func spawnDetached(executable: String, arguments: [String], log: URL, standardInput: URL? = nil) throws -> Int32 {
         var actions: posix_spawn_file_actions_t?
         var attributes: posix_spawnattr_t?
         // The initialisers fill structures the later calls and `posix_spawn` read; both are destroyed before returning.
@@ -36,7 +37,9 @@ enum GuestProcess {
             unsafe posix_spawn_file_actions_destroy(&actions)
             unsafe posix_spawnattr_destroy(&attributes)
         }
-        unsafe posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        // A named pipe is opened for reading and writing, so that it never reports the end of its input when a writer leaves.
+        unsafe posix_spawn_file_actions_addopen(
+            &actions, 0, standardInput?.path ?? "/dev/null", standardInput == nil ? O_RDONLY : O_RDWR, 0)
         unsafe posix_spawn_file_actions_addopen(&actions, 1, log.path, O_WRONLY | O_CREAT | O_APPEND, 0o600)
         unsafe posix_spawn_file_actions_adddup2(&actions, 1, 2)
         // A session of its own, no descriptor of this process inherited beyond the three above, and every signal back at its

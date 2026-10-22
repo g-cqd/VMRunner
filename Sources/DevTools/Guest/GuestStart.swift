@@ -47,6 +47,8 @@ struct GuestStart {
             throw ToolError("a guest already runs from \(scratch.root.path) (pid \(record.pid)); stop it first: vmr guest stop")
         }
         try prepareRunDirectory()
+        let filtered = plan.network == .filtered
+        if filtered { try prepareFilteredNetwork() }
 
         let descriptor = try plan.descriptor(files: files, scratch: scratch)
         try JSONEncoder.sorted.encode(descriptor).write(to: scratch.descriptorFile)
@@ -57,9 +59,10 @@ struct GuestStart {
         let helper = try await bundler.plainHelper(from: try await bundler.binary())
 
         let started = ContinuousClock.now
+        // A filtered network is changed while it runs, by command lines written to a named pipe the helper reads as standard input.
+        let arguments = ["--start", "--descriptor", loaded.path, "--run-seconds", "\(maximumSeconds)"] + (filtered ? ["--commands"] : [])
         let pid = try GuestProcess.spawnDetached(
-            executable: helper.path, arguments: ["--start", "--descriptor", loaded.path, "--run-seconds", "\(maximumSeconds)"],
-            log: scratch.logFile)
+            executable: helper.path, arguments: arguments, log: scratch.logFile, standardInput: filtered ? scratch.commandPipe : nil)
         let record = GuestProcess.Record(pid: pid, executable: SandboxPath.realPath(helper.path) ?? helper.path)
         try GuestProcess.write(record, to: scratch.pidFile)
         Output.out("helper: pid \(pid), at most \(maximumSeconds) s, log \(scratch.logFile.path)")
@@ -81,7 +84,20 @@ struct GuestStart {
     private func prepareRunDirectory() throws {
         try GuestScratch.ensurePrivate(scratch.runDirectory)
         // What an earlier run left: its log is replaced, and a stale socket would make the bridge refuse to start.
-        for leftover in [scratch.logFile, scratch.pidFile, scratch.socket] { try? FileManager.default.removeItem(at: leftover) }
+        for leftover in [scratch.logFile, scratch.pidFile, scratch.socket, scratch.commandPipe] {
+            try? FileManager.default.removeItem(at: leftover)
+        }
+    }
+
+    /// The policy file the helper reads (the one given, or the default policy) and the pipe it takes commands from.
+    private func prepareFilteredNetwork() throws {
+        let policy = try plan.policyFile.map(GuestPlan.policyText(of:)) ?? Data("{}\n".utf8)
+        try policy.write(to: scratch.policyFile, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: scratch.policyFile.path)
+        // `mkfifo` reads the path as a C string.
+        guard unsafe mkfifo(scratch.commandPipe.path, 0o600) == 0 else {
+            throw ToolError("cannot make the command pipe \(scratch.commandPipe.path): errno \(errno)")
+        }
     }
 
     /// Waits for the helper to report its console and the machine running, then for the console to show a prompt.
@@ -125,7 +141,9 @@ struct GuestStart {
     }
 
     private func report(_ timing: Timing, socket: String) {
-        func seconds(_ value: Double?) -> String { value.map { "\($0.formatted(.number.precision(.fractionLength(2)))) s" } ?? "never" }
+        func seconds(_ value: Double?) -> String {
+            value.map { "\($0.formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "en_US_POSIX")))) s" } ?? "never"
+        }
         Output.out("console socket: \(socket)")
         Output.out(
             "timing from launch: console ready \(seconds(timing.consoleReady)), machine running \(seconds(timing.running)), "

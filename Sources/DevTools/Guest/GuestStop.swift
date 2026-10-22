@@ -19,6 +19,6 @@ struct GuestStop {
             Output.out("the helper (pid \(record.pid)) ignored SIGTERM for \(grace) and was killed")
         }
         // A helper that was killed cannot remove its console socket.
-        for leftover in [scratch.socket, scratch.pidFile] { try? FileManager.default.removeItem(at: leftover) }
+        for leftover in [scratch.socket, scratch.pidFile, scratch.commandPipe] { try? FileManager.default.removeItem(at: leftover) }
     }
 }

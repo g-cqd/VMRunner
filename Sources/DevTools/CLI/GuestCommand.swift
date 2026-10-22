@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import GuestConsole
+import VMHelperCore
 
 struct GuestCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -13,7 +14,7 @@ struct GuestCommand: AsyncParsableCommand {
             never your Library. `start` boots a virtual machine: agents run it only when the owner has authorised real-guest \
             runs for the session.
             """,
-        subcommands: [Fetch.self, Start.self, Exec.self, Console.self, Stop.self]
+        subcommands: [Fetch.self, Start.self, Exec.self, Console.self, Policy.self, Flows.self, Stop.self]
     )
 
     /// `--directory`, shared by the commands that work on a scratch directory.
@@ -101,11 +102,40 @@ struct GuestCommand: AsyncParsableCommand {
         @Option(name: .long, help: ArgumentHelp("A helper binary built already, signed here instead of building one.", valueName: "path"))
         var helper: String?
 
+        @Option(
+            name: .long,
+            help: ArgumentHelp(
+                "The guest's network: nat (the framework's) or filtered (the app's, judged by a policy).", valueName: "mode"),
+            transform: { text in
+                guard let value = HelperDescriptor.Network(rawValue: text), value == .nat || value == .filtered else {
+                    throw ValidationError("'\(text)' is not nat or filtered")
+                }
+                return value
+            })
+        var net = HelperDescriptor.Network.nat
+
+        @Option(
+            name: .long,
+            help: ArgumentHelp("With --net filtered: the network policy as JSON (default: the default policy).", valueName: "file"))
+        var policy: String?
+
+        @Option(
+            name: .long, help: ArgumentHelp("With --net filtered: what a denied TCP connection sees: reset or drop.", valueName: "action"),
+            transform: { text in
+                guard let value = HelperDescriptor.DenyAction(rawValue: text) else {
+                    throw ValidationError("'\(text)' is not reset or drop")
+                }
+                return value
+            })
+        var denyAction = HelperDescriptor.DenyAction.reset
+
         func run() async throws {
             try await perform {
-                var start = GuestStart(
-                    scratch: try target.scratch(), plan: GuestPlan(cpuCount: cpus, memoryMiB: memoryMib, commandLine: commandLine),
-                    root: try project.packageRoot())
+                var plan = GuestPlan(cpuCount: cpus, memoryMiB: memoryMib, commandLine: commandLine)
+                plan.network = net
+                plan.denyAction = denyAction
+                plan.policyFile = policy.map { URL(fileURLWithPath: $0, relativeTo: project.workingDirectory()).standardizedFileURL }
+                var start = GuestStart(scratch: try target.scratch(), plan: plan, root: try project.packageRoot())
                 start.configuration = configuration
                 start.prebuilt = helper.map { URL(fileURLWithPath: $0, relativeTo: project.workingDirectory()).standardizedFileURL }
                 start.maximumSeconds = maxSeconds
@@ -182,6 +212,81 @@ struct GuestCommand: AsyncParsableCommand {
                 case .inputEnded: Output.err("\nend of input")
                 case .detached: Output.err("\ndetached")
                 }
+                return 0
+            }
+        }
+    }
+
+    /// How a command names the guest it means: a console socket, a helper's pid, or the scratch directory.
+    struct GuestArgument: ParsableArguments {
+        @Argument(help: ArgumentHelp("The guest: its console socket, its helper's pid, or its scratch directory.", valueName: "guest"))
+        var guest: String
+
+        func scratch() async throws -> GuestScratch {
+            try await GuestTarget.scratch(
+                for: guest, workingDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+        }
+    }
+
+    struct Policy: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Give a running guest with a filtered network a new policy, without restarting it.",
+            discussion: """
+                Replaces the policy file the guest's helper reads, tells the helper to read it again and waits for its answer. \
+                Flows the new policy no longer allows are cut unless --keep-open-flows is given. Exits 1 when the helper rejected \
+                the file or did not answer in time.
+                """
+        )
+
+        @OptionGroup var target: GuestArgument
+
+        @Argument(help: ArgumentHelp("The policy as JSON.", valueName: "file"))
+        var file: String
+
+        @Flag(help: "Leave open flows alone even when the new policy would not allow them.")
+        var keepOpenFlows = false
+
+        @Option(name: .long, help: ArgumentHelp("Seconds to wait for the helper's answer.", valueName: "seconds"))
+        var timeout = 10
+
+        func run() async throws {
+            try await perform {
+                var update = GuestPolicy(
+                    scratch: try await target.scratch(),
+                    file: URL(fileURLWithPath: file, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+                        .standardizedFileURL)
+                update.terminatingOpenFlows = !keepOpenFlows
+                update.timeout = .seconds(timeout)
+                let answer = try await update.run()
+                Output.out("\(answer.applied ? "applied" : "rejected"): \(answer.message)")
+                return answer.applied ? 0 : 1
+            }
+        }
+    }
+
+    struct Flows: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Print what a filtered guest's connections did: the helper's flow events and its counters.",
+            discussion: """
+                Reads the helper's log. A line is the transport, the outcome (allowed, denied, answered, closed, revoked), the \
+                destination and the reason; the time is seconds since the helper started.
+                """
+        )
+
+        @OptionGroup var target: GuestArgument
+
+        @Option(name: .long, help: ArgumentHelp("How many of the newest lines to print.", valueName: "n"))
+        var last = 50
+
+        @Option(name: .long, help: ArgumentHelp("Only lines with this outcome.", valueName: "outcome"))
+        var only: String?
+
+        func run() async throws {
+            try await perform {
+                var flows = GuestFlows(scratch: try await target.scratch())
+                flows.last = last
+                flows.outcome = only
+                for line in try flows.lines() { Output.out(line) }
                 return 0
             }
         }
