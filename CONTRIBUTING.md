@@ -130,6 +130,12 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
 - Anything that fetches remote data goes through `DownloadPolicy` (HTTPS, allow-listed hosts, verified
   checksums). Anything that widens what a guest can reach on the host must be reflected in the security
   profiles and their exposure summary, and covered by a test.
+- `Sources/NetPolicy` (the network policy) and `Sources/NetStack` (the user-mode network stack) are library targets of the
+  root package, so the headless helper can host the stack without linking the app (ADR-0047). They import the system
+  frameworks and each other, never SwiftUI, AppKit, Observation or Virtualization (a test in `DevToolsTests` checks the
+  manifest and the imports). A declaration another target of this package uses is `package`; the rest stays internal, and
+  these targets' own tests use `@testable import`. Keep the per-packet path inside `NetStack`: no `public` or
+  `@inlinable` on it without a measurement from `swift run vmr check bench`.
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 

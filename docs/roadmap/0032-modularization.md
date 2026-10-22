@@ -1,6 +1,7 @@
 ---
-status: pending
+status: in-progress
 blocked-by: ["0031"]
+decision: ADR-0047
 date: 2026-10-22
 ---
 # 0032 — Separate concerns into local Swift packages, with one naming convention
@@ -41,6 +42,10 @@ one-file packages, module-per-folder, the wire parsers from the stack core, anyt
    cache keys loop over them; a manifest-block sync and check replaces sharing settings between manifests.
 4. Extract in order: `TestSupport`, `NetPolicy`, `NetStack`, `ImageTrust`. `vmr check bench` after each: the per-packet
    allocation baselines and the 3% instruction budget must not move.
+   Status: `NetPolicy` and `NetStack` are done, in the cheaper form the study recommended first: library targets of the root
+   package, shared by `package` access (ADR-0047), with the app and the headless helper linking both. `vmr check bench`
+   after the move: allocation baselines exact, the policy decision's instructions +0.3% (budget 3%). They move into the
+   `Networking` package only when a consumer outside this repository needs them; `TestSupport` and `ImageTrust` are still to do.
 5. Later and only on a second consumer: the configuration core, the configuration builder, `PrivateInterfaces`.
 
 Timing: after the network and downloads branches merge (they touch the same files), before the new features.
