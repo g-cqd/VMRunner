@@ -102,22 +102,27 @@ struct LinuxProvider: Sendable {
                 ZeroOrMore(.horizontalWhitespace)
             })
 
+        /// The file names a checksum file lists, with their digests as written, from its first `maximumLines` lines; a line
+        /// longer than `maximumLineLength` bytes is skipped. Lines that are not entries (comments, signature armor) are not
+        /// listed.
+        func entries(in text: String) -> [(name: Substring, digest: Substring)] {
+            let lines = text.utf8.split(maxSplits: Self.maximumLines, omittingEmptySubsequences: true) { $0 == 0x0A || $0 == 0x0D }
+            return lines.prefix(Self.maximumLines).compactMap { bytes -> (name: Substring, digest: Substring)? in
+                guard bytes.count <= Self.maximumLineLength else { return nil }
+                let line = Substring(bytes)
+                switch self {
+                case .bsd: return line.wholeMatch(of: Self.bsdLine.regex).map { ($0.output.1, $0.output.2) }
+                case .gnu: return line.wholeMatch(of: Self.gnuLine.regex).map { ($0.output.2, $0.output.1) }
+                }
+            }
+        }
+
         /// The lowercase SHA-256 on the line that names exactly `entry`, byte for byte, or nil if no line does. Other
         /// lines, comments and signature armor are ignored, so a file that lists many images can't
         /// supply another image's hash. Only the first `maximumLines` lines are read, and a line longer than
         /// `maximumLineLength` bytes is skipped.
         func sha256(for entry: String, in text: String) -> String? {
-            let lines = text.utf8.split(maxSplits: Self.maximumLines, omittingEmptySubsequences: true) { $0 == 0x0A || $0 == 0x0D }
-            for bytes in lines.prefix(Self.maximumLines) where bytes.count <= Self.maximumLineLength {
-                let line = Substring(bytes)
-                let named: (name: Substring, digest: Substring)?
-                switch self {
-                case .bsd: named = line.wholeMatch(of: Self.bsdLine.regex).map { ($0.output.1, $0.output.2) }
-                case .gnu: named = line.wholeMatch(of: Self.gnuLine.regex).map { ($0.output.2, $0.output.1) }
-                }
-                if let named, named.name.utf8.elementsEqual(entry.utf8) { return named.digest.lowercased() }
-            }
-            return nil
+            entries(in: text).first { $0.name.utf8.elementsEqual(entry.utf8) }?.digest.lowercased()
         }
     }
 
@@ -129,6 +134,14 @@ struct LinuxProvider: Sendable {
     var format: ChecksumFormat
     /// What vouches for the checksum file. Every provider states it: `HTTPSOnlyTrust` is a choice, not a default.
     var trust: any ChecksumTrust
+    /// The release series this provider serves, for example `26.04`: only a release number equal to it, or continuing it
+    /// with `.` or `-` (`26.04.1`, `44-1.7`), is a candidate. A signature proves who signed a file, not which release it is,
+    /// so without this a genuine older list served in place of the current one would pass.
+    var series: String?
+    /// The oldest release number accepted, for example `26.04.1`: the newest one when the provider's signing key was pinned.
+    /// A signed older release is genuine and still unwanted (a rollback to software with fixed vulnerabilities), and an
+    /// unsigned listing cannot be trusted to show the newest. The floor moves up with app releases.
+    var minimumVersion: String?
 
     /// The HTTPS URL of the provider's directory.
     func directoryURL() throws(SetupError) -> URL {
@@ -157,8 +170,9 @@ struct LinuxProvider: Sendable {
             "\""
         })
 
-    /// Finds the newest ISO of a matching directory listing (HTML or plain) by numeric release comparison.
-    static func newest(inListing listing: String, prefix: String, suffix: String) -> LinuxRelease? {
+    /// The ISOs among `names` called `<prefix><release number><suffix>` that belong to `series`, newest first. A name that is
+    /// not plain ASCII is never one of the vendor's files.
+    static func releases(among names: some Sequence<String>, prefix: String, suffix: String, series: String? = nil) -> [LinuxRelease] {
         let matcher = Regex {
             prefix
             Capture {
@@ -173,15 +187,41 @@ struct LinuxProvider: Sendable {
             }
             suffix
         }
-        let names = Set(listing.matches(of: Self.hrefAttribute.regex).map { String($0.output.1) })
-        let candidates = names.compactMap { name -> (release: LinuxRelease, version: ReleaseVersion)? in
-            // The listing is unsigned input: a name that is not plain ASCII is never one of the vendor's files.
+        let candidates = Set(names).sorted().compactMap { name -> (release: LinuxRelease, version: ReleaseVersion)? in
             guard name.utf8.allSatisfy({ $0 < 0x80 }), let match = name.wholeMatch(of: matcher),
-                let version = ReleaseVersion(match.output.1)
+                let version = ReleaseVersion(match.output.1), belongs(String(match.output.1), to: series)
             else { return nil }
             return (LinuxRelease(path: name, version: String(match.output.1)), version)
         }
-        return candidates.max { $0.version < $1.version }?.release
+        return candidates.sorted { $0.version > $1.version }.map(\.release)
+    }
+
+    /// Whether `version` is `series` or continues it with `.` or `-`; every version belongs to no series.
+    static func belongs(_ version: String, to series: String?) -> Bool {
+        guard let series else { return true }
+        return version == series || version.hasPrefix(series + ".") || version.hasPrefix(series + "-")
+    }
+
+    /// The releases of a directory listing (HTML or plain), newest first, by numeric release comparison.
+    static func releases(inListing listing: String, prefix: String, suffix: String, series: String? = nil) -> [LinuxRelease] {
+        releases(
+            among: listing.matches(of: Self.hrefAttribute.regex).map { String($0.output.1) }, prefix: prefix, suffix: suffix, series: series
+        )
+    }
+
+    /// Finds the newest ISO of a matching directory listing (HTML or plain) by numeric release comparison.
+    static func newest(inListing listing: String, prefix: String, suffix: String, series: String? = nil) -> LinuxRelease? {
+        releases(inListing: listing, prefix: prefix, suffix: suffix, series: series).first
+    }
+
+    /// Refuses a release older than `minimumVersion`.
+    /// - Throws: `SetupError.releaseTooOld` for an older release or one whose number cannot be read.
+    func accept(_ release: LinuxRelease) throws(SetupError) {
+        guard let minimumVersion else { return }
+        guard let floor = ReleaseVersion(minimumVersion) else { throw .missingFile("a valid oldest release for \(host)") }
+        guard let version = ReleaseVersion(release.version), !(version < floor) else {
+            throw .releaseTooOld(file: release.path, oldest: minimumVersion)
+        }
     }
 
     /// Finds the newest ISO and its published SHA-256, and proves the checksum file with `trust` before reading it.
@@ -197,22 +237,52 @@ struct LinuxProvider: Sendable {
     @concurrent
     func resolve(now: Date = Date(), fetch: SmallFetch = { try await Network.fetchSmall($0, limit: $1) }) async throws -> ResolvedImage {
         let directory = try directoryURL()
+        if case .newest(let prefix, let suffix) = iso, case .shared(let fileName) = checksum {
+            return try await resolveFromSharedList(
+                prefix: prefix, suffix: suffix, listName: fileName, directory: directory, now: now, fetch: fetch)
+        }
         let release: LinuxRelease
         switch iso {
         case .fixed(let path):
             release = LinuxRelease(path: path, version: "")
         case .newest(let prefix, let suffix):
             let listing = try Self.text(of: try await fetch(directory, Network.smallLimit), at: directory)
-            guard let newest = Self.newest(inListing: listing, prefix: prefix, suffix: suffix) else {
-                throw SetupError.missingFile("a matching ISO in \(directory)")
+            guard let newest = Self.releases(inListing: listing, prefix: prefix, suffix: suffix, series: series).first else {
+                let others = Self.releases(inListing: listing, prefix: prefix, suffix: suffix)
+                throw SetupError.missingFile("a \(series ?? "matching") ISO in \(directory)" + Self.outsideSeries(others))
             }
             release = newest
         }
+        try accept(release)
         let checksumURL = try checksumURL(for: release)
         let file = try await fetch(checksumURL, Network.smallLimit)
         let vouched = try await trust.vouch(
             for: file, at: checksumURL, image: directory.appending(path: release.path), now: now, fetch: fetch)
         return ResolvedImage(source: try source(for: release, checksumText: vouched.text), imageSignature: vouched.imageSignature)
+    }
+
+    /// A shared checksum file lists every image the vendor ships and is vouched for; the directory listing is neither. The
+    /// release is chosen from the vouched text alone, so a listing that hides the newest release cannot downgrade the choice
+    /// and is not fetched at all. The trust must sign the list itself: there is no single installer to sign.
+    private func resolveFromSharedList(
+        prefix: String, suffix: String, listName: String, directory: URL, now: Date, fetch: SmallFetch
+    ) async throws -> ResolvedImage {
+        let listURL = directory.appending(path: listName)
+        let file = try await fetch(listURL, Network.smallLimit)
+        let vouched = try await trust.vouch(for: file, at: listURL, image: directory, now: now, fetch: fetch)
+        let names = format.entries(in: vouched.text).map { String($0.name) }
+        guard let newest = Self.releases(among: names, prefix: prefix, suffix: suffix, series: series).first else {
+            let others = Self.releases(among: names, prefix: prefix, suffix: suffix)
+            throw SetupError.missingFile("a \(series ?? "matching") ISO in \(listName)" + Self.outsideSeries(others))
+        }
+        try accept(newest)
+        return ResolvedImage(source: try source(for: newest, checksumText: vouched.text), imageSignature: vouched.imageSignature)
+    }
+
+    /// For an error message: the newest release found whatever its series, which is not the one this app serves.
+    private static func outsideSeries(_ releases: [LinuxRelease]) -> String {
+        guard let newest = releases.first else { return "" }
+        return " (it offers \(newest.path), which is not in the series this app serves)"
     }
 
     /// `release` as a remote image with the SHA-256 that `checksumText` lists for exactly that file.
@@ -246,7 +316,7 @@ extension LinuxProvider {
         host: "cdimage.debian.org", directoryPath: "/debian-cd/current/arm64/iso-cd/",
         iso: .newest(prefix: "debian-", suffix: "-arm64-netinst.iso"),
         checksum: .shared(fileName: "SHA256SUMS"), format: .gnu,
-        trust: SignedChecksumTrust(placement: .detached(suffix: "sign"), keys: [PGP.PinnedKeys.debianCD]))
+        trust: SignedChecksumTrust(placement: .detached(suffix: "sign"), keys: [PGP.PinnedKeys.debianCD]), minimumVersion: "13.7.0")
 
     /// This index is covered by Debian's signed Release file, not by a signature of its own, so it is trusted for its host only.
     static let debianNetbootMini = Self(
@@ -258,7 +328,7 @@ extension LinuxProvider {
         host: "dl-cdn.alpinelinux.org", directoryPath: "/alpine/latest-stable/releases/aarch64/",
         iso: .newest(prefix: "alpine-virt-", suffix: "-aarch64.iso"),
         checksum: .sibling(suffix: "sha256"), format: .gnu,
-        trust: SignedImageTrust(suffix: "asc", keys: [PGP.PinnedKeys.alpineCopa]))
+        trust: SignedImageTrust(suffix: "asc", keys: [PGP.PinnedKeys.alpineCopa]), minimumVersion: "3.24.2")
 
     static func almaLinux(release: Int, flavor: String) -> Self {
         Self(
@@ -274,14 +344,21 @@ extension LinuxProvider {
             checksum: .sibling(suffix: "CHECKSUM"), format: .bsd, trust: HTTPSOnlyTrust())
     }
 
+    /// The newest point release of each Ubuntu LTS when the app was last updated; a release not listed starts at itself.
+    private static let ubuntuFloors = ["26.04": "26.04.1"]
+
     /// The live-server installer of an Ubuntu release such as `26.04`; its point releases (`26.04.1`) share the directory.
     static func ubuntuServer(release: String) -> Self {
         Self(
             host: "cdimage.ubuntu.com", directoryPath: "/ubuntu/releases/\(release)/release/",
             iso: .newest(prefix: "ubuntu-", suffix: "-live-server-arm64.iso"),
             checksum: .shared(fileName: "SHA256SUMS"), format: .gnu,
-            trust: SignedChecksumTrust(placement: .detached(suffix: "gpg"), keys: [PGP.PinnedKeys.ubuntuCDImage]))
+            trust: SignedChecksumTrust(placement: .detached(suffix: "gpg"), keys: [PGP.PinnedKeys.ubuntuCDImage]),
+            series: release, minimumVersion: ubuntuFloors[release] ?? release)
     }
+
+    /// The compose of each Fedora release when the app was last updated; a release not listed starts at itself.
+    private static let fedoraFloors = [44: "44-1.7"]
 
     /// The CHECKSUM file is a cleartext-signed message made by that release's Fedora key; a release the app pins no key for
     /// is refused, not read without a signature.
@@ -290,6 +367,7 @@ extension LinuxProvider {
             host: "dl.fedoraproject.org", directoryPath: "/pub/fedora/linux/releases/\(release)/Server/aarch64/iso/",
             iso: .newest(prefix: "Fedora-Server-netinst-aarch64-", suffix: ".iso"),
             checksum: .sharedPerRelease { "Fedora-Server-\($0)-aarch64-CHECKSUM" }, format: .bsd,
-            trust: SignedChecksumTrust(placement: .cleartext, keys: PGP.PinnedKeys.fedora(release: release)))
+            trust: SignedChecksumTrust(placement: .cleartext, keys: PGP.PinnedKeys.fedora(release: release)),
+            series: "\(release)", minimumVersion: fedoraFloors[release] ?? "\(release)")
     }
 }

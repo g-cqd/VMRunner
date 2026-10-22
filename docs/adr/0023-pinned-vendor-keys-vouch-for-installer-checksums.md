@@ -51,8 +51,12 @@ pins are trust on first use: the fingerprint was compared with the vendor's own 
 time would have been pinned. A key change at a vendor fails closed until the app is updated with the new key, so rotation
 costs an app update (Fedora's every release). The app cannot see revocation or expiry of a pinned key, so each pin is
 re-checked against the vendor's pages when the app is updated. Alpine's signer is one maintainer's personal key, so a change
-of signer also fails closed. A genuine older signed file still verifies: a signature does not bind the release the user
-meant, and it says who signed the file, not that the file is safe. Debian's netboot index, CentOS Stream, AlmaLinux and Rocky
+of signer also fails closed. A signature says who signed a file, not which release it is or that the file is safe, so a
+genuine older file would verify too. Each signed provider therefore names its release series (Ubuntu `26.04`, Fedora `44`) and
+the oldest release it accepts, the one current when its key was pinned (Ubuntu 26.04.1, Alpine 3.24.2, Debian 13.7.0, Fedora
+44-1.7), and refuses anything older with a message that says so. Where the signed object is a list of many images (Debian,
+Ubuntu) the release is chosen from the signed text and not from the unsigned directory listing, which could hide the newest
+one. These floors move up with app releases; a copy of the app that is not updated still accepts every newer release. Debian's netboot index, CentOS Stream, AlmaLinux and Rocky
 Linux remain on HTTPS alone, and say so.
 
 ## What this does not decide

@@ -124,13 +124,15 @@ enum LinuxCatalog {
             id: "alpine-virt", name: "Alpine Linux", medium: "virt ISO", install: "diskless live system",
             approximateSize: "~93 MB", maximumBytes: 1 << 30, supportsSecureBoot: false,
             trustNotes: "Published by the Alpine Linux project. The ISO's detached OpenPGP signature (.asc) is checked against "
-                + "the release signer's key built into the app; the SHA-256, fetched over HTTPS from the same server, is checked as well.",
+                + "the release signer's key built into the app; the SHA-256, fetched over HTTPS from the same server, is checked as well. "
+                + "Releases older than 3.24.2, the oldest this version of the app accepts, are refused.",
             provider: .alpineVirt),
         LinuxImage(
             id: "ubuntu-server-26.04", name: "Ubuntu Server 26.04 LTS", medium: "live server ISO", install: "offline install",
             approximateSize: "~3 GB", maximumBytes: 8 << 30, supportsSecureBoot: true,
             trustNotes: "Published by Canonical. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.gpg) from "
-                + "the Ubuntu CD image key built into the app, or the download is refused.",
+                + "the Ubuntu CD image key built into the app, or the download is refused. Releases older than 26.04.1, the oldest "
+                + "this version of the app accepts, are refused.",
             provider: .ubuntuServer(release: "26.04")),
     ]
 
@@ -141,7 +143,7 @@ enum LinuxCatalog {
             id: "debian-stable-netinst", name: "Debian stable", medium: "netinst ISO", install: "network install",
             approximateSize: "~700 MB", maximumBytes: 3 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Debian Project. SHA256SUMS must carry a valid detached OpenPGP signature (SHA256SUMS.sign) "
-                + "from the Debian CD signing key built into the app. "
+                + "from the Debian CD signing key built into the app; releases older than 13.7.0 are refused. "
                 + "Blocked: the ISO download redirects to a third-party mirror, which the redirect policy refuses.",
             provider: .debianNetinst),
         LinuxImage(
@@ -172,7 +174,7 @@ enum LinuxCatalog {
             id: "fedora-server-44-netinst", name: "Fedora Server 44", medium: "netinst ISO", install: "network install",
             approximateSize: "~1.3 GB", maximumBytes: 4 << 30, supportsSecureBoot: true,
             trustNotes: "Published by the Fedora Project. The CHECKSUM file must be an inline OpenPGP clear-signed message made by "
-                + "the Fedora 44 release key built into the app, or the download is refused.",
+                + "the Fedora 44 release key built into the app, or the download is refused; composes older than 44-1.7 are refused.",
             provider: .fedoraServerNetinst(release: 44)),
     ]
 

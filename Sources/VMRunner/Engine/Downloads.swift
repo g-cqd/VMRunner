@@ -17,6 +17,8 @@ enum SetupError: LocalizedError {
     case notARegularFile(String)
     /// A checksum that is not SHA-256 cannot vouch for a file.
     case weakChecksum(String)
+    /// `file` is a genuine release but older than `oldest`, the oldest this version of the app accepts.
+    case releaseTooOld(file: String, oldest: String)
     /// The OpenPGP signature that should vouch for `file` is missing, malformed or wrong; `reason` completes "because ...".
     case signatureRejected(file: String, reason: String)
     case rosettaUnavailable
@@ -40,6 +42,9 @@ enum SetupError: LocalizedError {
             reason
         case .missingFile(let path):
             "File not found: \(path)"
+        case .releaseTooOld(let file, let oldest):
+            "Refusing \(file): it is older than the oldest release this version of VMRunner accepts (\(oldest)). "
+                + "The listing may be out of date or tampered with; update VMRunner if a newer release exists."
         case .weakChecksum(let name):
             "Refusing \(name): its checksum is not a SHA-256, and a weaker one cannot vouch for a download."
         case .notARegularFile(let name):

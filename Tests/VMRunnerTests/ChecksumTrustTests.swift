@@ -82,7 +82,9 @@ struct SignedProviderResolveTests {
         let digest = "6e93fa1759bd9d4b0fc11e938987de6967ee7de5297dac1be27c3a75cc17024b"
         #expect(resolved.source == .remote(url, checksum: Checksum(algorithm: .sha256, value: digest)))
         #expect(resolved.imageSignature == nil)
-        #expect(mirror.requests.map(\.url) == [debianDirectory, debianDirectory + "SHA256SUMS", debianDirectory + "SHA256SUMS.sign"])
+        #expect(
+            mirror.requests.map(\.url) == [debianDirectory + "SHA256SUMS", debianDirectory + "SHA256SUMS.sign"],
+            "the unsigned listing is not fetched: the signed list names the release")
     }
 
     @Test func ubuntuResolvesFromItsSignedChecksums() async throws {
@@ -237,10 +239,12 @@ struct SignedProviderFailClosedTests {
     }
 
     @Test func aReleaseWithoutAPinnedKeyIsRefusedNotReadUnsigned() async {
-        // Fedora 45's directory serves the 44 files: genuinely signed, but by a key that is not pinned for release 45.
+        // Fedora 45's directory names a 45 release, but serves the 44 checksum file: genuinely signed, but by a key that is not
+        // pinned for release 45.
         let directory = fedoraDirectory.replacing("/44/", with: "/45/")
+        let listing = fedoraListing.replacing("44-1.7", with: "45-1.1")
         let mirror = FixtureMirror([
-            directory: fedoraListing, directory + "Fedora-Server-44-1.7-aarch64-CHECKSUM": SignedVendorFiles.fedoraChecksum,
+            directory: listing, directory + "Fedora-Server-45-1.1-aarch64-CHECKSUM": SignedVendorFiles.fedoraChecksum,
         ])
         await #expect {
             try await LinuxProvider.fedoraServerNetinst(release: 45).resolve(now: pgpGoldenNow, fetch: mirror.fetch)
@@ -249,18 +253,21 @@ struct SignedProviderFailClosedTests {
         }
     }
 
-    @Test func aGenuineSignatureStillCannotNameAFileTheListDoesNotHave() async {
+    @Test func aListingCannotNameAFileTheSignedListDoesNotHave() async throws {
         let listing = #"<a href="debian-13.8.0-arm64-netinst.iso">x</a>"#
         let mirror = FixtureMirror([
             debianDirectory: listing, debianDirectory + "SHA256SUMS": SignedVendorFiles.debianChecksums,
             debianDirectory + "SHA256SUMS.sign": SignedVendorFiles.debianSignature,
         ])
-        await #expect {
-            try await LinuxProvider.debianNetinst.resolve(now: pgpGoldenNow, fetch: mirror.fetch)
-        } throws: { error in
-            guard case SetupError.missingFile(let what) = error else { return false }
-            return what.contains("debian-13.8.0-arm64-netinst.iso")
+
+        let resolved = try await LinuxProvider.debianNetinst.resolve(now: pgpGoldenNow, fetch: mirror.fetch)
+
+        // The release comes from the signed list, so the unsigned listing's 13.8.0 is never chosen or downloaded.
+        guard case .remote(let url, _) = resolved.source else {
+            Issue.record("expected a remote source")
+            return
         }
+        #expect(url.lastPathComponent == "debian-13.7.0-arm64-netinst.iso")
     }
 
     @Test func aSignatureFromAHostOutsideThePolicyIsNeverRequested() async {

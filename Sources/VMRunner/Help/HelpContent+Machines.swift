@@ -94,8 +94,9 @@ extension HelpCatalog {
                     + "that the holder of the project's key signed it: Ubuntu signs its SHA256SUMS list and Alpine signs the ISO itself, "
                     + "and VMRunner checks both and refuses the download on any failure instead of falling back to the checksum alone.",
                 "The keys are built into the app, so VMRunner cannot see a key being revoked or expiring, and a new key needs an app "
-                    + "update. A signature does not say the software is safe, and an older signed file still verifies. Only HTTPS from "
-                    + "a short list of project hosts is allowed, and a download larger than a ceiling set for each image is stopped.",
+                    + "update. A signature does not say the software is safe. Each image has an oldest release VMRunner accepts, "
+                    + "so a genuine older signed file is refused; that limit rises with app updates. Only HTTPS from a short list "
+                    + "of project hosts is allowed, and a download larger than a ceiling set for each image is stopped.",
             ],
             related: [.installerISO, .secureBoot]
         ),
