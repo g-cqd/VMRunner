@@ -172,15 +172,10 @@ struct EditorBoundsTests {
         #expect(text.count == EditorLimits.maxTextLength)
     }
 
-    private func makeModel() throws -> NewMachineModel {
-        let suite = "vmrunner-tests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        return NewMachineModel(defaults: defaults)
-    }
-
     @Test func aMachineNameTooLongForAStoredConfigurationCannotBeCreated() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.config.name = String(repeating: "n", count: EditorLimits.maxTextLength)
         #expect(model.canCreate)
         model.config.name += "n"
@@ -193,7 +188,9 @@ struct EditorBoundsTests {
     }
 
     @Test func thePickerOnlyTakesAFileOnThisMac() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.chooseLocalFile(try #require(URL(string: "https://example.com/linux.iso")))
         #expect(model.localPath == nil)
         #expect(model.creationError != nil)
@@ -204,7 +201,9 @@ struct EditorBoundsTests {
     }
 
     @Test func aRelativePathSetDirectlyStillCannotBeCreated() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.macSource = .file
         model.localPath = "restore.ipsw"
         #expect(!model.canCreate)

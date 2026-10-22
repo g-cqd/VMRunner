@@ -88,9 +88,9 @@ struct LatencyActivityTests {
     }
 
     @Test func theSettingIsOnUntilTheUserTurnsItOff() throws {
-        let suite = "vmrunner-test-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let defaults = scratch.defaults
 
         #expect(LatencyActivity.isSettingOn(in: defaults))
         defaults.set(false, forKey: LatencyActivity.settingKey)

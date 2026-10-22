@@ -206,27 +206,26 @@ struct LibraryTests {
 
 @MainActor
 struct NewMachineModelTests {
-    private func makeModel() throws -> NewMachineModel {
-        let suite = "vmrunner-tests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        return NewMachineModel(defaults: defaults)
-    }
-
     @Test func startsReadyToCreateAMacFromTheLatestImage() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         #expect(model.canCreate)
         #expect(model.makeConfig().source == .latestMac)
     }
 
     @Test func aBlankNameCannotBeCreated() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.config.name = "   "
         #expect(!model.canCreate)
     }
 
     @Test func localMediaNeedsAFile() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.macSource = .file
         #expect(!model.canCreate)
         model.localPath = "/tmp/restore.ipsw"
@@ -235,7 +234,9 @@ struct NewMachineModelTests {
     }
 
     @Test func ipswMeNeedsABuildSelected() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.macSource = .ipswMe
         #expect(!model.canCreate)
         model.selectedBuild = "26A434"
@@ -243,7 +244,9 @@ struct NewMachineModelTests {
     }
 
     @Test func switchingGuestKeepsACustomNameAndResetsDefaults() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.config.name = "build agent"
         model.localPath = "/tmp/x.iso"
         let id = model.config.id
@@ -258,13 +261,17 @@ struct NewMachineModelTests {
     }
 
     @Test func switchingGuestRenamesAPlaceholderName() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.guestChanged(to: .linux)
         #expect(model.config.name == "Linux")
     }
 
     @Test func linuxDefaultsToTheFirstCatalogImage() throws {
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.guestChanged(to: .linux)
         let first = try #require(LinuxCatalog.images.first)
         #expect(model.makeConfig().source == .linuxCatalog(id: first.id))
@@ -274,7 +281,9 @@ struct NewMachineModelTests {
         let directory = FileManager.default.temporaryDirectory.appending(path: "vmrunner-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: directory) }
         let library = VMLibrary(machinesDirectory: directory)
-        let model = try makeModel()
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = NewMachineModel(defaults: scratch.defaults)
         model.macSource = .file
         model.localPath = "/nonexistent/restore.ipsw"
         model.config.name = " lab "

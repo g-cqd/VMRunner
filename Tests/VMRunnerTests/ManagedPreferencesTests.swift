@@ -69,11 +69,10 @@ struct ManagedPreferencesTests {
     }
 
     @Test func aValueTheUserWroteIsNotPolicy() throws {
-        let name = "ManagedPreferencesTests-\(UUID().uuidString)"
-        let suite = try #require(UserDefaults(suiteName: name))
-        defer { suite.removePersistentDomain(forName: name) }
-        for key in ManagedKey.allCases { suite.set(false, forKey: key.rawValue) }
-        #expect(ManagedPreferences(reading: suite) == ManagedPreferences(forcedValue: { _ in nil }))
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        for key in ManagedKey.allCases { scratch.defaults.set(false, forKey: key.rawValue) }
+        #expect(ManagedPreferences(reading: scratch.defaults) == ManagedPreferences(forcedValue: { _ in nil }))
     }
 
     @Test func aControlIsLockedOnlyWhereThePolicyRestricts() {

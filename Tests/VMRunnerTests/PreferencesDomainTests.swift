@@ -32,13 +32,13 @@ struct WindowStateTests {
 
 struct LaunchDefaultsTests {
     @Test func theLaunchDefaultIsRegisteredInMemoryAndNeverWritten() throws {
-        let name = "LaunchDefaultsTests-\(UUID().uuidString)"
-        let suite = try #require(UserDefaults(suiteName: name))
-        defer { UserDefaults.standard.removePersistentDomain(forName: name) }
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let suite = scratch.defaults
         #expect(suite.object(forKey: PreferencesDomain.launchKey) == nil)
         PreferencesDomain.registerLaunchDefaults(on: suite)
         #expect(suite.bool(forKey: PreferencesDomain.launchKey))
-        #expect(suite.persistentDomain(forName: name)?[PreferencesDomain.launchKey] == nil, "registered, not written")
+        #expect(suite.persistentDomain(forName: scratch.name)?[PreferencesDomain.launchKey] == nil, "registered, not written")
     }
 }
 
