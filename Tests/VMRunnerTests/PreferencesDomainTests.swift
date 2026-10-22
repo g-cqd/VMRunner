@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -13,5 +14,18 @@ struct PreferencesDomainTests {
         #expect(
             PreferencesDomain.suiteName(environment: ["VMRUNNER_DATA_DIR": "/tmp/run"], appIdentifier: "com.example.VMRunner")
                 == "com.example.VMRunner.data-directory-override")
+    }
+}
+
+@MainActor
+struct WindowStateTests {
+    @Test func aWindowCanBeToldToSaveNeitherItsFrameNorItsState() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: true)
+        _ = window.setFrameAutosaveName("VMRunnerTests-\(UUID().uuidString)")
+        window.isRestorable = true
+        window.stopSavingFrameAndState()
+        #expect(window.frameAutosaveName.isEmpty)
+        #expect(!window.isRestorable)
     }
 }

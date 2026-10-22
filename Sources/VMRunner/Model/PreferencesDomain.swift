@@ -20,4 +20,8 @@ enum PreferencesDomain {
         // Never nil: `UserDefaults(suiteName:)` refuses only the app's own identifier and the global domain.
         return UserDefaults(suiteName: name) ?? .standard
     }
+
+    /// Whether this run keeps its settings out of the standard domain. Such a run also neither autosaves its main window's
+    /// frame nor restores its windows, which AppKit would record in the standard domain and the saved application state.
+    static var isSeparate: Bool { suiteName(environment: ProcessInfo.processInfo.environment, appIdentifier: Log.subsystem) != nil }
 }

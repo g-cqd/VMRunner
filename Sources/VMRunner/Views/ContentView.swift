@@ -107,7 +107,17 @@ private final class WindowObservingView: NSView {
         super.viewDidMoveToWindow()
         // AppKit declares `window` unowned(unsafe); it is alive for the duration of this callback, and the
         // reference is stored only as a strong `NSWindow?` by the caller.
-        onWindowChange?(unsafe window)
+        let current = unsafe self.window
+        if PreferencesDomain.isSeparate { current?.stopSavingFrameAndState() }
+        onWindowChange?(current)
+    }
+}
+
+extension NSWindow {
+    /// Stops AppKit saving this window's frame and restoring it at the next launch.
+    func stopSavingFrameAndState() {
+        _ = setFrameAutosaveName("")
+        isRestorable = false
     }
 }
 

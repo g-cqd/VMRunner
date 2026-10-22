@@ -34,11 +34,13 @@ struct VMRunnerApp: App {
             }
             MachineCommands(library: library)
         }
+        .restorationBehavior(PreferencesDomain.isSeparate ? .disabled : .automatic)
 
         Window("VMRunner Help", id: HelpWindow.id) {
             HelpWindowView(navigator: HelpNavigator.shared)
         }
         .commands { CommandGroup(replacing: .help) { HelpMenuButton() } }
+        .restorationBehavior(PreferencesDomain.isSeparate ? .disabled : .automatic)
 
         Settings {
             SettingsView()
