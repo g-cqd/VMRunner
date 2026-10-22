@@ -56,7 +56,7 @@ struct AnalyzerService: Sendable {
         let resolutions = await resolve(tools, lock: try AnalyzerLock.load(root: root))
         for tool in tools {
             guard let resolved = try resolutions[tool]?.get() else { continue }
-            let arguments = analysisArguments(for: tool) + ["--write-baseline", Self.baselineName(for: tool)]
+            let arguments = try analysisArguments(for: tool) + ["--write-baseline", Self.baselineName(for: tool)]
             let result = try await ProcessRunner.run(
                 CommandSpec(executable: resolved.binary.path, arguments: arguments, workingDirectory: root),
                 output: .inherit
@@ -112,18 +112,18 @@ struct AnalyzerService: Sendable {
     }
 
     /// `analyze <roots> ...`, the part shared by a normal run and by writing a baseline.
-    private func analysisArguments(for tool: AnalyzerTool) -> [String] {
+    private func analysisArguments(for tool: AnalyzerTool) throws -> [String] {
         let name = tool.rawValue
-        return ["analyze"] + analysisRoots() + [
+        return try ["analyze"] + analysisRoots() + [
             "--relative-to", ".", "--config", ".\(name).json", "--cache-path", "\(Self.cachePath)/\(name)-facts.json",
         ]
     }
 
     /// `Sources` and `Tests`, then the `Sources` and `Tests` of each nested package `.vmr.json` lists, where they exist. An
-    /// unreadable `.vmr.json`, or a listed package without a `Package.swift`, leaves the root's roots only; `vmr check` fails on
-    /// the first and the build and test steps on the second.
-    private func analysisRoots() -> [String] {
-        let packages = (try? ProjectConfig.load(root: root).resolvedPackages(root: root)) ?? []
+    /// unreadable `.vmr.json` throws, so the analyzers fail instead of dropping the nested roots; a listed package without a
+    /// `Package.swift` leaves the root's roots only, and the build and test steps fail on it.
+    private func analysisRoots() throws -> [String] {
+        let packages = try ProjectConfig.load(root: root).resolvedPackages(root: root)
         let nested = packages.flatMap { ["\($0.path)/Sources", "\($0.path)/Tests"] }.filter { directory in
             (try? root.appending(path: directory).resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         }
@@ -131,7 +131,13 @@ struct AnalyzerService: Sendable {
     }
 
     private func analyze(_ tool: AnalyzerTool, with resolved: Resolved) async -> Bool {
-        var arguments = analysisArguments(for: tool)
+        var arguments: [String]
+        do {
+            arguments = try analysisArguments(for: tool)
+        } catch {
+            Output.err("error: \(error)")
+            return false
+        }
         if tool.isStrict { arguments.append("--strict") }
         let baseline = Self.baselineName(for: tool)
         if FileManager.default.fileExists(atPath: root.appending(path: baseline).path) {

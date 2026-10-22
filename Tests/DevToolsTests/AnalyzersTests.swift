@@ -253,4 +253,19 @@ struct AnalyzersTests {
                     + "--cache-path .build-analyzers/arcleak-facts.json --strict")
         }
     }
+
+    @Test
+    func anUnreadableConfigurationFailsInsteadOfDroppingTheNestedPackages() async throws {
+        try await withTemporaryDirectory { base in
+            let fixture = try await AnalyzerFixture.make(in: base)
+            try write(
+                [
+                    ".vmr.json": #"{"packages":["Packages/Inner"]"#, "Packages/Inner/Package.swift": "// swift-tools-version: 6.0\n",
+                    "Packages/Inner/Sources/A.swift": "\n",
+                ], to: fixture.root)
+            let run = try await fixture.vmr(["analyzers", "arcleak"])
+            #expect(run.status != 0, "\(run.combined)")
+            #expect(!fixture.loggedCalls(of: .arcleak).contains { $0.hasPrefix("arcleak analyze") })
+        }
+    }
 }
