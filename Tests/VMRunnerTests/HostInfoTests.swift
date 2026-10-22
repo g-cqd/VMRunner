@@ -152,3 +152,13 @@ struct HostFactsTests {
         #expect(current.network == nil)
     }
 }
+
+/// The battery as this Mac reports it. A Mac without a battery (a desktop, a hosted runner) has no percentage; one with a
+/// battery reports one from 0 to 100.
+struct HostPowerTests {
+    @Test func aBatteryReadsAsAPercentage() {
+        let facts = HostFacts.current(network: nil)
+        if let percent = facts.batteryPercent { #expect((0...100).contains(percent)) }
+        #expect(HostFacts.PowerSource(rawValue: facts.powerSource.rawValue) != nil)
+    }
+}
