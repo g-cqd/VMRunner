@@ -81,6 +81,7 @@ jobs:
 
   # One definition for the lanes that differ only in the command and the cache they use. `assert` requires evidence that
   # tests ran: a run that compiled but discovered none (a renamed target, a broken filter) exits 0.
+  # `nested` adds the nested packages' scratch directory (.build-packages, see .vmr.json) to the cache of the lane that builds them.
   gate:
     name: ${{ matrix.name }}
     needs: changes
@@ -91,7 +92,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "Build and unit tests", run: "vmr check build test", cache: .build, assert: true, upload: .build-ci/ }
+          - { name: "Build and unit tests", run: "vmr check build test", cache: .build, nested: .build-packages, assert: true, upload: .build-ci/ }
           - { name: "Coverage gate", run: "vmr check coverage", cache: .build-cov, upload: .build-cov/coverage-summary.json }
           - { name: "App bundle (hardened, signed, entitlements verified)", run: "vmr build-app release --hardened" }
           - { name: "Static analyzers", run: "vmr check analyzers" }
@@ -106,10 +107,12 @@ jobs:
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ matrix.cache }}
-          key: spm-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/*/Package.swift', 'Packages/*/Package.resolved') }}
+          path: |
+            ${{ matrix.cache }}
+            ${{ matrix.nested }}
+          key: spm-${{ matrix.cache }}${{ matrix.nested }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/*/Package.swift', 'Packages/*/Package.resolved') }}
           restore-keys: |
-            spm-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
+            spm-${{ matrix.cache }}${{ matrix.nested }}-${{ runner.os }}-${{ runner.arch }}-${{ env.TOOLCHAIN_KEY }}-
       - name: Run
         shell: bash # explicit shell: `bash -eo pipefail`, so a failing command is not hidden by `tee`
         env:
@@ -129,7 +132,9 @@ jobs:
         if: ${{ matrix.cache && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ matrix.cache }}
+          path: |
+            ${{ matrix.cache }}
+            ${{ matrix.nested }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Upload results
         if: ${{ !cancelled() && matrix.upload }}
