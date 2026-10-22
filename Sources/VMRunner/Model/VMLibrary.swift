@@ -36,7 +36,7 @@ final class VMLibrary {
     }
 
     /// How a setup job's work is done; a test supplies its own to hold a job open.
-    typealias Provision = @MainActor (VMConfig, VMLibrary, SetupJob) async throws -> Void
+    typealias Provision = @MainActor (VMConfig, any MachineStore, SetupJob) async throws -> Void
 
     private let machinesDirectory: URL
     @ObservationIgnored private let persistence: ConfigPersistence

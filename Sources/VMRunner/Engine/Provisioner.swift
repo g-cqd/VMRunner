@@ -5,7 +5,7 @@ import os
 /// Turns a freshly created `VMConfig` into a bootable machine: fetch media, lay out the bundle, install.
 enum Provisioner {
     @MainActor
-    static func run(config: VMConfig, library: VMLibrary, job: SetupJob) async throws {
+    static func run(config: VMConfig, library: any MachineStore, job: SetupJob) async throws {
         switch config.guest {
         case .linux: try await provisionLinux(config, library, job)
         case .macOS: try await provisionMac(config, library, job)
@@ -28,7 +28,7 @@ enum Provisioner {
     // MARK: Linux
 
     @MainActor
-    private static func provisionLinux(_ config: VMConfig, _ library: VMLibrary, _ job: SetupJob) async throws {
+    private static func provisionLinux(_ config: VMConfig, _ library: any MachineStore, _ job: SetupJob) async throws {
         var config = config
         let bundle = library.bundle(config.id)
 
@@ -62,7 +62,7 @@ enum Provisioner {
     // MARK: macOS
 
     @MainActor
-    private static func provisionMac(_ config: VMConfig, _ library: VMLibrary, _ job: SetupJob) async throws {
+    private static func provisionMac(_ config: VMConfig, _ library: any MachineStore, _ job: SetupJob) async throws {
         var config = config
         let bundle = library.bundle(config.id)
         guard let ipsw = try await resolveMedia(config.source, job: job) else {

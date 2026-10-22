@@ -4,7 +4,7 @@ import Foundation
 struct MachineLaunch {
     var config: VMConfig
     let bundle: VMBundle
-    weak var library: VMLibrary?
+    weak var library: (any MachineStore)?
     var display: StartDisplay.Decision
     let windowSize: CGSize?
     let suspendAllowed: Bool

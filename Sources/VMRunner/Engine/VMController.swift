@@ -64,7 +64,7 @@ final class VMController {
     /// Boots the machine, restoring saved state when present.
     ///
     /// Failures are reported through `errorMessage`; the controller is back in its stopped state afterwards.
-    func start(_ config: VMConfig, bundle: VMBundle, library: VMLibrary, windowSize: CGSize? = nil) async {
+    func start(_ config: VMConfig, bundle: VMBundle, library: any MachineStore, windowSize: CGSize? = nil) async {
         guard state.canStart else { return }
         errorMessage = nil
         var config = config
@@ -239,7 +239,7 @@ final class VMController {
 
     /// Provisioning is only consumed by a boot that keeps its result: a disposable clone or a recovery boot
     /// would discard the account that was just created.
-    private func recordFirstBoot(of config: VMConfig, in library: VMLibrary) {
+    private func recordFirstBoot(of config: VMConfig, in library: any MachineStore) {
         guard !config.hasBooted, !config.ephemeral, !config.bootIntoRecovery else { return }
         var updated = config
         updated.hasBooted = true
