@@ -99,6 +99,24 @@ struct ControlTargetTests {
         }
     }
 
+    @Test
+    func aCallWithoutAnyTokenIsAUsageErrorThatSaysHowToGiveOne() {
+        let error = #expect(throws: ToolError.self) {
+            try ControlTarget.requiredToken(file: nil, environment: [:], currentDirectory: current)
+        }
+        #expect(error?.status == ToolError.usageStatus)
+        #expect(error?.message.contains("--token-file") == true)
+    }
+
+    @Test
+    func theServicesErrorCodesMapToTheDocumentedStatuses() {
+        #expect(ControlFailure.status(forCode: -32001) == 77)
+        #expect(ControlFailure.status(forCode: -32005) == 75)
+        for code in [-32002, -32003, -32004, -32602] {
+            #expect(ControlFailure.status(forCode: code) == 1)
+        }
+    }
+
     private static func tokenFile(_ text: String, mode: Int, in directory: URL) throws -> URL {
         let file = directory.appending(path: "token")
         try Data(text.utf8).write(to: file)

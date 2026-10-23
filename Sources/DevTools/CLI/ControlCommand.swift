@@ -19,7 +19,7 @@ struct ControlCommand: AsyncParsableCommand {
             an answer this client cannot read; 77 not permitted (the token lacks the capability, the token file is open to \
             other users, or another user serves the socket).
             """,
-        subcommands: [Status.self]
+        subcommands: [Status.self, List.self, State.self]
     )
 
     /// `--socket` and `--token-file`, shared by every subcommand.
@@ -42,6 +42,12 @@ struct ControlCommand: AsyncParsableCommand {
         /// The token, or nil when none is given.
         func token() throws -> String? {
             try ControlTarget.token(
+                file: tokenFile, environment: ProcessInfo.processInfo.environment, currentDirectory: Self.currentDirectory)
+        }
+
+        /// The token; none is a usage error.
+        func requiredToken() throws -> String {
+            try ControlTarget.requiredToken(
                 file: tokenFile, environment: ProcessInfo.processInfo.environment, currentDirectory: Self.currentDirectory)
         }
 
@@ -77,6 +83,69 @@ struct ControlCommand: AsyncParsableCommand {
                 }
                 if let failure = status.failure { throw failure }
                 return status.exitStatus
+            }
+        }
+    }
+
+    struct List: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "List the machines whose agent access is on: id, state, guest and name.",
+            discussion: "Needs a token with the list capability."
+        )
+
+        @OptionGroup var target: TargetOptions
+
+        @Flag(help: "Print the service's answer as JSON.")
+        var json = false
+
+        func run() async throws {
+            try await perform {
+                let invocation = try ControlInvocation(target: target)
+                if json {
+                    Output.out(ControlInvocation.text(try invocation.result(.list, json: true)))
+                } else {
+                    for line in ControlInvocation.lines(listing: try invocation.machines(json: false)) { Output.out(line) }
+                }
+                return 0
+            }
+        }
+    }
+
+    /// `--socket`, `--token-file`, the machine and `--json`: what the subcommands that act on one machine share.
+    struct MachineOptions: ParsableArguments {
+        @OptionGroup var target: TargetOptions
+
+        @Argument(help: ArgumentHelp("The machine: its id, or its name.", valueName: "machine"))
+        var machine: String
+
+        @Flag(help: "Print the service's answer as JSON.")
+        var json = false
+
+        /// Calls `method` on the machine, with `params` besides the machine, and prints the answer: the service's JSON with
+        /// `--json`, otherwise what `describe` makes of it.
+        func call(_ method: ControlMethod, params: [String: RPCValue] = [:], describe: (Data) throws -> String) async throws {
+            try await perform {
+                let invocation = try ControlInvocation(target: target)
+                let id = try invocation.machineID(machine, json: json)
+                let data = try invocation.result(method, params: params.merging(["machine": .string(id)]) { $1 }, json: json)
+                Output.out(json ? ControlInvocation.text(data) : try describe(data))
+                return 0
+            }
+        }
+    }
+
+    struct State: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Print one machine's state.",
+            discussion: "Needs a token with the state capability; naming the machine by its name also needs the list capability."
+        )
+
+        @OptionGroup var options: MachineOptions
+
+        func run() async throws {
+            try await options.call(.state) { data in
+                let found = try ControlInvocation.decode(ControlMachine.self, from: data)
+                return "\(found.name) (\(found.id.uuidString)): \(found.state.rawValue)"
             }
         }
     }

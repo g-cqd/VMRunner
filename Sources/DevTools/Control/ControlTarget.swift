@@ -2,9 +2,11 @@ import ControlProtocol
 import Foundation
 import GuestConsole
 
-/// The exit statuses of `vmr control`, from `sysexits.h`, besides 0 (done), 1 (the service refused the call) and
-/// `ToolError.usageStatus` (64: a bad argument, no token, or a token that is not one).
+/// The exit statuses of `vmr control`, from `sysexits.h` where one fits, besides 0 (done) and `ToolError.usageStatus` (64: a
+/// bad argument, no token, or a token that is not one).
 enum ControlExit {
+    /// The service answered the call with an error other than the ones below.
+    static let refused: Int32 = 1
     /// The token file is missing or cannot be read (`EX_NOINPUT`).
     static let noInput: Int32 = 66
     /// Nothing serves the socket: the service is off or the app is not running (`EX_UNAVAILABLE`).
@@ -54,6 +56,14 @@ enum ControlTarget {
         }
         guard let text = environment[tokenVariable], !text.isEmpty else { return nil }
         return try checked(text, from: tokenVariable)
+    }
+
+    /// The token, or a usage error that says how to give one.
+    static func requiredToken(file: String?, environment: [String: String], currentDirectory: URL) throws -> String {
+        guard let token = try token(file: file, environment: environment, currentDirectory: currentDirectory) else {
+            throw ToolError.usage("no token: give --token-file FILE or set \(tokenVariable)")
+        }
+        return token
     }
 
     private static func contents(of url: URL) throws -> String {
@@ -108,6 +118,15 @@ enum ControlFailure {
             ToolError("\(socket): \(error)", status: ControlExit.notPermitted)
         default:
             ToolError("\(error)", status: ControlExit.protocolError)
+        }
+    }
+
+    /// The exit status for an error the service answered with.
+    static func status(forCode code: Int) -> Int32 {
+        switch code {
+        case RPCError.notPermitted.code: ControlExit.notPermitted
+        case RPCError.timedOut.code: ControlExit.timedOut
+        default: ControlExit.refused
         }
     }
 }

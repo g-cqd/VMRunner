@@ -155,7 +155,7 @@ let package = Package(
         .executableTarget(name: "FakeAnalyzer", path: "Tests/FakeAnalyzer", swiftSettings: hardening),
         .testTarget(
             name: "DevToolsTests",
-            dependencies: ["DevTools", "VMHelperCore", "GuestConsole", "vmr", "FakeAnalyzer"],
+            dependencies: ["DevTools", "VMHelperCore", "GuestConsole", "ControlProtocol", "vmr", "FakeAnalyzer"],
             path: "Tests/DevToolsTests",
             swiftSettings: hardening
         ),
