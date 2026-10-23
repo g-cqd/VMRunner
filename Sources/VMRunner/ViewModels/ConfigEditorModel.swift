@@ -32,6 +32,11 @@ final class ConfigEditorModel {
     var bundle: VMBundle { library.bundle(id) }
     var hasSavedState: Bool { bundle.hasSavedState }
 
+    /// Whether the user approved reading the spec at `path` for this machine: the editor reads it for its check only then.
+    func isProvisioningSpecApproved(_ path: String) -> Bool {
+        library.isApproved(HostPathGrant(.provisioningSpec, path, writable: false), for: id)
+    }
+
     /// Called each time the form appears: resets the grow-only floor and refreshes the numbers.
     func opened() async {
         diskFloorGiB = library.machine(id)?.diskGiB ?? diskFloorGiB

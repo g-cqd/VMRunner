@@ -344,6 +344,11 @@ final class VMLibrary {
         machine(id).map { approvals.missing($0.hostGrants, for: id) } ?? []
     }
 
+    /// Whether the user approved `grant` for the machine `id`: the editor reads a provisioning spec only when it is.
+    func isApproved(_ grant: HostPathGrant, for id: UUID) -> Bool {
+        approvals.missing([grant], for: id).isEmpty
+    }
+
     /// Starts a machine, or, when its configuration names host paths the user has not approved, asks first (`interactive`)
     /// or refuses and logs (a launch argument has nobody to ask).
     func startMachine(_ id: UUID, interactive: Bool = true) {

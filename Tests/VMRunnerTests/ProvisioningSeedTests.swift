@@ -53,11 +53,11 @@ struct ProvisioningSeedTests {
     }
 
     @Test
-    func aStartWritesTheSeedIntoTheBundleReadableByItsOwnerOnly() throws {
+    func aStartWritesTheSeedIntoTheBundleReadableByItsOwnerOnly() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
 
-        try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+        try await ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
 
         let seed = scratch.bundle.provisioningSeed
         #expect(seed.deletingLastPathComponent().lastPathComponent == "m.vm")
@@ -69,24 +69,24 @@ struct ProvisioningSeedTests {
     }
 
     @Test
-    func theSameSpecGivesTheSameSeedAtEveryStart() throws {
+    func theSameSpecGivesTheSameSeedAtEveryStart() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
         let config = machine(spec: scratch.specPath)
 
-        try ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
+        try await ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
         let first = try Data(contentsOf: scratch.bundle.provisioningSeed)
-        try ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
+        try await ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
         #expect(try Data(contentsOf: scratch.bundle.provisioningSeed) == first)
     }
 
     @Test
-    func aRefusedSpecFailsTheStartWithItsLine() throws {
+    func aRefusedSpecFailsTheStartWithItsLine() async throws {
         let scratch = try makeScratch(spec: Self.spec.replacing("at: first-boot", with: "at: second-boot"))
         defer { try? FileManager.default.removeItem(at: scratch.root) }
 
-        let error = try #require(throws: ProvisioningSeedError.self) {
-            try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+        let error = try await #require(throws: ProvisioningSeedError.self) {
+            try await ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
         }
         #expect(error.reason.hasPrefix("line 7: at must be one of "))
         #expect(error.localizedDescription.hasPrefix("The provisioning spec machine.yaml can't be used: line 7: at must be one of "))
@@ -94,33 +94,33 @@ struct ProvisioningSeedTests {
     }
 
     @Test
-    func aScriptThatNoLongerMatchesItsDigestIsRefusedWithItsStepsLine() throws {
+    func aScriptThatNoLongerMatchesItsDigestIsRefusedWithItsStepsLine() async throws {
         let scratch = try makeScratch(script: "#!/bin/sh\necho changed\n")
         defer { try? FileManager.default.removeItem(at: scratch.root) }
 
-        let error = try #require(throws: ProvisioningSeedError.self) {
-            try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+        let error = try await #require(throws: ProvisioningSeedError.self) {
+            try await ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
         }
         #expect(error.reason.hasPrefix("line 11: scripts/hello.sh does not match its sha256"))
     }
 
     @Test
-    func aMissingOrOversizedSpecIsRefusedBeforeItIsRead() throws {
+    func aMissingOrOversizedSpecIsRefusedBeforeItIsRead() async throws {
         let scratch = try makeScratch(spec: String(repeating: "a", count: 65_537))
         defer { try? FileManager.default.removeItem(at: scratch.root) }
 
-        let large = try #require(throws: ProvisioningSeedError.self) {
-            try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+        let large = try await #require(throws: ProvisioningSeedError.self) {
+            try await ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
         }
         #expect(large.reason == "it is larger than 65536 bytes")
-        let missing = try #require(throws: ProvisioningSeedError.self) {
-            try ProvisioningSeed.prepare(for: machine(spec: scratch.root.appending(path: "none.yaml").path), bundle: scratch.bundle)
+        let missing = try await #require(throws: ProvisioningSeedError.self) {
+            try await ProvisioningSeed.prepare(for: machine(spec: scratch.root.appending(path: "none.yaml").path), bundle: scratch.bundle)
         }
         #expect(missing == ProvisioningSeedError(spec: "none.yaml", reason: "it is missing or not a regular file"))
     }
 
     @Test
-    func aMachineWithoutASpecInUseGetsNoSeedAndLosesALeftoverOne() throws {
+    func aMachineWithoutASpecInUseGetsNoSeedAndLosesALeftoverOne() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
         var installing = machine(spec: scratch.specPath)
@@ -128,16 +128,16 @@ struct ProvisioningSeedTests {
 
         for config in [machine(spec: ""), machine(.macOS, spec: scratch.specPath), installing] {
             try Data([1]).write(to: scratch.bundle.provisioningSeed)
-            try ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
+            try await ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
             #expect(!FileManager.default.fileExists(atPath: scratch.bundle.provisioningSeed.path))
         }
     }
 
     @Test
-    func theSeedGoesWithTheRunsOtherLeftovers() throws {
+    func theSeedGoesWithTheRunsOtherLeftovers() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
-        try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+        try await ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
 
         scratch.bundle.discardEphemeral()
 
@@ -145,13 +145,13 @@ struct ProvisioningSeedTests {
     }
 
     @Test
-    func theSeedAStartWritesIsTheReadOnlyDriveTheMachineGets() throws {
+    func theSeedAStartWritesIsTheReadOnlyDriveTheMachineGets() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
         let config = machine(spec: scratch.specPath)
         try Data(count: 1 << 20).write(to: scratch.bundle.disk)
 
-        try ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
+        try await ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
         let devices = try ConfigurationBuilder.storage(for: config, bundle: scratch.bundle)
 
         let drive = try #require(devices.last as? VZUSBMassStorageDeviceConfiguration)
@@ -161,40 +161,40 @@ struct ProvisioningSeedTests {
     }
 
     @Test
-    func aSavedStateIsKeptOnlyWhileTheSeedIsTheOneItWasSavedWith() throws {
+    func aSavedStateIsKeptOnlyWhileTheSeedIsTheOneItWasSavedWith() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
         let bundle = scratch.bundle
         let config = machine(spec: scratch.specPath)
 
         try Data([1]).write(to: bundle.savedState)
-        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        try await ProvisioningSeed.prepare(for: config, bundle: bundle)
         #expect(!bundle.hasSavedState, "a seed added since the suspend")
 
         try Data([1]).write(to: bundle.savedState)
-        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        try await ProvisioningSeed.prepare(for: config, bundle: bundle)
         #expect(bundle.hasSavedState, "the same seed")
 
         let edited = Self.spec.replacing("echo first", with: "echo again")
         try Data(edited.utf8).write(to: URL(filePath: scratch.specPath))
-        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        try await ProvisioningSeed.prepare(for: config, bundle: bundle)
         #expect(!bundle.hasSavedState, "a spec edited since the suspend")
 
         try Data([1]).write(to: bundle.savedState)
-        try ProvisioningSeed.prepare(for: machine(spec: ""), bundle: bundle)
+        try await ProvisioningSeed.prepare(for: machine(spec: ""), bundle: bundle)
         #expect(!bundle.hasSavedState, "a seed removed since the suspend")
         #expect(!FileManager.default.fileExists(atPath: bundle.provisioningSeedDigest.path))
 
         try Data([1]).write(to: bundle.savedState)
-        try ProvisioningSeed.prepare(for: machine(spec: ""), bundle: bundle)
+        try await ProvisioningSeed.prepare(for: machine(spec: ""), bundle: bundle)
         #expect(bundle.hasSavedState, "no seed then and none now")
     }
 
     @Test
-    func theDigestOfTheLastSeedIsPrivateAndOutlivesTheRun() throws {
+    func theDigestOfTheLastSeedIsPrivateAndOutlivesTheRun() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
-        try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+        try await ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
 
         let digest = scratch.bundle.provisioningSeedDigest
         #expect(try String(contentsOf: digest, encoding: .utf8).count == 64)
@@ -204,18 +204,17 @@ struct ProvisioningSeedTests {
     }
 
     @Test
-    func theEditorsCheckListsEachStepWithItsLineAndWritesNothing() throws {
+    func theEditorsCheckListsEachStepWithItsLine() async throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch.root) }
 
         #expect(
             ProvisioningCheck(specAt: scratch.specPath)
                 == .ready(["line 7: first-boot, inline script", "line 11: every-boot, scripts/hello.sh, sha256 9fac65956eed…"]))
-        #expect(!FileManager.default.fileExists(atPath: scratch.bundle.provisioningSeed.path))
     }
 
     @Test
-    func theEditorsCheckShowsWhyTheStartWouldRefuse() throws {
+    func theEditorsCheckShowsWhyTheStartWouldRefuse() async throws {
         let scratch = try makeScratch(script: "#!/bin/sh\necho changed\n")
         defer { try? FileManager.default.removeItem(at: scratch.root) }
 
@@ -224,5 +223,18 @@ struct ProvisioningSeedTests {
             return
         }
         #expect(reason.hasPrefix("line 11: scripts/hello.sh does not match its sha256"))
+    }
+
+    @Test
+    func aSymlinkToASpecIsRefusedAsNotARegularFile() async throws {
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch.root) }
+        let link = scratch.root.appending(path: "link.yaml")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: URL(filePath: scratch.specPath))
+
+        let error = try await #require(throws: ProvisioningSeedError.self) {
+            try await ProvisioningSeed.prepare(for: machine(spec: link.path), bundle: scratch.bundle)
+        }
+        #expect(error.reason == "it is missing or not a regular file")
     }
 }

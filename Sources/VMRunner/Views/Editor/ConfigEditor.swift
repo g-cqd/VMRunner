@@ -30,6 +30,7 @@ struct ConfigEditor: View {
                     choose: { model.pickerTarget = .installerISO })
                 ProvisioningSection(
                     specPath: config.provisioningSpecPath, installerAttached: config.attachedInstallerPath != nil,
+                    approved: model.isProvisioningSpecApproved(config.provisioningSpecPath),
                     choose: { model.pickerTarget = .provisioningSpec }, remove: { config.provisioningSpecPath = "" })
             }
             displaySection

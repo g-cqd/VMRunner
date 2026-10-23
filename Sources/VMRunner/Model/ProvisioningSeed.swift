@@ -37,7 +37,9 @@ enum ProvisioningSeed {
     /// before the machine is configured, so the seed is the spec and its scripts as they are now. A saved state is kept only
     /// while the seed is the one it was saved with: the digest of the last start's seed is kept beside it, and a seed added,
     /// changed or removed since drops the saved state, so the machine boots afresh instead of failing its restore.
-    static func prepare(for config: VMConfig, bundle: VMBundle) throws {
+    /// Runs off the main actor: its file work (an evicted folder, a swapped FIFO) must not block the editor or the start.
+    @concurrent
+    static func prepare(for config: VMConfig, bundle: VMBundle) async throws {
         bundle.remove(bundle.provisioningSeed)
         var digest: String?
         if let path = config.activeProvisioningSpecPath {

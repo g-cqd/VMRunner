@@ -5,18 +5,26 @@ import SwiftUI
 struct ProvisioningSection: View {
     let specPath: String
     let installerAttached: Bool
+    /// Whether the user approved the spec: the check reads it only then.
+    let approved: Bool
     let choose: () -> Void
     let remove: () -> Void
     @State private var check: ProvisioningCheck?
+    /// Counts "Check Again" presses: each one restarts the check task.
+    @State private var rechecks = 0
 
     var body: some View {
         Section {
             if specPath.isEmpty {
-                Text("No spec: the machine starts without a seed.").font(.caption).foregroundStyle(.secondary)
+                Text(Self.emptyNote()).font(.caption).foregroundStyle(.secondary)
             } else {
                 LabeledContent("Spec", value: URL(filePath: specPath).lastPathComponent)
                     .help(specPath)
-                checkResult
+                if approved {
+                    checkResult
+                } else {
+                    Text("Not approved yet: the next start asks first.").font(.caption).foregroundStyle(.secondary)
+                }
                 if installerAttached {
                     Text("Not used while the installer is attached: detach the installer to use it.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -27,14 +35,20 @@ struct ProvisioningSection: View {
                     .managedLock(.allowProvisioning)
                     .settingHelp(.provisioning)
                 if !specPath.isEmpty {
-                    Button("Check Again") { Task { await recheck() } }
+                    Button("Check Again") { rechecks += 1 }
                     Button("Remove", role: .destructive, action: remove)
                 }
             }
         } header: {
             HelpHeader("Provisioning (experimental)", topic: .provisioning)
         }
-        .task(id: specPath) { await recheck() }
+        .task(id: "\(specPath)\u{0}\(approved)\u{0}\(rechecks)") { await recheck() }
+    }
+
+    /// What an empty spec field says: a managed key that turns provisioning off says so.
+    static func emptyNote(in policy: ManagedPreferences = .current) -> String {
+        policy.isLocked(.allowProvisioning)
+            ? "Your organisation turned provisioning off." : "No spec: the machine starts without a seed."
     }
 
     @ViewBuilder private var checkResult: some View {
@@ -53,16 +67,13 @@ struct ProvisioningSection: View {
         }
     }
 
-    /// Reads the spec and its scripts away from the main thread; the result replaces what is shown.
+    /// Reads the spec and its scripts away from the main thread, and only once the user approved it. A task cancelled by a new
+    /// path or by "Check Again" stores nothing, so an old result never replaces a newer one.
     private func recheck() async {
-        guard !specPath.isEmpty else {
-            check = nil
-            return
-        }
-        let path = specPath
         check = nil
+        guard approved, !specPath.isEmpty else { return }
+        let path = specPath
         let result = await Task.detached(priority: .utility) { ProvisioningCheck(specAt: path) }.value
-        // A newer path cancelled this task while the check ran: its result is for a spec that is no longer shown.
         guard !Task.isCancelled else { return }
         check = result
     }

@@ -309,6 +309,25 @@ struct HostPathApprovalsTests {
         #expect(library.unapprovedHostPaths(for: config.id).isEmpty)
     }
 
+    @Test func theEditorReadsASpecOnlyOnceTheUserApprovedIt() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = makeLibrary(in: directory)
+        library.load()
+        let config = VMConfig.new(name: "m", guest: .linux)
+        try library.add(config)
+        // A machine created in the sheet approves what it names, so the spec is set afterwards: `update` records no approval.
+        var edited = config
+        edited.provisioningSpecPath = "/Users/me/machine.yaml"
+        library.update(edited)
+        let editor = ConfigEditorModel(id: config.id, library: library)
+
+        #expect(!editor.isProvisioningSpecApproved("/Users/me/machine.yaml"), "a spec set by an edit is not read until approved")
+
+        editor.importFile(URL(filePath: "/Users/me/machine.yaml"), for: .provisioningSpec)
+        #expect(editor.isProvisioningSpecApproved("/Users/me/machine.yaml"))
+    }
+
     @Test func aDuplicateInheritsOnlyWhatItsSourceHadApproved() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

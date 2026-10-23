@@ -114,7 +114,8 @@ struct VZMachineFactory: MachineFactory {
     ) async throws -> PreparedMachine {
         // The seed is built from the spec and its scripts as they are now, before the configuration that attaches it; a spec
         // that cannot be used stops the start with its line. The disposable copy, which clears the run's leftovers, is made before.
-        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        // The configuration is clamped again here: a managed key that arrived after the library loaded still blocks the seed.
+        try await ProvisioningSeed.prepare(for: ManagedPreferences.current.clamp(config), bundle: bundle)
         let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend = Self.suspendSupport(
