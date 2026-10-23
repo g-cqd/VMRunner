@@ -46,6 +46,8 @@ first. The likely cause is that the USB drive appears after the services that lo
 (inferred, not verified). Not yet seen: the Joliet names read by Linux, the Merge-Type merge, scripts running from
 `/var/lib/cloud/vmrunner`, `base64`, and suspend with the drive attached. The ADR stays proposed.
 
+2026-10-23, third real-guest run: with the app's own seed attached as a read-only virtio disk, on a Debian 13 generic arm64 cloud image, cloud-init found it (data source `config-disk` on `/dev/vdb`, label `cidata`). Linux read its Joliet names (`user-data` and `meta-data`, in lower case). The two-part `Merge-Type` merge worked: `user-data-parts=2`, the user part's `runcmd` ran, and one reboot took effect. The scripts ran from `/var/lib/cloud/vmrunner` as uid 0 on a mount without `noexec`, `base64` exists on the image, and the every-boot step ran at both boots. The status stays `proposed`: the owner decides acceptance. The evidence is one image of one distribution (Debian only). Not seen: other distributions' images; suspend with the seed attached (the toolbar's button state was not observed); the exposure line in the window; and the guest's own poweroff line, which is inferred from Start being enabled again after the run.
+
 ## What this does not decide
 
 Whether to repack ISOs or boot the kernel directly for installers that insist on a kernel argument; both are unverified.

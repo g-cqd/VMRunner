@@ -67,16 +67,18 @@ The app links `Sources/GuestSeed`. Every part is tested on the host; none of it 
   (`config-disk` on `vdb`, `bootcmd` and `runcmd` markers seen 45 s after start). That disk held an ISO built with `hdiutil`,
   not the app's. USB alone was not tested on that image, since cloud-init chose the virtio disk first. The likely cause is
   that the USB drive appears after the services that look for a data source have started (inferred, not verified). So the
-  seed is a read-only virtio disk, the bus ADR-0012 now records. The app's own seed on virtio has not run in a guest yet.
+  seed is a read-only virtio disk, the bus ADR-0012 now records. The app's own seed on virtio has run in a guest on one image (Debian 13 generic arm64, 2026-10-23); Remaining item 1 lists what is still unseen.
 
 ## Remaining
 
 Each item needs a real guest run before its help may drop "experimental".
 
-1. The real-guest runs with a cloud image showed that cloud-init finds the read-only virtio seed and runs its `bootcmd` and
-   `runcmd` (see above). Still to be seen: that the app's own seed on virtio is read the same way; the two-part merge
-   (`Merge-Type`); the per-boot script running from `/var/lib/cloud/vmrunner`; `base64`; the Joliet names on a Linux read;
-   and suspend with the drive attached. Detaching the seed after the first boot is not built.
+1. Done for one image: on a Debian 13 generic arm64 cloud image (2026-10-23, third real-guest run), cloud-init found the app's
+   own seed on a read-only virtio disk, Linux read its Joliet names, the two-part `Merge-Type` merge ran, the per-boot script
+   ran from `/var/lib/cloud/vmrunner` as root without `noexec`, and `base64` exists there. The limit is that image: one
+   distribution. Still to be seen: other distributions' images; suspend with the drive attached; the exposure line in the
+   window; and the guest's own power-off, which is inferred from the state after the run and not seen. Detaching the seed
+   after the first boot is not built.
 2. Installer seed media, one distribution at a time: `OEMDRV` for the Fedora family and openSUSE, `cidata` plus the
    `autoinstall` prompt for Ubuntu, a repacked ISO for Debian preseed.
 3. The vsock agent: `ready` and `pre-shutdown`, steps run as the user, secrets delivered at run time (a secret never goes
