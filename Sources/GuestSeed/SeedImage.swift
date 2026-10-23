@@ -6,7 +6,8 @@ package enum SeedImage {
     /// The label NoCloud looks for. It accepts `cidata` and `CIDATA`: the Joliet label keeps the lowercase.
     static let label = "cidata"
 
-    static func bytes(for seed: CloudInitSeed) -> [UInt8] {
+    /// The image of `seed`: the same seed always gives the same bytes, so a digest of them identifies the seed.
+    package static func bytes(for seed: CloudInitSeed) -> [UInt8] {
         var files = [
             ISOFile(name: "meta-data", contents: Array(seed.metaData.utf8)),
             ISOFile(name: "user-data", contents: Array(seed.userData.utf8)),

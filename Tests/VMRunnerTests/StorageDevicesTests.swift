@@ -179,4 +179,28 @@ struct StorageDevicesTests {
         edited.diskSerial = "VMR0000000002"
         #expect(!edited.restoresSavedState(of: previous))
     }
+
+    @Test func aSpecAddedRemovedOrMovedDiscardsTheSavedState() {
+        let previous = VMConfig.new(name: "x", guest: .linux)
+        var edited = previous
+        edited.provisioningSpecPath = "/Users/me/machine.yaml"
+        #expect(!edited.restoresSavedState(of: previous), "a seed drive added")
+        #expect(!previous.restoresSavedState(of: edited), "a seed drive removed")
+        var moved = edited
+        moved.provisioningSpecPath = "/Users/me/other.yaml"
+        #expect(!moved.restoresSavedState(of: edited), "another spec, another seed")
+        #expect(edited.restoresSavedState(of: edited))
+    }
+
+    @Test func aSpecThatIsNotInUseKeepsTheSavedState() {
+        let mac = VMConfig.new(name: "m", guest: .macOS)
+        var macEdited = mac
+        macEdited.provisioningSpecPath = "/Users/me/machine.yaml"
+        #expect(macEdited.restoresSavedState(of: mac), "a macOS guest gets no seed")
+        var installing = VMConfig.new(name: "x", guest: .linux)
+        installing.installerISO = "/Users/me/installer.iso"
+        var installingEdited = installing
+        installingEdited.provisioningSpecPath = "/Users/me/machine.yaml"
+        #expect(installingEdited.restoresSavedState(of: installing), "no seed while the installer is attached")
+    }
 }

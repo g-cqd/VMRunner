@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GuestSeed
 
@@ -33,12 +34,24 @@ enum ProvisioningSeed {
     }
 
     /// Builds this start's seed into `bundle` when the machine has a spec in use, and removes the last one otherwise. It runs
-    /// before the machine is configured, so the seed is the spec and its scripts as they are now.
+    /// before the machine is configured, so the seed is the spec and its scripts as they are now. A saved state is kept only
+    /// while the seed is the one it was saved with: the digest of the last start's seed is kept beside it, and a seed added,
+    /// changed or removed since drops the saved state, so the machine boots afresh instead of failing its restore.
     static func prepare(for config: VMConfig, bundle: VMBundle) throws {
         bundle.remove(bundle.provisioningSeed)
-        guard let path = config.activeProvisioningSpecPath else { return }
-        let seed = try compile(specAt: path, instanceID: config.id.uuidString).seed
-        try SeedImage.write(seed, to: bundle.provisioningSeed)
+        var digest: String?
+        if let path = config.activeProvisioningSpecPath {
+            let seed = try compile(specAt: path, instanceID: config.id.uuidString).seed
+            digest = SHA256.hash(data: SeedImage.bytes(for: seed)).map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined()
+            try SeedImage.write(seed, to: bundle.provisioningSeed)
+        }
+        let previous = try? String(contentsOf: bundle.provisioningSeedDigest, encoding: .utf8)
+        if bundle.hasSavedState, previous != digest { bundle.discardSavedState() }
+        if let digest {
+            try Data(digest.utf8).writePrivately(to: bundle.provisioningSeedDigest)
+        } else {
+            bundle.remove(bundle.provisioningSeedDigest)
+        }
     }
 
     /// The spec's text: a regular file of at most `ProvisioningLimits.standard.maxSpecBytes` bytes of UTF-8. One byte more

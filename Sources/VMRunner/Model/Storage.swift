@@ -147,6 +147,9 @@ struct VMBundle: Sendable {
     /// The cloud-init seed of one Linux start (ADR-0012), written from the machine's provisioning spec before the machine is
     /// configured, attached read-only, and removed with the run's other leftovers.
     var provisioningSeed: URL { url.appending(path: "ProvisioningSeed.iso") }
+    /// The SHA-256 of the seed of the last start, kept to tell whether a saved state was taken with the same seed. Not a run
+    /// leftover: it lives as long as the saved state it guards.
+    var provisioningSeedDigest: URL { url.appending(path: "ProvisioningSeed.sha256") }
 
     /// The installer to attach for a configuration that stores `path`.
     ///

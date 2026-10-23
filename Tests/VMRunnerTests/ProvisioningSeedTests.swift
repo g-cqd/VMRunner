@@ -159,4 +159,47 @@ struct ProvisioningSeedTests {
         #expect(attachment.isReadOnly)
         #expect(attachment.url.lastPathComponent == "ProvisioningSeed.iso")
     }
+
+    @Test
+    func aSavedStateIsKeptOnlyWhileTheSeedIsTheOneItWasSavedWith() throws {
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch.root) }
+        let bundle = scratch.bundle
+        let config = machine(spec: scratch.specPath)
+
+        try Data([1]).write(to: bundle.savedState)
+        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        #expect(!bundle.hasSavedState, "a seed added since the suspend")
+
+        try Data([1]).write(to: bundle.savedState)
+        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        #expect(bundle.hasSavedState, "the same seed")
+
+        let edited = Self.spec.replacing("echo first", with: "echo again")
+        try Data(edited.utf8).write(to: URL(filePath: scratch.specPath))
+        try ProvisioningSeed.prepare(for: config, bundle: bundle)
+        #expect(!bundle.hasSavedState, "a spec edited since the suspend")
+
+        try Data([1]).write(to: bundle.savedState)
+        try ProvisioningSeed.prepare(for: machine(spec: ""), bundle: bundle)
+        #expect(!bundle.hasSavedState, "a seed removed since the suspend")
+        #expect(!FileManager.default.fileExists(atPath: bundle.provisioningSeedDigest.path))
+
+        try Data([1]).write(to: bundle.savedState)
+        try ProvisioningSeed.prepare(for: machine(spec: ""), bundle: bundle)
+        #expect(bundle.hasSavedState, "no seed then and none now")
+    }
+
+    @Test
+    func theDigestOfTheLastSeedIsPrivateAndOutlivesTheRun() throws {
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch.root) }
+        try ProvisioningSeed.prepare(for: machine(spec: scratch.specPath), bundle: scratch.bundle)
+
+        let digest = scratch.bundle.provisioningSeedDigest
+        #expect(try String(contentsOf: digest, encoding: .utf8).count == 64)
+        #expect(try FileManager.default.attributesOfItem(atPath: digest.path)[.posixPermissions] as? Int == 0o600)
+        scratch.bundle.discardEphemeral()
+        #expect(FileManager.default.fileExists(atPath: digest.path), "it lives as long as the saved state it guards")
+    }
 }
