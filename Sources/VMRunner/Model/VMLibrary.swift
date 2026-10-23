@@ -357,9 +357,7 @@ final class VMLibrary {
             }
             return
         }
-        let controller = controller(for: id)
-        let windowSize = displayHint
-        Task { await controller.start(config, bundle: bundle(id), library: self, windowSize: windowSize) }
+        Task { _ = await startAndWait(id) }
     }
 
     /// The user's answer "Approve and Start" to `pendingApproval`.
@@ -371,8 +369,7 @@ final class VMLibrary {
     }
 
     func suspendMachine(_ id: UUID) {
-        let controller = controller(for: id)
-        Task { await controller.suspend() }
+        Task { _ = await suspendAndWait(id) }
     }
 
     var runningCount: Int { controllers.values.filter(\.isActive).count }
