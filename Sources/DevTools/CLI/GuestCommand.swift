@@ -188,8 +188,11 @@ struct GuestCommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Attach this terminal to the guest's console (Ctrl-] detaches).",
             discussion: """
-                Raw passthrough: every key goes to the guest, everything the guest prints comes back, nothing is interpreted \
-                here. The console takes one client at a time.
+                Every key goes to the guest as typed. What the guest prints is filtered before it reaches this terminal: text, \
+                colours, cursor movement and erasing pass; window titles, the clipboard, hyperlinks, queries that make the \
+                terminal answer, mode changes (alternate screen, mouse, bracketed paste, keypad and keyboard modes) and resets \
+                are removed, so the guest cannot set this terminal's title, clipboard or modes, or make it answer. The console \
+                takes one client at a time.
                 """
         )
 
@@ -197,23 +200,7 @@ struct GuestCommand: AsyncParsableCommand {
         var socket: String
 
         func run() async throws {
-            try await perform {
-                Output.err("attached to \(socket); Ctrl-] detaches")
-                let ending: ConsoleRelay.Ending
-                do {
-                    ending = try TerminalMode.raw {
-                        try ConsoleRelay.run(socketPath: socket, input: STDIN_FILENO, output: STDOUT_FILENO)
-                    }
-                } catch let error as ConsoleError {
-                    throw GuestExec.failure(error)
-                }
-                switch ending {
-                case .consoleClosed: Output.err("\nthe console closed")
-                case .inputEnded: Output.err("\nend of input")
-                case .detached: Output.err("\ndetached")
-                }
-                return 0
-            }
+            try await perform { try ConsoleAttach.run(socket: socket) }
         }
     }
 

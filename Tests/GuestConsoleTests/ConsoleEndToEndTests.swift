@@ -133,7 +133,7 @@ struct ConsoleEndToEndTests {
         // The guest's output is on the client socket before the person types, so the relay finds both ready.
         #expect(ConsoleSocket.wait(client.descriptor, milliseconds: 10_000))
         _ = Array("typed\u{1D}ignored".utf8).withUnsafeBytes { unsafe Darwin.write(inputPipe[1], $0.baseAddress, $0.count) }
-        let ending = try ConsoleRelay.run(console: client.descriptor, input: inputPipe[0], output: outputPipe[1])
+        let ending = try ConsoleRelay.run(console: client.descriptor, input: inputPipe[0], output: outputPipe[1], filter: nil)
         #expect(ending == .detached)
         var buffer = [UInt8](repeating: 0, count: 256)
         guard case .transferred(let count) = ConsoleSocket.read(outputPipe[0], into: &buffer) else {
