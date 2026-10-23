@@ -96,6 +96,14 @@ struct ModuleBoundaryTests {
         #expect(guestSeed.products.isEmpty, "GuestSeed depends on no package product: \(guestSeed.products)")
     }
 
+    /// The control service's protocol (ADR-0056) links the console library for its socket calls and nothing else.
+    @Test
+    func theControlLibraryDependsOnTheConsoleLibraryOnly() throws {
+        let control = try Self.dependencies(of: "ControlProtocol", in: try Self.manifest())
+        #expect(control.targets == ["GuestConsole"], "ControlProtocol links GuestConsole and nothing else: \(control.targets)")
+        #expect(control.products.isEmpty, "ControlProtocol depends on no package product: \(control.products)")
+    }
+
     @Test
     func theHeadlessHelperDoesNotLinkTheApp() throws {
         let manifest = try Self.manifest()
@@ -110,7 +118,7 @@ struct ModuleBoundaryTests {
         #expect(!direct.contains("VMRunner"), "VMHelper names the app target: \(direct)")
     }
 
-    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed"])
+    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol"])
     func noSourceOfTheLibraryTargetsImportsAUserInterfaceOrVirtualizationFramework(directory: String) throws {
         let files = try Self.swiftFiles(under: directory)
         #expect(!files.isEmpty, "\(directory) holds Swift files")

@@ -68,6 +68,14 @@ let package = Package(
         .testTarget(
             name: "GuestSeedTests", dependencies: ["GuestSeed"], path: "Tests/GuestSeedTests", swiftSettings: hardening),
 
+        // The local control service's protocol (roadmap 0005, ADR-0056): JSON-RPC framing, capability tokens and their checks,
+        // and the connection, listener and client over a private local socket. It links GuestConsole for the socket calls,
+        // so the private-socket rules have one implementation, and the system frameworks.
+        .target(name: "ControlProtocol", dependencies: ["GuestConsole"], path: "Sources/ControlProtocol", swiftSettings: hardening),
+        .testTarget(
+            name: "ControlProtocolTests", dependencies: ["ControlProtocol", "GuestConsole", "TestKit"],
+            path: "Tests/ControlProtocolTests", swiftSettings: hardening),
+
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
         // engine chosen by `vmr sandbox`. It links the system frameworks, VMHelperCore and the network library targets
         // (NetStack, NetPolicy, so the helper can host the user-mode stack for a real guest), never the app.
