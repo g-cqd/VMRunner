@@ -21,7 +21,7 @@ no kernel arguments under UEFI, no `fw_cfg` and no guest agent.
 
 ## Consequences
 
-Nothing is built. Each step needs a real guest run before its help may say it works. See `docs/research/provisioning-2026-10.md`.
+Nothing was built when this was decided. Each step needs a real guest run before its help may say it works. See `docs/research/provisioning-2026-10.md`.
 
 2026-10-23: items 4 and 5 and the seed's contents are built as a library, `Sources/GuestSeed`, with nothing linking it
 yet and nothing run in a guest. The input is a strict subset of YAML read without a dependency; the seed is an ISO 9660

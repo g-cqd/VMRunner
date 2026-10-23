@@ -3,6 +3,7 @@ import Testing
 
 @testable import GuestSeed
 
+@Suite(.serialized)
 struct SeedImageTests {
     private func compiledSeed(_ body: String) throws -> CloudInitSeed {
         let spec = try ProvisioningSpec(

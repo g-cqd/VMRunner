@@ -46,6 +46,7 @@ private let sample = [
     ISOFile(name: "network-config", contents: Array("version: 2\n".utf8)),
 ]
 
+@Suite(.serialized)
 struct ISOImageTests {
     private func bytes(_ image: [UInt8], _ range: Range<Int>) -> [UInt8] {
         Array(image[range])

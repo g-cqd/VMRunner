@@ -28,8 +28,8 @@ A cloud image boots with a generated seed, runs a `first-boot` script whose hash
 - **The host check.** Every `file:` script is read once, at most 64 KiB, and must match its SHA-256; a missing file, a
   folder or a symbolic link is refused. Only checked bytes reach the compiler.
 - **The compiler.** `early-boot` becomes a `bootcmd` entry, `first-boot` a `runcmd` entry, `every-boot` a per-boot script;
-  each script travels base64-encoded and runs from `/var/lib/cloud/vmrunner` with its values (not `/run`, which Debian
-  and Ubuntu mount `noexec`). With the spec's own `userData`, the `user-data` is a two-part MIME document whose second part
+  each script travels base64-encoded and runs from `/var/lib/cloud/vmrunner` with its values (not `/run`, which some images
+  mount `noexec`; not checked here). With the spec's own `userData`, the `user-data` is a two-part MIME document whose second part
   appends its lists to the first (a `Merge-Type` header). Neither the script folder nor the merge has run in a guest. `meta-data` carries an
   instance identifier the caller gives, and the host name. Output is the same for the same input (golden tests).
 - **Refused until built:** installer phases (`pre-install`, `post-install`, `install-error`), `ready` and `pre-shutdown`,
