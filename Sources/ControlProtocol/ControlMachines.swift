@@ -1,0 +1,100 @@
+public import Foundation
+
+/// What a machine is doing, as the control service reports it.
+public enum ControlState: String, Codable, CaseIterable, Sendable {
+    case stopped, starting, running, shuttingDown, pausing, paused, resuming, suspending, stopping
+}
+
+/// A machine as an agent sees it.
+public struct ControlMachine: Codable, Equatable, Sendable {
+    public let id: UUID
+    public let name: String
+    /// `macOS` or `linux`.
+    public let guest: String
+    public let state: ControlState
+    /// Only machines whose agent access is on are listed or acted on.
+    public let agentAccess: Bool
+
+    public init(id: UUID, name: String, guest: String, state: ControlState, agentAccess: Bool) {
+        self.id = id
+        self.name = name
+        self.guest = guest
+        self.state = state
+        self.agentAccess = agentAccess
+    }
+}
+
+/// What a start or a stop came to.
+public enum ControlOutcome: Equatable, Sendable {
+    case done(ControlState)
+    /// Not done, with a sentence that says why.
+    case refused(String)
+}
+
+/// The machines the service acts on: the app's library, or a fake in tests.
+public protocol ControlMachines: Sendable {
+    func machines() async -> [ControlMachine]
+    func start(_ id: UUID) async -> ControlOutcome
+    func stop(_ id: UUID, force: Bool) async -> ControlOutcome
+}
+
+/// The methods of the control service, each needing one capability.
+public enum ControlMethod: String, CaseIterable, Sendable {
+    case list = "machines.list"
+    case state = "machines.state"
+    case start = "machines.start"
+    case stop = "machines.stop"
+
+    public var capability: ControlCapability {
+        switch self {
+        case .list: .list
+        case .state: .state
+        case .start: .start
+        case .stop: .stop
+        }
+    }
+
+    /// The members its `params` may hold.
+    var parameters: Set<String> {
+        switch self {
+        case .list: ["token"]
+        case .state, .start: ["token", "machine"]
+        case .stop: ["token", "machine", "force"]
+        }
+    }
+}
+
+/// A refused call, as it is logged. It has no field for a token, so what is logged can never hold one.
+public struct ControlDenial: Error, Equatable, Sendable {
+    public enum Reason: String, Sendable {
+        case otherUser = "the client runs as another user"
+        case noToken = "no token"
+        case unknownToken = "an unknown or revoked token"
+        case missingCapability = "the token lacks the capability"
+        case outsideScope = "the machine is not one of the token's"
+        case agentAccessOff = "agent access is off for the machine"
+    }
+
+    public let reason: Reason
+    public let method: ControlMethod?
+    public let tokenID: UUID?
+    public let machine: UUID?
+    /// The user id of a client that runs as another user.
+    public let peerUser: UInt32?
+
+    public init(
+        reason: Reason, method: ControlMethod? = nil, tokenID: UUID? = nil, machine: UUID? = nil, peerUser: UInt32? = nil
+    ) {
+        self.reason = reason
+        self.method = method
+        self.tokenID = tokenID
+        self.machine = machine
+        self.peerUser = peerUser
+    }
+
+    /// What was refused and why, without any identifier: safe to log in the clear.
+    public var summary: String {
+        let what = method.map { "\($0.rawValue) refused" } ?? "connection refused"
+        return peerUser.map { "\(what): \(reason.rawValue) (user \($0))" } ?? "\(what): \(reason.rawValue)"
+    }
+}
