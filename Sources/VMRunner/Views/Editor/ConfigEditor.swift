@@ -47,6 +47,7 @@ struct ConfigEditor: View {
             DevicesSection(
                 balloon: $config.memoryBalloon, entropy: $config.entropyDevice, vsock: $config.socketDevice,
                 serialConsole: $config.serialConsole, guest: config.guest)
+            AgentAccessSection(agentAccess: $config.agentAccess)
             SnapshotsSection(model: model.snapshots, guest: config.guest, diskGiB: config.diskGiB, didRestore: model.didRestore)
         }
         .formStyle(.grouped)

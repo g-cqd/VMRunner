@@ -69,6 +69,7 @@ struct SecurityTests {
         config.extraDisks = [ExtraDisk(path: "/tmp/d.img")]
         config.rosetta = true
         config.hostInfo.battery = true
+        config.agentAccess = true
 
         let hardened = config.applying(.hardened)
 
@@ -80,6 +81,7 @@ struct SecurityTests {
         #expect(hardened.maxRuntimeMinutes > 0)
         #expect(hardened.entropyDevice, "entropy must stay on or the guest has no randomness")
         #expect(hardened.hostInfo.isEmpty, "no fact about the Mac reaches a hardened guest")
+        #expect(!hardened.agentAccess, "no script or agent can start a hardened machine")
     }
 
     @Test(arguments: [SecurityProfile.isolated, .hardened])

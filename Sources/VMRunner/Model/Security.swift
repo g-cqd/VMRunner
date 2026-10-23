@@ -120,6 +120,7 @@ extension VMConfig {
 
         config.networkMode = .none
         config.serialConsole = false
+        config.agentAccess = false
         config.audioOutput = false
         config.sharedFolders = []
         config.extraDisks = []
@@ -158,6 +159,7 @@ extension VMConfig {
         var nested: Bool
         var vsock: Bool
         var serialConsole: Bool
+        var agentAccess: Bool
         var balloon: Bool
         var ephemeral: Bool
         var suspend: Bool
@@ -186,6 +188,7 @@ extension VMConfig {
             nested: linux && nestedVirtualization,
             vsock: socketDevice,
             serialConsole: linux && serialConsole,
+            agentAccess: agentAccess,
             balloon: memoryBalloon,
             ephemeral: ephemeral,
             suspend: allowsSuspend,
@@ -255,6 +258,14 @@ extension VMConfig {
             // Any process of this user can type into the guest through the socket, so it ranks with a shared folder.
             let path = VMBundle(id: id, in: AppPaths.machines).consoleSocket().path
             items.append(Exposure(level: .medium, text: "A serial console is reachable from this Mac as a local socket at \(path)"))
+        }
+        if agentAccess {
+            // A host-side door: it starts and stops the machine, it does not reach into the guest.
+            items.append(
+                Exposure(
+                    level: .low,
+                    text: "Agent access: a script or AI agent with a control token can see this machine and start or stop it "
+                        + "while the control service is on in Settings."))
         }
         if memoryBalloon { items.append(Exposure(level: .low, text: "Memory balloon device present.")) }
         items.append(

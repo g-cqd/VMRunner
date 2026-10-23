@@ -34,6 +34,7 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     case networkPolicy, policyRules, policyLimits, guestVpn, killSwitch
     // Security
     case securityProfiles, disposable, secureBoot, exposureSummary, devices, memoryBalloon, entropy, vsock, serialConsole, guestIdentity
+    case agentAccess
     // macOS guests
     case bootRecovery, firstBootAccount
     // Snapshots and copies
@@ -64,7 +65,7 @@ struct HelpEntry: Sendable {
 
 enum HelpCatalog {
     static let entries: [HelpTopic: HelpEntry] = [
-        machines, hardware, networkAndSecurity, filteredNetwork, snapshotsAndApp,
+        machines, hardware, networkAndSecurity, filteredNetwork, snapshotsAndApp, automation,
     ].reduce(into: [:]) { $0.merge($1) { first, _ in first } }
 
     static func entry(for topic: HelpTopic) -> HelpEntry {

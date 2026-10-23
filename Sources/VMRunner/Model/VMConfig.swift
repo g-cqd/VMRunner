@@ -179,6 +179,11 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     /// channel, off by default and off in the Isolated and Hardened profiles.
     var serialConsole = false
 
+    // Automation
+    /// Scripts and AI agents holding a control token may list this machine, read its state, and start and stop it through the
+    /// app's local control service (ADR-0056). Off by default, and off in the Isolated and Hardened profiles.
+    var agentAccess = false
+
     // Isolation
     /// Boot from copy-on-write clones of the disk and firmware state, and discard them on stop.
     var ephemeral = false

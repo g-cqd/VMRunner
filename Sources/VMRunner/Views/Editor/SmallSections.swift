@@ -66,6 +66,22 @@ struct DevicesSection: View {
     }
 }
 
+/// Whether scripts and AI agents may act on this machine through the app's control service.
+struct AgentAccessSection: View {
+    @Binding var agentAccess: Bool
+
+    var body: some View {
+        Section {
+            Toggle("Allow agent access", isOn: $agentAccess)
+                .settingHelp(.agentAccess)
+            Text("Scripts and AI agents with a control token can see this machine and start or stop it.")
+                .font(.caption).foregroundStyle(.secondary)
+        } header: {
+            HelpHeader("Automation", topic: .agentAccess)
+        }
+    }
+}
+
 /// macOS Recovery boot and the first-boot account.
 struct BootSection: View {
     @Binding var recovery: Bool
