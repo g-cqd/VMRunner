@@ -1,7 +1,7 @@
 import Foundation
 
 /// What one non-blocking transfer did.
-enum TransferResult: Equatable {
+package enum TransferResult: Equatable, Sendable {
     case transferred(Int)
     case wouldBlock
     /// The peer closed (a read returned zero).
@@ -11,13 +11,13 @@ enum TransferResult: Equatable {
 
 /// Who a listening socket is: its device and inode, so that the cleanup removes the socket it made and not a later one
 /// somebody put in its place.
-struct SocketIdentity: Equatable {
+package struct SocketIdentity: Equatable, Sendable {
     var device: dev_t
     var inode: ino_t
 }
 
 /// The socket calls the console makes, each wrapped once so the pointer plumbing lives here and nowhere else.
-enum ConsoleSocket {
+package enum ConsoleSocket {
     /// `sun_path` holds this many bytes including the terminating NUL.
     static var pathCapacity: Int {
         MemoryLayout.size(ofValue: sockaddr_un().sun_path)
@@ -47,13 +47,13 @@ enum ConsoleSocket {
         _ = unsafe setsockopt(descriptor, SOL_SOCKET, SO_RCVBUF, &size, length)
     }
 
-    static func close(_ descriptor: Int32) {
+    package static func close(_ descriptor: Int32) {
         if descriptor >= 0 { _ = Darwin.close(descriptor) }
     }
 
     /// A connected pair of stream sockets, close-on-exec, with generous buffers: one end goes to the guest's serial
     /// port, the other to the bridge.
-    static func streamPair(bufferBytes: Int) -> (first: Int32, second: Int32)? {
+    package static func streamPair(bufferBytes: Int) -> (first: Int32, second: Int32)? {
         var descriptors: [Int32] = [-1, -1]
         // `socketpair` fills exactly two descriptors.
         guard unsafe socketpair(AF_UNIX, SOCK_STREAM, 0, &descriptors) == 0 else { return nil }
@@ -71,7 +71,7 @@ enum ConsoleSocket {
     // MARK: Transfer
 
     /// Reads at most `limit` bytes into `buffer`; the first `count` bytes are valid after `.transferred(count)`.
-    static func read(_ descriptor: Int32, into buffer: inout [UInt8], limit: Int? = nil) -> TransferResult {
+    package static func read(_ descriptor: Int32, into buffer: inout [UInt8], limit: Int? = nil) -> TransferResult {
         transfer(zeroIsEnd: true) {
             buffer.withUnsafeMutableBytes { raw in
                 unsafe Darwin.read(descriptor, raw.baseAddress, min(raw.count, limit ?? raw.count))
@@ -86,7 +86,7 @@ enum ConsoleSocket {
 
     /// Writes all of `bytes`, waiting up to `stallMilliseconds` each time the descriptor is full. A closed peer is
     /// ``ConsoleError/closed(lastOutput:)``.
-    static func writeAll(_ descriptor: Int32, _ bytes: [UInt8], stallMilliseconds: Int32) throws {
+    package static func writeAll(_ descriptor: Int32, _ bytes: [UInt8], stallMilliseconds: Int32) throws {
         var sent = 0
         while sent < bytes.count {
             switch bytes[sent...].withUnsafeBytes({ unsafe write(descriptor, $0) }) {
@@ -156,7 +156,7 @@ enum ConsoleSocket {
     ///
     /// The directory must exist and be private (see ``requirePrivateDirectory(_:)``). A path that holds something else is
     /// refused; a socket of this user that nobody serves is a stale leftover and is removed.
-    static func listen(at path: String) throws -> (descriptor: Int32, identity: SocketIdentity) {
+    package static func listen(at path: String) throws -> (descriptor: Int32, identity: SocketIdentity) {
         guard path.hasPrefix("/") else { throw ConsoleError.pathNotAbsolute(path) }
         guard path.utf8.count <= pathLimit else { throw ConsoleError.pathTooLong(path: path, limit: pathLimit) }
         let directory = URL(filePath: path).deletingLastPathComponent().path
@@ -187,7 +187,7 @@ enum ConsoleSocket {
     }
 
     /// Removes the socket at `path` when it is still the one identified by `identity`.
-    static func removeSocket(at path: String, identity: SocketIdentity) {
+    package static func removeSocket(at path: String, identity: SocketIdentity) {
         var status = stat()
         guard unsafe lstat(path, &status) == 0, status.st_dev == identity.device, status.st_ino == identity.inode else { return }
         _ = unsafe unlink(path)
@@ -231,7 +231,7 @@ enum ConsoleSocket {
     // MARK: Accepting and connecting
 
     /// The next waiting connection (prepared: non-blocking, close-on-exec), or `nil` when none waits.
-    static func accept(_ listener: Int32) -> Int32? {
+    package static func accept(_ listener: Int32) -> Int32? {
         while true {
             let descriptor = Darwin.accept(listener, nil, nil)
             if descriptor >= 0 {
@@ -256,7 +256,7 @@ enum ConsoleSocket {
     }
 
     /// A blocking connection to the console at `path`.
-    static func connect(to path: String) throws -> Int32 {
+    package static func connect(to path: String) throws -> Int32 {
         guard path.hasPrefix("/") else { throw ConsoleError.pathNotAbsolute(path) }
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw ConsoleError.system(call: "socket", code: errno) }
@@ -280,7 +280,7 @@ enum ConsoleSocket {
     // MARK: Waiting
 
     /// Waits until `descriptor` is readable (or writable), up to `milliseconds`. Returns false on timeout.
-    static func wait(_ descriptor: Int32, forWriting: Bool = false, milliseconds: Int32) -> Bool {
+    package static func wait(_ descriptor: Int32, forWriting: Bool = false, milliseconds: Int32) -> Bool {
         var entry = pollfd(fd: descriptor, events: Int16(forWriting ? POLLOUT : POLLIN), revents: 0)
         while true {
             // One entry, one descriptor.
