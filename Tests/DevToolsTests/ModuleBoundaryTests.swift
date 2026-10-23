@@ -104,6 +104,15 @@ struct ModuleBoundaryTests {
         #expect(control.products.isEmpty, "ControlProtocol depends on no package product: \(control.products)")
     }
 
+    /// The MCP server (roadmap 0005) reaches the service through the control library's client, and reads and writes with the
+    /// console's socket calls: nothing else.
+    @Test
+    func theAgentBridgeDependsOnTheControlAndConsoleLibrariesOnly() throws {
+        let bridge = try Self.dependencies(of: "AgentBridge", in: try Self.manifest())
+        #expect(bridge.targets == ["ControlProtocol", "GuestConsole"], "AgentBridge links the control and console libraries only")
+        #expect(bridge.products.isEmpty, "AgentBridge depends on no package product: \(bridge.products)")
+    }
+
     @Test
     func theHeadlessHelperDoesNotLinkTheApp() throws {
         let manifest = try Self.manifest()
@@ -118,7 +127,7 @@ struct ModuleBoundaryTests {
         #expect(!direct.contains("VMRunner"), "VMHelper names the app target: \(direct)")
     }
 
-    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol"])
+    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol", "Sources/AgentBridge"])
     func noSourceOfTheLibraryTargetsImportsAUserInterfaceOrVirtualizationFramework(directory: String) throws {
         let files = try Self.swiftFiles(under: directory)
         #expect(!files.isEmpty, "\(directory) holds Swift files")

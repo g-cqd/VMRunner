@@ -80,6 +80,17 @@ let package = Package(
             name: "ControlProtocolTests", dependencies: ["ControlProtocol", "GuestConsole", "TestKit"],
             path: "Tests/ControlProtocolTests", swiftSettings: hardening),
 
+        // The MCP server over stdio (roadmap 0005): Model Context Protocol messages from an AI agent, each tool call made
+        // through the control library's client, so the service's own checks decide. It links ControlProtocol, GuestConsole
+        // for the socket calls it reads and writes standard input and output with, and the system frameworks; the app does
+        // not link it.
+        .target(
+            name: "AgentBridge", dependencies: ["ControlProtocol", "GuestConsole"], path: "Sources/AgentBridge",
+            swiftSettings: hardening),
+        .testTarget(
+            name: "AgentBridgeTests", dependencies: ["AgentBridge", "ControlProtocol"], path: "Tests/AgentBridgeTests",
+            swiftSettings: hardening),
+
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an
         // engine chosen by `vmr sandbox`. It links the system frameworks, VMHelperCore and the network library targets
         // (NetStack, NetPolicy, so the helper can host the user-mode stack for a real guest), never the app.

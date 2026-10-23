@@ -156,7 +156,7 @@ public enum RPCMessage {
     }
 
     /// The deepest nesting of `{` and `[` in `line`, outside strings.
-    static func nesting(of line: Data) -> Int {
+    public static func nesting(of line: Data) -> Int {
         var depth = 0
         var deepest = 0
         var inString = false
