@@ -142,6 +142,10 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   manifest and the imports). A declaration another target of this package uses is `package`; the rest stays internal, and
   these targets' own tests use `@testable import`. Keep the per-packet path inside `NetStack`: no `public` or
   `@inlinable` on it without a measurement from `swift run vmr check bench`.
+- `Sources/Provisioning` (the provisioning spec, its compiler and the seed image, roadmap 0016) is a library target of the
+  same kind: system frameworks only, `package` access, and the same test of the manifest and the imports. Nothing links it
+  yet, so each of its files starts with `// @dw:disable referenced-only-by-tests` and the reason; the dead-code analyzer's
+  other rules still apply there, and the change that links the library removes the directives.
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 
