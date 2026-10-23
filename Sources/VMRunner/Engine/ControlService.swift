@@ -44,14 +44,17 @@ final class ControlService {
         return made
     }
 
-    /// Starts or stops the service to match the setting and the organisation's policy.
+    /// Starts or stops the service to match the setting and the organisation's policy. A stop still in progress is waited for
+    /// first; the setting is read after that, with nothing awaited between the read and the action.
     func applySetting() async {
+        while let pending = stopping { await pending.value }
         await setRunning(Self.isEnabled(defaults: PreferencesDomain.defaults, policy: .current))
     }
 
-    /// Starts the service, or stops it and returns once its socket is gone.
+    /// Starts the service, or stops it and returns once its socket is gone. Nothing is awaited before the start, so the value
+    /// the caller read is the one acted on.
     func setRunning(_ on: Bool) async {
-        await stopping?.value
+        while let pending = stopping { await pending.value }
         if on { start() } else { await stop() }
     }
 

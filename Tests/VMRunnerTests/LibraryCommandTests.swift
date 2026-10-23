@@ -113,6 +113,36 @@ struct LibraryCommandTests {
     }
 
     @Test
+    func aCleanStopOfAMachineThatIsStartingIsRefusedWithItsState() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let gate = rig.factory.holdPreparation()
+        rig.factory.add()
+        let starting = rig.starting()
+        _ = try await rig.factory.held.wait(forAtLeast: 1)
+        let activity = rig.controller.state.activity
+        #expect(
+            await rig.library.stopAndWait(rig.id, force: false) == .refused("“fake” is \(activity); a clean stop needs it running."))
+        gate.open()
+        await starting.value
+        await rig.controller.forceStop()
+    }
+
+    @Test
+    func aCleanStopOfAPausedMachineIsRefusedWithItsState() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        rig.factory.add()
+        _ = await rig.library.startAndWait(rig.id)
+        await rig.controller.pause()
+        #expect(rig.controller.state == .paused)
+        let activity = rig.controller.state.activity
+        #expect(
+            await rig.library.stopAndWait(rig.id, force: false) == .refused("“fake” is \(activity); a clean stop needs it running."))
+        await rig.controller.forceStop()
+    }
+
+    @Test
     func theMenuPathsStillStartAndSuspend() async throws {
         let rig = try ControllerRig()
         defer { rig.cleanUp() }

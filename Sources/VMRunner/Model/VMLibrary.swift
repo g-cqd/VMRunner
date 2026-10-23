@@ -259,6 +259,8 @@ final class VMLibrary {
         copy.macAddress = nil
         copy.lastDisplayWidth = nil
         copy.lastDisplayHeight = nil
+        // A new machine: agent access starts off, as it does for every new machine.
+        copy.agentAccess = false
 
         let source = bundle(id)
         let destination = bundle(copy.id)

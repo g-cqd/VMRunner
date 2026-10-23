@@ -44,6 +44,13 @@ extension VMLibrary {
         guard let config = machine(id) else { return .refused("There is no such machine.") }
         let controller = controller(for: id)
         guard controller.state.isActive else { return .refused("“\(config.name)” is not running.") }
+        if !force {
+            switch controller.state {
+            case .starting, .paused:
+                return .refused("“\(config.name)” is \(controller.state.activity); a clean stop needs it running.")
+            default: break
+            }
+        }
         controller.errorMessage = nil
         if force {
             await controller.forceStop()

@@ -1,5 +1,6 @@
 import ControlProtocol
 import Foundation
+import Synchronization
 import Testing
 
 @testable import VMRunner
@@ -76,6 +77,40 @@ struct LibraryControlMachinesTests {
         defer { rig.cleanUp() }
         open(rig)
         #expect(await rig.library.stopAndWait(rig.id, force: false) == .refused("“fake” is not running."))
+    }
+
+    @Test
+    func aProfileThatArrivesWhileTheAppRunsClosesTheAdapterAtTheNextCall() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        rig.factory.add()
+        open(rig)
+        let denying = Mutex(false)
+        let adapter = LibraryControlMachines(
+            library: rig.library,
+            policy: {
+                ManagedPreferences(forcedValue: { key in
+                    guard denying.withLock({ $0 }), key == ManagedKey.allowControlService.rawValue else { return nil }
+                    return false
+                })
+            })
+        #expect(await adapter.machines().count == 1)
+        denying.withLock { $0 = true }
+        #expect(await adapter.machines().isEmpty)
+        #expect(await adapter.start(rig.id) == .refused("Your organisation does not allow the control service."))
+        #expect(await adapter.stop(rig.id, force: true) == .refused("Your organisation does not allow the control service."))
+        #expect(rig.factory.preparations == 0, "nothing was started after the profile arrived")
+    }
+
+    @Test
+    func aCopyOfAMachineStartsWithAgentAccessOff() throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        open(rig)
+        try rig.library.duplicate(rig.id)
+        let copy = try #require(rig.library.machines.first { $0.id != rig.id })
+        #expect(!copy.agentAccess)
+        #expect(rig.config.agentAccess, "the original keeps its switch")
     }
 
     @Test
