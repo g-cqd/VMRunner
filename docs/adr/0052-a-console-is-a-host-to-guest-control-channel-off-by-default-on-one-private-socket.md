@@ -76,3 +76,5 @@ the app boots an ISO through EFI and leaves its kernel command line alone. The g
 run did it with a small FAT boot image holding the ISO's files and a `grub.cfg` with `console=tty0 console=hvc0`,
 attached as the installer; a user can instead add `console=hvc0` at the GRUB menu. No image in the catalog is known to
 start a login on `hvc0` by itself; the help topic *Serial console* says so. The decision is unchanged.)
+
+(Update 2026-10-23: `ConsoleSocket` is `package` now, for the control service (ADR-0056); its behaviour is unchanged.)

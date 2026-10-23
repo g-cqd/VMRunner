@@ -40,8 +40,8 @@ it is allowed to, so it stays closed unless the user opens it, and each client h
    request, method and params errors; -32001 not permitted (no, unknown or revoked token, a missing capability, a machine
    outside the token's), -32002 no such machine, -32003 agent access off, -32004 refused (with the reason), -32005 timed out.
 6. **Bounded everywhere.** A request is at most 64 KiB, at most 4 connections are served at once (one more is closed at
-   once), a connection serves at most 64 requests and is closed after 10 s without a whole request, a client that stops
-   reading is dropped after 2 s, and a request not answered within 120 s is answered "timed out" while what it started goes
+   once), a connection serves at most 64 requests and is closed after 10 s without a whole request, a client that stalls a write
+   for more than 2 s is dropped; a whole answer is bounded to 10 s, and a request not answered within 120 s is answered "timed out" while what it started goes
    on. No buffer grows with what a client sends.
 7. **Every refusal is logged**: the method and the reason in the clear, the token's and the machine's ids redacted, never the
    token, which a refusal does not carry.

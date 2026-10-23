@@ -146,6 +146,11 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   same kind: system frameworks only, `package` access, and the same test of the manifest and the imports. Nothing links it
   yet, so each of its files starts with `// @dw:disable referenced-only-by-tests` and the reason; the dead-code analyzer's
   other rules still apply there, and the change that links the library removes the directives.
+- `Sources/ControlProtocol` (the control service's protocol, ADR-0056) is a library target of the root package. It links
+  `GuestConsole` for the socket calls and imports Foundation, Synchronization and CryptoKit only; the manifest test in
+  `DevToolsTests` checks its dependencies. Its API is `public`, as the console's is: nothing in the package links its client
+  yet, and the dead-code gate roots public declarations. The follow-up is to move it to `package` access, with a narrow
+  directive where the gate needs one, once the command-line client links it.
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 

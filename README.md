@@ -156,6 +156,7 @@ library and its copies on the same APFS volume (it is, by default: `~/Library/Ap
 Sources/NetPolicy   the network policy: rules, host and IP parsing, the gate that judges a connection (system frameworks only)
 Sources/NetStack    the user-mode network stack behind Filtered networking (links NetPolicy; no Virtualization, no app type)
 Sources/GuestSeed   the provisioning spec, its compiler to a cloud-init seed and the seed's ISO 9660 image (nothing links it yet)
+Sources/ControlProtocol   the control service's protocol: JSON-RPC, tokens, connection, listener and client (links GuestConsole; public API, ADR-0056)
 Sources/VMRunner
   Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
             Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)
