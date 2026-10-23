@@ -29,6 +29,13 @@ image with Joliet names written by the library, reproducible to the byte, rather
 differs from run to run and which would be a subprocess of the app. Item 1's attachment, item 2 and item 3 are not built;
 roadmap 0016 lists what remains.
 
+2026-10-23, later the same day: items 1 to 3 are built. A Linux machine's spec is compiled at each start into a seed in its
+bundle and attached as a read-only USB mass storage device, with an editor section, a help topic marked experimental, a
+line in the exposure summary, the strict profiles removing it, and a managed key. The bus stays USB as decided: cloud-init
+finds the volume by its label whatever the bus, the app already boots installers from USB, and a USB device can be detached
+while the machine runs. No guest has read the seed yet, so this decision stays proposed until a real-guest run says
+otherwise. Items 4 and 5 are not built (the roadmap now numbers them 2 and 3).
+
 ## What this does not decide
 
 Whether to repack ISOs or boot the kernel directly for installers that insist on a kernel argument; both are unverified.
