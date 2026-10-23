@@ -26,10 +26,17 @@ struct TerminalModeTests {
     }
 
     /// The kernel sets PENDIN (retype pending input) when a terminal leaves raw mode, so that flag is left out of the comparison.
+    /// The control characters and the line speeds are compared as well.
     private func sameFlags(_ lhs: termios, _ rhs: termios) -> Bool {
         let pending = tcflag_t(PENDIN)
+        var left = lhs
+        var right = rhs
+        let leftControls = withUnsafeBytes(of: lhs.c_cc) { unsafe Array($0) }
+        let rightControls = withUnsafeBytes(of: rhs.c_cc) { unsafe Array($0) }
+        let controls = leftControls == rightControls
+        let speeds = unsafe cfgetispeed(&left) == cfgetispeed(&right) && cfgetospeed(&left) == cfgetospeed(&right)
         return lhs.c_iflag == rhs.c_iflag && lhs.c_oflag == rhs.c_oflag && lhs.c_cflag == rhs.c_cflag
-            && lhs.c_lflag & ~pending == rhs.c_lflag & ~pending
+            && lhs.c_lflag & ~pending == rhs.c_lflag & ~pending && controls && speeds
     }
 
     @Test
@@ -80,6 +87,17 @@ struct TerminalModeTests {
         }
         #expect(arrived)
         #expect(watch.caught() == SIGUSR1)
+    }
+
+    @Test
+    func aStoppedWatchReadsNothing() throws {
+        let watch = try #require(SignalWatch(signals: [SIGUSR1]))
+        watch.stop()
+        #expect(watch.caught() == nil)
+    }
+
+    @Test
+    func theWatchedSignalsAreTheFiveTheConsoleClientEndsOn() {
         #expect(SignalWatch.ending == [SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGTERM])
     }
 }

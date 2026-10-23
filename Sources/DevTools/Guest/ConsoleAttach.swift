@@ -14,6 +14,7 @@ enum ConsoleAttach {
         if raw { Output.err(rawWarning) }
         Output.err("attached to \(socket); Ctrl-] detaches")
         let watch = SignalWatch(signals: SignalWatch.ending)
+        if watch == nil { Output.err("warning: a signal will leave this terminal raw (no pipe could be made)") }
         defer { watch?.stop() }
         let ending: ConsoleRelay.Ending
         do {

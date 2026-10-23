@@ -178,9 +178,19 @@ struct GuestCommand: AsyncParsableCommand {
                     socket: socket, command: command.joined(separator: " "), user: user, timeout: .seconds(timeout)
                 )
                 .run()
-                try FileHandle.standardOutput.write(contentsOf: Data(result.output.utf8))
+                let shown = Self.displayed(Array(result.output.utf8), toTerminal: isatty(STDOUT_FILENO) == 1)
+                try FileHandle.standardOutput.write(contentsOf: Data(shown))
                 return result.status
             }
+        }
+
+        /// What `exec` writes to standard output. On a terminal the guest's output passes through a fresh
+        /// ``ConsoleOutputFilter``, as the console client's does; a pipe or a file gets the bytes as the guest sent them, since
+        /// a script or an agent parses them.
+        static func displayed(_ output: [UInt8], toTerminal: Bool) -> [UInt8] {
+            guard toTerminal else { return output }
+            var filter = ConsoleOutputFilter()
+            return filter.pass(output[...])
         }
     }
 

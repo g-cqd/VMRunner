@@ -56,11 +56,15 @@ final class SignalWatch {
         stop()
     }
 
-    /// The number of the first watched signal not yet read, or nil when none arrived; does not wait.
+    /// The number of the first watched signal not yet read, or nil when none arrived or the watch has been stopped; does not
+    /// wait. The gate keeps it from reading a descriptor that ``stop()`` has closed.
     func caught() -> Int32? {
-        var byte: UInt8 = 0
-        // One byte into the stack.
-        return unsafe read(descriptor, &byte, 1) == 1 ? Int32(byte) : nil
+        gate.isOpen.withLock { isOpen in
+            guard isOpen else { return nil }
+            var byte: UInt8 = 0
+            // One byte into the stack.
+            return unsafe read(descriptor, &byte, 1) == 1 ? Int32(byte) : nil
+        }
     }
 
     /// Stops watching: no handler writes any more, the sources are cancelled, each signal gets its default action back and

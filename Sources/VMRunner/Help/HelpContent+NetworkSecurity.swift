@@ -308,6 +308,7 @@ extension HelpCatalog {
                     + "folder of your temporary items instead.",
                 "Attach with `nc -U <socket>`, or from a checkout of VMRunner with `swift run vmr guest console <socket>` "
                     + "(Ctrl-] detaches) and `swift run vmr guest exec <socket> -- <command>`.",
+                "`nc` shows the guest's output as sent; `vmr guest console` filters it.",
             ],
             related: [.exposureSummary, .vsock, .devices, .securityProfiles]
         ),

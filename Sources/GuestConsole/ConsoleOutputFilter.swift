@@ -239,9 +239,11 @@ public struct ConsoleOutputFilter: Sendable {
     }
 
     private mutating func stringEscape(_ byte: UInt8, into output: inout [UInt8]) {
-        if byte == 0x5C {
-            state = .ground  // ESC \ is the string terminator
-        } else {
+        switch byte {
+        case 0x5C: state = .ground  // ESC \ is the string terminator
+        // A control string opened inside this one is the same string: it keeps the budget, so repeated openers are bounded too.
+        case 0x50, 0x58, 0x5D, 0x5E, 0x5F: state = .string
+        default:
             state = .escape
             escape(byte, into: &output)
         }

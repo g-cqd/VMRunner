@@ -135,4 +135,12 @@ struct GuestCommandTests {
             #expect(help.output.contains("--raw"), "\(help.output)")
         }
     }
+
+    /// A hostile payload: a title, a device-attributes query and colours. On a terminal only the colours reach it.
+    @Test
+    func execOutputIsFilteredOnATerminalAndByteExactOtherwise() {
+        let hostile = Array("ok\u{1B}]0;owned\u{07}\u{1B}[c\u{1B}[1;31mred\u{1B}[0m\r\n".utf8)
+        #expect(GuestCommand.Exec.displayed(hostile, toTerminal: false) == hostile)
+        #expect(GuestCommand.Exec.displayed(hostile, toTerminal: true) == Array("ok\u{1B}[1;31mred\u{1B}[0m\r\n".utf8))
+    }
 }

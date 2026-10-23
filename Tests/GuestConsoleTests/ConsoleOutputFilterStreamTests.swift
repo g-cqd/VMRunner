@@ -27,7 +27,19 @@ struct ConsoleOutputFilterStreamTests {
         for cut in 0...vector.input.count {
             #expect(filtered(vector.input, cutAt: [cut]) == vector.output, "cut at \(cut)")
         }
-        #expect(filtered(vector.input, cutAt: Array(1..<vector.input.count)) == vector.output, "one byte at a time")
+        #expect(
+            filtered(vector.input, cutAt: Array(stride(from: 1, to: vector.input.count, by: 1))) == vector.output,
+            "one byte at a time")
+    }
+
+    /// `ESC ]` opens a control string and each `ESC ] 0 ; a` inside it is a new opener. The openers share one budget of
+    /// `stringLimit` skipped bytes: the 4096th skipped byte, the `0` of the 1366th repetition, ends the string, so `;a` reads as
+    /// text and the input's `END` after it does too. Each opener used to restart the count, so `END` was swallowed.
+    @Test
+    func nestedOpenersShareTheControlStringsBudget() {
+        let repeated = Array("\u{1B}]".utf8) + Array(String(repeating: "\u{1B}]0;a", count: 1_366).utf8) + Array("END".utf8)
+        #expect(filtered(repeated) == Array(";aEND".utf8))
+        #expect(filtered(repeated, cutAt: Array(stride(from: 97, to: repeated.count, by: 97))) == Array(";aEND".utf8))
     }
 
     @Test
