@@ -66,6 +66,26 @@ those capabilities, with tests for the capability checks.
   `vmr` binary for each subcommand, and an MCP session piped into `vmr control mcp`. Not yet run against the app or with
   an MCP client application.
 
+## Built so far: the console client filters the guest's output, 2026-10-23
+
+- `ConsoleOutputFilter` (in `GuestConsole`): a streaming filter for what a guest prints, its state kept between reads and
+  bounded (a CSI sequence of at most 256 bytes, a control string given up after 4 KiB, then text again). It passes text,
+  well-formed UTF-8, line feed, carriage return, tab, backspace and the bell, and the CSI sequences a boot log, a login
+  prompt and a shell's line editing use: colours and attributes, cursor movement, erasing in the line or the display (not
+  the scrollback), inserting, deleting and erasing characters. It removes, whole, window titles, the clipboard,
+  hyperlinks, every query that makes the terminal answer, every mode change, resets, C1 controls in both forms and every
+  other sequence or control string.
+- `vmr guest console` filters by default; `--raw` passes the guest's output unchanged after a warning on standard error.
+  The filter is on the client's relay only: the bridge and `ConsoleSession` still see the raw bytes, which the exec
+  markers and the prompt detection need.
+- The client puts the terminal back however the session ends: its settings after a detach, the end of input, an error,
+  or SIGHUP, SIGINT, SIGQUIT, SIGPIPE or SIGTERM (received through dispatch sources, so no code runs in signal context;
+  exit status 128 plus the signal); a colour reset after a filtered session, and after a raw one the modes a guest's
+  programs most often leave on. A crash of the client itself is not covered: `stty sane` restores the terminal.
+- Tested with a table of 123 sequences (each also cut at every byte), random input, a hand-written boot and login log,
+  the relay on socket pairs, raw mode on a pseudo-terminal pair and a signal sent to the test process. Not yet tried in a
+  terminal application, nor against a real guest.
+
 ## Remaining
 
 1. The owner's run of the control service in the app (Settings switch, a token, `vmr control status` and `list`, a start
@@ -75,9 +95,13 @@ those capabilities, with tests for the capability checks.
 3. Screenshots (window capture), then keyboard and mouse input, each behind its capability.
 4. Choosing a token's machines in Settings (the store and the checks already support it), and token expiry.
 5. Opening the console in the user's terminal application: an app-wide preferred application with a per-machine
-   override. It needs the console client inside the app's bundle first.
+   override. It needs the console client inside the app's bundle first, and that client must use the console output filter by default.
 6. A guest agent over vsock for `exec` without a getty, and for macOS guests.
 7. The App Sandbox helper cannot bind the console socket outside its container (tried, see the sandboxing study); decide
    whether a socket inside the container is worth supporting.
 8. Recording.
 9. `package` access for `ControlProtocol` and `AgentBridge` now that the tooling links them (CONTRIBUTING, "Code rules").
+10. Window size: the console's guest side never learns the size of the person's terminal, and a serial port has no way to
+   carry it. Forwarding it waits for the guest agent over vsock.
+11. A screen model of the console (the text a full-screen program shows) for a read-screen tool and for waiting on text,
+   built on the parser of the console's output filter rather than a second one. A later chain.

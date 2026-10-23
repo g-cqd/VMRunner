@@ -213,7 +213,7 @@ and keep to these conditions, which the tool also enforces where it can:
 swift run vmr guest fetch alpine-netboot --directory /tmp/vmr-guest          # about 430 MB, a minute or two
 swift run vmr guest start --directory /tmp/vmr-guest                         # builds and signs the helper, boots, waits for a login prompt
 swift run vmr guest exec /private/tmp/vmr-guest/guest/console.sock -- uname -a   # prints the output, exits with the command's status
-swift run vmr guest console /private/tmp/vmr-guest/guest/console.sock        # interactive; Ctrl-] detaches
+swift run vmr guest console /private/tmp/vmr-guest/guest/console.sock        # interactive, output filtered; Ctrl-] detaches
 swift run vmr guest stop --directory /tmp/vmr-guest
 rm -rf /tmp/vmr-guest
 ```
@@ -237,6 +237,14 @@ used as a fast target. A policy that blocks the package mirror stops the image f
 fails with 124. Anything else a guest does is the guest's: with NAT it can reach the network, so run only what you would run
 on a throwaway machine. The decision behind the console is `docs/adr/0052-*`; `docs/research/automation-2026-10.md` has the
 measured numbers.
+
+`vmr guest console` filters what the guest prints before it reaches your terminal: text, colours, cursor movement and
+erasing pass; window titles, the clipboard, hyperlinks, queries that make the terminal answer, mode changes and resets do
+not. `--raw` passes everything unchanged and says so on standard error, for a guest you trust whose full-screen programs
+need it; the usual modes are turned off when it ends. Ctrl-] detaches; SIGHUP, SIGINT, SIGQUIT, SIGPIPE and SIGTERM end
+the session the same way and put the terminal back (exit status 128 plus the signal); if the client itself crashes,
+`stty sane` does. Only that client filters: `exec` and the bridge see the guest's raw bytes, and `exec` prints a command's
+output as the guest sent it.
 
 ## The control service from a terminal: `vmr control`
 

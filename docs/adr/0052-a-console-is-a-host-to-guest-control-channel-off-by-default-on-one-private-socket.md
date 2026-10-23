@@ -78,3 +78,11 @@ attached as the installer; a user can instead add `console=hvc0` at the GRUB men
 start a login on `hvc0` by itself; the help topic *Serial console* says so. The decision is unchanged.)
 
 (Update 2026-10-23: `ConsoleSocket` is `package` now, for the control service (ADR-0056); its behaviour is unchanged.)
+
+(Update 2026-10-23, later: the console client in the tooling, `vmr guest console`, now filters what the guest prints
+before it reaches the person's terminal. Text, colours, cursor movement and erasing pass; window titles, the clipboard,
+hyperlinks, queries that make the terminal answer, mode changes and resets are removed, and `--raw` keeps the old
+pass-through after a warning. The client also puts the terminal back when a signal ends it. The filter is on the client's
+side only: the bridge still carries the guest's raw bytes to every client, and decision 8 is unchanged, since the exec
+client reads those bytes unfiltered and `vmr guest exec` prints a command's output as the guest sent it. The status is
+unchanged.)
