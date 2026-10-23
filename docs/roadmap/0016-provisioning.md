@@ -52,7 +52,7 @@ The app links `Sources/GuestSeed`. Every part is tested on the host; none of it 
 - **At each start** the app reads the spec (a regular file, 64 KiB at most), checks its script files against their SHA-256,
   compiles the seed with the machine's identifier as the instance identifier, and writes it into the machine's bundle
   (`ProvisioningSeed.iso`, readable by its owner only). A spec that cannot be used stops the start with its line. The seed
-  is attached as a read-only USB mass storage device after the disks, and removed with the run's other leftovers when the
+  is attached as a read-only virtio disk after the disks, and removed with the run's other leftovers when the
   machine stops; a disposable machine gets a new one at each start, like every machine.
 - **Saved state.** If the machine can be suspended with the drive attached (not yet checked), it resumes only with the seed it was saved with. An edit that adds, removes or moves the
   spec drops the saved state, and so does a seed whose contents changed: the digest of the last seed is kept in the bundle
@@ -61,18 +61,22 @@ The app links `Sources/GuestSeed`. Every part is tested on the host; none of it 
   managed key `AllowProvisioning` removes it from every machine and locks the chooser.
 - **Editor and help.** A *Provisioning (experimental)* section chooses, checks and removes the spec; the check lists each
   step with its line, phase and digest, or the refusal with its line. The help topic is marked experimental.
-- **USB, not virtio.** cloud-init finds the volume by its label on any block device; USB is what ADR-0012 decided, the bus
-  the app already boots installers from, and the device that can later be detached while the machine runs. A guest kernel
-  without USB storage would not see it: the first guest run says.
+- **Virtio, not USB.** The first real-guest run, a Debian 13 generic arm64 cloud image with the seed on USB, showed no
+  cloud-init activity: no marker line in 9 min 52 s, and the host name stayed `localhost`. The second run showed that the
+  kernel sees the USB drive (`sda`, read-only, label `cidata`), and that cloud-init found a seed on a read-only virtio disk
+  (`config-disk` on `vdb`, `bootcmd` and `runcmd` markers seen 45 s after start). That disk held an ISO built with `hdiutil`,
+  not the app's. USB alone was not tested on that image, since cloud-init chose the virtio disk first. The likely cause is
+  that the USB drive appears after the services that look for a data source have started (inferred, not verified). So the
+  seed is a read-only virtio disk, the bus ADR-0012 now records. The app's own seed on virtio has not run in a guest yet.
 
 ## Remaining
 
 Each item needs a real guest run before its help may drop "experimental".
 
-1. The first real-guest run with a cloud image: that cloud-init finds the read-only USB volume and its Joliet names, runs
-   `bootcmd`, `runcmd` and the per-boot script from `/var/lib/cloud/vmrunner`, finds `base64`, and merges the two-part
-   document. If the image's kernel has no USB storage, the seed moves to a read-only virtio disk. Detaching the seed after
-   the first boot is not built.
+1. The real-guest runs with a cloud image showed that cloud-init finds the read-only virtio seed and runs its `bootcmd` and
+   `runcmd` (see above). Still to be seen: that the app's own seed on virtio is read the same way; the two-part merge
+   (`Merge-Type`); the per-boot script running from `/var/lib/cloud/vmrunner`; `base64`; the Joliet names on a Linux read;
+   and suspend with the drive attached. Detaching the seed after the first boot is not built.
 2. Installer seed media, one distribution at a time: `OEMDRV` for the Fedora family and openSUSE, `cidata` plus the
    `autoinstall` prompt for Ubuntu, a repacked ISO for Debian preseed.
 3. The vsock agent: `ready` and `pre-shutdown`, steps run as the user, secrets delivered at run time (a secret never goes

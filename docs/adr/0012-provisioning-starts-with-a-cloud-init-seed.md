@@ -11,7 +11,7 @@ no kernel arguments under UEFI, no `fw_cfg` and no guest agent.
 
 ## Decision
 
-1. The main carrier is a cloud-init NoCloud seed: a read-only `cidata` volume attached as USB mass storage.
+1. The main carrier is a cloud-init NoCloud seed: a read-only `cidata` volume attached as a read-only block device (a virtio disk).
 2. Installer seed media follow by label: `OEMDRV` for Fedora-family kickstart and openSUSE AutoYaST, `cidata` for Ubuntu
    autoinstall, a repacked ISO for Debian preseed.
 3. A small vsock agent runs steps, reports progress and delivers secrets. Secrets never go in the seed.
@@ -31,10 +31,20 @@ roadmap 0016 lists what remains.
 
 2026-10-23, later the same day: items 1 to 3 are built. A Linux machine's spec is compiled at each start into a seed in its
 bundle and attached as a read-only USB mass storage device, with an editor section, a help topic marked experimental, a
-line in the exposure summary, the strict profiles removing it, and a managed key. The bus stays USB as decided: cloud-init
-finds the volume by its label whatever the bus, the app already boots installers from USB, and a USB device can be detached
-while the machine runs. No guest has read the seed yet, so this decision stays proposed until a real-guest run says
-otherwise. Items 4 and 5 are not built (the roadmap now numbers them 2 and 3).
+line in the exposure summary, the strict profiles removing it, and a managed key. The bus was USB as decided, for the
+reasons then given (cloud-init finds the volume by its label whatever the bus; the app already boots installers from USB;
+a USB device can be detached while the machine runs). The note of the same date below changes the bus. No guest had read
+the seed when this was written. Items 4 and 5 are not built (the roadmap now numbers them 2 and 3).
+
+2026-10-23, after the first real-guest runs: the seed is a read-only virtio disk, not USB. The first run, with a Debian 13
+generic arm64 cloud image and the app's seed attached as a USB drive, showed no cloud-init activity: the host name stayed
+`localhost` and no marker line appeared in 9 min 52 s. The second run showed that the kernel sees the USB drive (it listed
+as `sda`, read-only, label `cidata`, `iso9660`), and that cloud-init found a seed on a read-only virtio disk (data source
+`config-disk` on `vdb`, host name set, `bootcmd` and `runcmd` markers seen). That virtio disk held an ISO built with
+`hdiutil`, not the app's. USB alone was not shown to work or fail on that image, because cloud-init chose the virtio disk
+first. The likely cause is that the USB drive appears after the services that look for a data source have started
+(inferred, not verified). Not yet seen: the Joliet names read by Linux, the Merge-Type merge, scripts running from
+`/var/lib/cloud/vmrunner`, `base64`, and suspend with the drive attached. The ADR stays proposed.
 
 ## What this does not decide
 
