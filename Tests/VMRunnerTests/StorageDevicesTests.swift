@@ -51,7 +51,7 @@ struct StorageDevicesTests {
         #expect(try ConfigurationBuilder.storage(for: config, bundle: bundle).count == 2)
     }
 
-    @Test func aSpecInUseAttachesItsSeedAsAReadOnlyUSBDriveAfterTheDisks() throws {
+    @Test func aSpecInUseAttachesItsSeedAsAReadOnlyVirtioDiskAfterTheDisks() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         var config = VMConfig.new(name: "x", guest: .linux)
@@ -63,8 +63,9 @@ struct StorageDevicesTests {
         let attached = try ConfigurationBuilder.storage(for: config, bundle: bundle)
         #expect(attached.count == 3)
         #expect(attached[0] is VZVirtioBlockDeviceConfiguration && attached[1] is VZVirtioBlockDeviceConfiguration)
-        let drive = try #require(attached[2] as? VZUSBMassStorageDeviceConfiguration)
-        let seed = try #require(drive.attachment as? VZDiskImageStorageDeviceAttachment)
+        let seedDisk = try #require(attached.last as? VZVirtioBlockDeviceConfiguration)
+        #expect(!(attached.last is VZUSBMassStorageDeviceConfiguration))
+        let seed = try #require(seedDisk.attachment as? VZDiskImageStorageDeviceAttachment)
         #expect(seed.isReadOnly)
         #expect(seed.url.lastPathComponent == "ProvisioningSeed.iso")
     }

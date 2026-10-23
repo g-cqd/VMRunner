@@ -222,10 +222,13 @@ enum ConfigurationBuilder {
         }
         if config.activeProvisioningSpecPath != nil {
             // Written by `ProvisioningSeed.prepare` for this start; never the installer's slot, which is empty while a spec is active.
+            // A virtio disk, not USB: a real guest run found cloud-init reading the seed from a read-only virtio disk, and a USB
+            // drive appears after the services that look for a data source have started (inferred). The seed takes the bus the
+            // guest sees earliest.
             let seed = bundle.provisioningSeed
             guard FileManager.default.fileExists(atPath: seed.path) else { throw SetupError.missingFile(seed.path) }
             let readOnly = try VZDiskImageStorageDeviceAttachment(url: seed, readOnly: true)
-            devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
+            devices.append(VZVirtioBlockDeviceConfiguration(attachment: readOnly))
         }
         return devices
     }

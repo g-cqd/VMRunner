@@ -29,7 +29,7 @@ extension HelpCatalog {
                     + "`ready`, `pre-shutdown`, `user: user` and `secretRef`. A secret never goes into the seed.",
                 "Limits: 64 KiB of spec, 32 steps, 64 KiB per script file. A `file` path is relative to the spec's folder "
                     + "and may not leave it or go through a symbolic link.",
-                "The seed is an ISO 9660 image attached as a read-only USB drive. It is rebuilt at every start, so an edited "
+                "The seed is an ISO 9660 image attached as a read-only virtio disk. It is rebuilt at every start, so an edited "
                     + "spec takes effect at the next start and is deleted when the machine stops. Its instance identifier is the "
                     + "machine's, so first-boot steps run once per machine (editing one that has already run changes nothing in "
                     + "that machine); a disposable machine runs them at every start. A suspended machine whose seed changed "

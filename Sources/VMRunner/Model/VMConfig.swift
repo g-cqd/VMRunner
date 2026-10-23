@@ -279,7 +279,7 @@ extension VMConfig {
     /// one. It compares the Secure Boot setting (its firmware variable store is not comparable here), the network device
     /// (NAT, none or the user-mode stack), the disk as the machine builds it (see `effectiveDisk`), and whether the
     /// host-information share is present (an extra file-system device while anything is shared), and the provisioning spec
-    /// in use (its seed is a USB drive; `ProvisioningSeed.prepare` also drops a saved state whose seed's contents changed).
+    /// in use (its seed is a read-only virtio disk; `ProvisioningSeed.prepare` also drops a saved state whose seed's contents changed).
     /// Other hardware changes make the restore fail, and the machine then cold boots with an error message.
     func restoresSavedState(of previous: Self) -> Bool {
         secureBoot == previous.secureBoot && networkMode == previous.networkMode && effectiveDisk == previous.effectiveDisk

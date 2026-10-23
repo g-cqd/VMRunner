@@ -154,7 +154,8 @@ struct ProvisioningSeedTests {
         try await ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
         let devices = try ConfigurationBuilder.storage(for: config, bundle: scratch.bundle)
 
-        let drive = try #require(devices.last as? VZUSBMassStorageDeviceConfiguration)
+        let drive = try #require(devices.last as? VZVirtioBlockDeviceConfiguration)
+        #expect(!(devices.last is VZUSBMassStorageDeviceConfiguration))
         let attachment = try #require(drive.attachment as? VZDiskImageStorageDeviceAttachment)
         #expect(attachment.isReadOnly)
         #expect(attachment.url.lastPathComponent == "ProvisioningSeed.iso")
