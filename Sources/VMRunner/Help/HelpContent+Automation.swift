@@ -44,7 +44,29 @@ extension HelpCatalog {
                 #"From a terminal: `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"machines.list","params":{"token":"…"}}' "#
                     + "| nc -U <socket>`.",
             ],
-            related: [.agentAccess, .settings, .managedSettings]
+            related: [.agentAccess, .controlTokens, .settings, .managedSettings]
+        ),
+        .controlTokens: HelpEntry(
+            area: .app,
+            title: "Control tokens",
+            summary: "Keys that each let one script or agent use the control service, limited to what you tick.",
+            paragraphs: [
+                "Give each script or agent its own token, so you can see what each may do and revoke one without touching "
+                    + "the others.",
+                "To make one, type a name, tick what it may do (list machines, read their state, start, stop), and choose "
+                    + "**Create Token**. The token is shown once: copy it then. VMRunner keeps only a fingerprint of it and "
+                    + "cannot show it again; if it is lost, revoke it and make a new one.",
+                "**Revoke** removes a token: its next request is refused, even on a connection that is already open.",
+                "A token works only while the control service is on, and only on machines whose **Allow agent access** switch "
+                    + "is on.",
+            ],
+            advanced: [
+                "A token is 256 random bits, written `vmrc_` and 64 hexadecimal digits. VMRunner stores its SHA-256 digest, "
+                    + "never the token, in `Control/tokens.json` (mode 0600) in its data folder, and compares digests in "
+                    + "constant time. At most 32 tokens. A token can also be limited to some machines; Settings does not offer "
+                    + "that yet."
+            ],
+            related: [.controlService, .agentAccess]
         ),
     ]
 }

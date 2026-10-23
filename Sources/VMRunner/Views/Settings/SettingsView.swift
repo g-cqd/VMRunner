@@ -67,6 +67,9 @@ struct SettingsView: View {
             } header: {
                 HelpHeader("Automation", topic: .controlService)
             }
+            if !ManagedPreferences.current.isLocked(.allowControlService) {
+                ControlTokensSection()
+            }
         }
         .formStyle(.grouped)
         .frame(width: 520)

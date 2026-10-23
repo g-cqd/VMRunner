@@ -41,7 +41,7 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     case snapshots
     // The app
     case settings, shortcuts, fullScreen, launchArguments, limits, managedSettings
-    case controlService
+    case controlService, controlTokens
 
     var id: Self { self }
     var entry: HelpEntry { HelpCatalog.entry(for: self) }
