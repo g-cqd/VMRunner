@@ -243,8 +243,11 @@ erasing pass; window titles, the clipboard, hyperlinks, queries that make the te
 not. `--raw` passes everything unchanged and says so on standard error, for a guest you trust whose full-screen programs
 need it; the usual modes are turned off when it ends. Ctrl-] detaches; SIGHUP, SIGINT, SIGQUIT, SIGPIPE and SIGTERM end
 the session the same way and put the terminal back (exit status 128 plus the signal); if the client itself crashes,
-`stty sane` does. Only that client filters: `exec` and the bridge see the guest's raw bytes, and `exec` prints a command's
-output as the guest sent it.
+`stty sane` does. Only that client filters the console: `exec` and the bridge see the guest's raw bytes. `vmr guest exec`
+filters its output when standard output is a terminal and writes the bytes exactly as the guest sent them otherwise, so
+scripts get them unchanged. A guest can still redraw the visible screen: cursor movement and erasing pass, so what the
+screen shows is not proof of what ran. The filter assumes a terminal that reads UTF-8 (C1 controls are removed in both
+forms only there).
 
 ## The control service from a terminal: `vmr control`
 
