@@ -97,6 +97,21 @@ struct ControlTokenStoreTests {
     }
 
     @Test
+    func capabilitiesAreWrittenInAFixedOrderSoTheFileIsStable() throws {
+        let folder = try ScratchFolder()
+        defer { folder.cleanUp() }
+        let file = folder.url.appending(path: "tokens.json")
+        let store = try ControlTokenStore(file: file)
+        _ = try store.create(name: "agent", capabilities: [.stop, .list, .start])
+        let text = try String(contentsOf: file, encoding: .utf8)
+        let list = try #require(text.range(of: "\"list\""))
+        let start = try #require(text.range(of: "\"start\""))
+        let stop = try #require(text.range(of: "\"stop\""))
+        #expect(list.lowerBound < start.lowerBound && start.lowerBound < stop.lowerBound)
+        #expect(try ControlTokenStore(file: file).all.first?.capabilities == [.stop, .list, .start])
+    }
+
+    @Test
     func aFileThatDoesNotDecodeIsRefusedAndKept() throws {
         let folder = try ScratchFolder()
         defer { folder.cleanUp() }

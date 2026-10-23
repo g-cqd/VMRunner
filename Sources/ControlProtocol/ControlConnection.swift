@@ -5,11 +5,7 @@ import GuestConsole
 public enum ControlPeer {
     /// The user id the kernel reports for the process on the other end (`getpeereid`), or nil when it cannot say.
     public static func user(of descriptor: Int32) -> UInt32? {
-        var user: uid_t = 0
-        var group: gid_t = 0
-        // `getpeereid` writes one uid and one gid.
-        guard unsafe getpeereid(descriptor, &user, &group) == 0 else { return nil }
-        return user
+        ConsoleSocket.peerUser(descriptor)
     }
 
     /// The user this process runs as.

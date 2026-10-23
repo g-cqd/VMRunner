@@ -247,12 +247,18 @@ package enum ConsoleSocket {
         }
     }
 
-    /// Whether the process on the other end of a local socket runs as this user.
-    static func peerIsCurrentUser(_ descriptor: Int32) -> Bool {
+    /// The user id of the process on the other end of a local socket (`getpeereid`), or nil when the kernel cannot say.
+    package static func peerUser(_ descriptor: Int32) -> UInt32? {
         var user: uid_t = 0
         var group: gid_t = 0
         // `getpeereid` writes one uid and one gid.
-        return unsafe getpeereid(descriptor, &user, &group) == 0 && user == geteuid()
+        guard unsafe getpeereid(descriptor, &user, &group) == 0 else { return nil }
+        return user
+    }
+
+    /// Whether the process on the other end of a local socket runs as this user.
+    static func peerIsCurrentUser(_ descriptor: Int32) -> Bool {
+        peerUser(descriptor) == geteuid()
     }
 
     /// A blocking connection to the console at `path`.

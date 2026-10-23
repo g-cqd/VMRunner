@@ -47,13 +47,15 @@ struct SettingsView: View {
             }
             Section {
                 // Under the organisation's deny the service is off whatever was stored, so the locked switch shows off.
-                Toggle(
-                    "Let scripts and AI agents control machines",
-                    isOn: ManagedPreferences.current.isLocked(.allowControlService) ? .constant(false) : $runsControlService
-                )
-                .managedLock(.runsControlService)
-                .managedLock(.allowControlService)
-                .settingHelp(.controlService)
+                if ManagedPreferences.current.isLocked(.allowControlService) {
+                    Toggle("Let scripts and AI agents control machines", isOn: .constant(false))
+                        .managedLock(.allowControlService)
+                        .settingHelp(.controlService)
+                } else {
+                    Toggle("Let scripts and AI agents control machines", isOn: $runsControlService)
+                        .managedLock(.runsControlService)
+                        .settingHelp(.controlService)
+                }
                 Text(
                     "A private local socket on this Mac, off by default. A client needs a control token, and a machine is "
                         + "reachable only while its own Allow agent access switch is on."

@@ -25,6 +25,10 @@ struct ControlTokensSection: View {
                         Button("Copy") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(secret, forType: .string)
+                            // Clipboard managers and the clipboard of other devices skip what is marked as concealed or remote.
+                            for marker in ["org.nspasteboard.ConcealedType", "com.apple.is-remote-clipboard"] {
+                                NSPasteboard.general.setData(Data(), forType: NSPasteboard.PasteboardType(rawValue: marker))
+                            }
                         }
                         Button("Done") { model.newSecret = nil }
                     }

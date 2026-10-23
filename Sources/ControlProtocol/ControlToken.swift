@@ -26,6 +26,18 @@ public struct ControlToken: Codable, Equatable, Identifiable, Sendable {
     public let created: Date
     /// SHA-256 of the secret, in lowercase hex.
     let digest: String
+
+    /// Capabilities are written in a fixed order, so the token file is the same on every save. Files written in any order
+    /// still decode, since the set is decoded as before.
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(capabilities.sorted { $0.rawValue < $1.rawValue }, forKey: .capabilities)
+        try container.encodeIfPresent(machines, forKey: .machines)
+        try container.encode(created, forKey: .created)
+        try container.encode(digest, forKey: .digest)
+    }
 }
 
 /// Making, hashing and comparing token secrets.

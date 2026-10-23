@@ -35,14 +35,24 @@ enum LineIO {
         }
     }
 
-    /// Writes `data` whole; false when the peer is gone or did not read for `stallMilliseconds`.
-    static func write(_ data: Data, to descriptor: Int32, stallMilliseconds: Int32) -> Bool {
-        do {
-            try ConsoleSocket.writeAll(descriptor, Array(data), stallMilliseconds: stallMilliseconds)
-            return true
-        } catch {
-            return false
+    /// Writes `data` whole, in chunks of 4096 bytes; false when the peer is gone, did not read for `stallMilliseconds`, or the
+    /// whole answer ran past `totalMilliseconds`. The total is checked between chunks.
+    static func write(_ data: Data, to descriptor: Int32, stallMilliseconds: Int32, totalMilliseconds: Int32 = 10_000) -> Bool {
+        let deadline = ContinuousClock.now + .milliseconds(Int(totalMilliseconds))
+        let bytes = Array(data)
+        var sent = 0
+        while sent < bytes.count {
+            let left = ContinuousClock.now.duration(to: deadline) / .milliseconds(1)
+            guard left > 0 else { return false }
+            let chunk = Array(bytes[sent..<min(sent + 4_096, bytes.count)])
+            do {
+                try ConsoleSocket.writeAll(descriptor, chunk, stallMilliseconds: min(stallMilliseconds, Int32(left.rounded(.up))))
+            } catch {
+                return false
+            }
+            sent += chunk.count
         }
+        return true
     }
 }
 
