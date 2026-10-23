@@ -1,6 +1,6 @@
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 /// The limits a spec is held to. Each limit's boundary is tested with the code that applies it (the reader, the spec's
 /// model, the script check).

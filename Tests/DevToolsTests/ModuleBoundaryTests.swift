@@ -90,10 +90,10 @@ struct ModuleBoundaryTests {
 
     /// The provisioning library (roadmap 0016) reads text and writes bytes: it needs no other target and no package.
     @Test
-    func theProvisioningTargetDependsOnTheSystemFrameworksOnly() throws {
-        let provisioning = try Self.dependencies(of: "Provisioning", in: try Self.manifest())
-        #expect(provisioning.targets.isEmpty, "Provisioning depends on no other target: \(provisioning.targets)")
-        #expect(provisioning.products.isEmpty, "Provisioning depends on no package product: \(provisioning.products)")
+    func theGuestSeedTargetDependsOnTheSystemFrameworksOnly() throws {
+        let guestSeed = try Self.dependencies(of: "GuestSeed", in: try Self.manifest())
+        #expect(guestSeed.targets.isEmpty, "GuestSeed depends on no other target: \(guestSeed.targets)")
+        #expect(guestSeed.products.isEmpty, "GuestSeed depends on no package product: \(guestSeed.products)")
     }
 
     @Test
@@ -110,7 +110,7 @@ struct ModuleBoundaryTests {
         #expect(!direct.contains("VMRunner"), "VMHelper names the app target: \(direct)")
     }
 
-    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/Provisioning"])
+    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed"])
     func noSourceOfTheLibraryTargetsImportsAUserInterfaceOrVirtualizationFramework(directory: String) throws {
         let files = try Self.swiftFiles(under: directory)
         #expect(!files.isEmpty, "\(directory) holds Swift files")

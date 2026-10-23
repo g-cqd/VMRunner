@@ -1,6 +1,6 @@
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 /// One refusal of the reader: the spec, the line it names (nil: the whole spec) and a fragment of its message.
 struct ReaderRefusal: Sendable {

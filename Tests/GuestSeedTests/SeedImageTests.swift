@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 struct SeedImageTests {
     private func compiledSeed(_ body: String) throws -> CloudInitSeed {

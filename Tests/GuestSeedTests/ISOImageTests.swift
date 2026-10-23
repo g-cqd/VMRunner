@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 /// The system's `tar`, whose ISO 9660 reader is independent of the writer under test. Tests that use it are skipped when
 /// it is missing; every Mac the gate runs on has it.

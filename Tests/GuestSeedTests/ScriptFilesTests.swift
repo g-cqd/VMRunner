@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 /// The script `scripts/hello.sh` of the spec below, and its SHA-256 (computed outside this code, with a separate tool).
 private let hello = "#!/bin/sh\necho hello\n"

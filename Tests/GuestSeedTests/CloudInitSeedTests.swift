@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 private let header = "apiVersion: vmrunner.dev/v1alpha1\nkind: Provisioning\nmetadata:\n  name: node\nspec:\n"
 private let firstStep = "  provision:\n  - at: first-boot\n    script: |\n      #!/bin/sh\n      echo first\n"

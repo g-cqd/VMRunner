@@ -14,7 +14,7 @@ A cloud image boots with a generated seed, runs a `first-boot` script whose hash
 
 ## Built so far (2026-10-23): the spec, the seed's files and its image, as a library
 
-`Sources/Provisioning`, a library target of the root package that links the system frameworks only (a test in
+`Sources/GuestSeed`, a library target of the root package that links the system frameworks only (a test in
 `DevToolsTests` checks it). Nothing links it yet, so nothing of it is visible in the app, and none of it has run in a guest.
 
 - **The spec.** A document with `apiVersion: vmrunner.dev/v1alpha1`, `kind: Provisioning`, `metadata.name` (a DNS label,

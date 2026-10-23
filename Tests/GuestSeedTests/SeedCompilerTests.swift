@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 /// A spec of one step: `rest` continues the line `  - at: `.
 private func oneStep(_ rest: String) throws -> ProvisioningSpec {

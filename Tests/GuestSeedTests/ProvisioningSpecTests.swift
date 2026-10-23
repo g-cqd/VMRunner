@@ -1,6 +1,6 @@
 import Testing
 
-@testable import Provisioning
+@testable import GuestSeed
 
 /// A small valid spec; each refusal case below edits one part of it.
 private let base = """
