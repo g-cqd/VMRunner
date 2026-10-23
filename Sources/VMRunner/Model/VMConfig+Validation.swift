@@ -68,6 +68,7 @@ extension VMConfig {
             }
         }
         if let installerISO { try Self.requirePath(installerISO, "installerISO") }
+        if !provisioningSpecPath.isEmpty { try Self.requirePath(provisioningSpecPath, "provisioningSpecPath") }
         if case .local(let path) = source { try Self.requirePath(path, "source") }
     }
 

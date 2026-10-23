@@ -6,7 +6,7 @@ import os
 /// A `config.json` is data on disk, so a bundle copied from elsewhere can name any path the user can read. The guest only
 /// gets paths the user chose in this app, which `HostPathApprovals` remembers per machine.
 struct HostPathGrant: Codable, Hashable, Sendable {
-    enum Kind: String, Codable, Sendable { case sharedFolder, extraDisk, installer }
+    enum Kind: String, Codable, Sendable { case sharedFolder, extraDisk, installer, provisioningSpec }
 
     var kind: Kind
     var path: String
@@ -29,6 +29,7 @@ struct HostPathGrant: Codable, Hashable, Sendable {
         case .sharedFolder: "\(path) (shared folder, \(writable ? "read and write" : "read-only"))"
         case .extraDisk: "\(path) (extra disk, \(writable ? "writable" : "read-only"))"
         case .installer: "\(path) (installer image, read-only)"
+        case .provisioningSpec: "\(path) (provisioning spec and the scripts it names, read-only)"
         }
     }
 }
@@ -39,6 +40,7 @@ extension VMConfig {
         var grants = sharedFolders.map { HostPathGrant(.sharedFolder, $0.path, writable: !$0.readOnly) }
         grants += extraDisks.map { HostPathGrant(.extraDisk, $0.path, writable: !$0.readOnly) }
         if let installer = attachedInstallerPath { grants.append(HostPathGrant(.installer, installer, writable: false)) }
+        if let spec = activeProvisioningSpecPath { grants.append(HostPathGrant(.provisioningSpec, spec, writable: false)) }
         return grants
     }
 }

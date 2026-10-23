@@ -184,6 +184,16 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     /// app's local control service (ADR-0056). Off by default, and off in the Isolated and Hardened profiles.
     var agentAccess = false
 
+    // Provisioning
+    /// Linux only: the absolute path of a provisioning spec on this Mac (ADR-0012); empty means none. The spec and the script
+    /// files it names are read and compiled into a cloud-init seed at each start, not when the path is chosen.
+    var provisioningSpecPath = ""
+    /// The spec the next start compiles into a seed: a Linux guest's, and only while its installer is not attached, since an
+    /// installer's live system would find the seed and run its steps too.
+    var activeProvisioningSpecPath: String? {
+        guest == .linux && attachedInstallerPath == nil && !provisioningSpecPath.isEmpty ? provisioningSpecPath : nil
+    }
+
     // Isolation
     /// Boot from copy-on-write clones of the disk and firmware state, and discard them on stop.
     var ephemeral = false
