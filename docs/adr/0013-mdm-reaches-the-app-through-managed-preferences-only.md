@@ -30,3 +30,6 @@ decision; any other value outside 15 to 1440 becomes 15. The status stays propos
 (Update 2026-10-23: `AllowControlService` joins the keys: forced to anything but true, the local control service for scripts
 and agents (ADR-0056) stays off, agent access is off on every machine, and both switches are locked. The app setting
 `runsControlService` is lockable like the others. The status stays proposed.)
+
+(Update 2026-10-23: `AllowProvisioning` joins the keys: forced to anything but true, no machine keeps a provisioning spec
+(ADR-0012), so no seed is built or attached, and the spec chooser is locked. The status stays proposed.)

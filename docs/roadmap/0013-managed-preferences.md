@@ -12,7 +12,8 @@ Study: `docs/research/mdm-2026-10.md`. Read forced keys with `objectIsForced` an
 
 `ManagedPreferences` reads the keys forced in the app's own domain, fails closed on a value of the wrong type, and the
 library applies it to every machine it loads, adds or changes. Keys: `AllowSharedFolders`, `AllowClipboardSharing`,
-`AllowMicrophone`, `AllowSuspend`, `AllowHostInformation`, `AllowControlService`, `RequireDisposableMachines`, `MaxRuntimeMinutes`, and the
+`AllowMicrophone`, `AllowSuspend`, `AllowHostInformation`, `AllowControlService`, `AllowProvisioning`, `RequireDisposableMachines`,
+`MaxRuntimeMinutes`, and the
 app's own settings, which are now one list (`AppSetting`). A restricted control shows a lock (`.managedLock`); the help
 topic *Settings your organisation manages* lists the keys.
 A forced `MaxRuntimeMinutes` of 0 sets no limit, by the owner's decision; any other value outside 15 to 1440 becomes 15.

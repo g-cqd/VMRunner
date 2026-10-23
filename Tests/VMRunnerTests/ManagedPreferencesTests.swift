@@ -113,6 +113,21 @@ struct ManagedPreferencesTests {
         #expect(ManagedPreferences(forcedValue: { _ in nil }).clamp(config).agentAccess, "nothing forced changes nothing")
     }
 
+    @Test func aDeniedProvisioningKeyRemovesTheSpecFromEveryMachineAndLocksTheChooser() {
+        var config = VMConfig.new(name: "m", guest: .linux)
+        config.provisioningSpecPath = "/Users/me/machine.yaml"
+        let refusals: [Any] = [false, "yes", 0]
+        for value in refusals {
+            let policy = forced(["AllowProvisioning": value])
+            #expect(policy.isLocked(.allowProvisioning), "\(value)")
+            #expect(policy.clamp(config).provisioningSpecPath.isEmpty, "\(value)")
+        }
+        let allowed = forced(["AllowProvisioning": true])
+        #expect(!allowed.isLocked(.allowProvisioning))
+        #expect(allowed.clamp(config) == config)
+        #expect(ManagedPreferences(forcedValue: { _ in nil }).clamp(config) == config, "nothing forced changes nothing")
+    }
+
     @Test func theControlServiceSwitchIsLockedWhenItsValueIsForced() {
         #expect(forced(["runsControlService": false]).isLocked(.runsControlService))
         #expect(!forced([:]).isLocked(.runsControlService))
