@@ -40,8 +40,9 @@ struct ScriptFilesTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         try write(hello, to: "scripts/hello.sh", in: folder)
         let scripts = try ScriptFiles.verify(try spec(), in: folder)
-        #expect(scripts.contents(of: "scripts/hello.sh") == Array(hello.utf8))
-        #expect(scripts.contents(of: "scripts/other.sh") == nil)
+        #expect(scripts.contents(of: "scripts/hello.sh", sha256: helloDigest) == Array(hello.utf8))
+        #expect(scripts.contents(of: "scripts/other.sh", sha256: helloDigest) == nil)
+        #expect(scripts.contents(of: "scripts/hello.sh", sha256: String(repeating: "b", count: 64)) == nil)
     }
 
     @Test
@@ -102,7 +103,7 @@ struct ScriptFilesTests {
                       true
                 """)
         let scripts = try ScriptFiles.verify(inline, in: URL(filePath: "/nonexistent-\(UUID().uuidString)"))
-        #expect(scripts.contents(of: "scripts/hello.sh") == nil)
+        #expect(scripts.contents(of: "scripts/hello.sh", sha256: helloDigest) == nil)
     }
 
     // MARK: Limits
@@ -114,7 +115,9 @@ struct ScriptFilesTests {
         try write(hello, to: "scripts/hello.sh", in: folder)
         var limits = ProvisioningLimits.standard
         limits.maxFileBytes = hello.utf8.count
-        #expect(try ScriptFiles.verify(try spec(), in: folder, limits: limits).contents(of: "scripts/hello.sh")?.count == 21)
+        #expect(
+            try ScriptFiles.verify(try spec(), in: folder, limits: limits).contents(of: "scripts/hello.sh", sha256: helloDigest)?.count
+                == 21)
         limits.maxFileBytes = hello.utf8.count - 1
         #expect(try refusal(in: folder, limits: limits).message == "scripts/hello.sh is larger than 20 bytes")
     }

@@ -15,12 +15,6 @@ struct ProvisioningLimitsTests {
     }
 
     @Test
-    func theLargestScriptStillFitsInOneLinuxCommandArgumentOnceEncoded() {
-        let encoded = (ProvisioningLimits.standard.maxFileBytes + 2) / 3 * 4
-        #expect(encoded + 1_024 < 131_072, "base64 of the largest script, with room for the command around it")
-    }
-
-    @Test
     func anErrorNamesItsLineWhenItHasOne() {
         #expect(ProvisioningError(line: 7, "a tab character").description == "line 7: a tab character")
         #expect(ProvisioningError(line: nil, "the spec is empty").description == "the spec is empty")

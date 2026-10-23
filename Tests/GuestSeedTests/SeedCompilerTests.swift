@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 
@@ -73,7 +74,8 @@ struct SeedCompilerTests {
 
     @Test
     func theMetaDataNamesTheInstanceAndTheHost() throws {
-        #expect(try SeedCompiler.metaData(name: "golden", instanceID: "i-0123") == "instance-id: i-0123\nlocal-hostname: golden\n")
+        #expect(try SeedCompiler.metaData(name: "golden", instanceID: "i-0123") == "instance-id: 'i-0123'\nlocal-hostname: 'golden'\n")
+        #expect(try SeedCompiler.metaData(name: "no", instanceID: "123") == "instance-id: '123'\nlocal-hostname: 'no'\n")
         _ = try SeedCompiler.metaData(name: "golden", instanceID: String(repeating: "a", count: 64))
         for bad in ["", "has space", "a/b", String(repeating: "a", count: 65)] {
             let error = try #require(throws: ProvisioningError.self) { try SeedCompiler.metaData(name: "golden", instanceID: bad) }
@@ -136,6 +138,52 @@ struct SeedCompilerTests {
         let error = try refusal(try oneStep("first-boot\n    user: user" + trueScript))
         #expect(error.line == 7)
         #expect(error.message.contains("runs as the user"), "\(error)")
+    }
+
+    /// A check covers a path and the digest it was made under: the same path under another digest has none.
+    @Test
+    func aFileCheckedUnderOneDigestIsRefusedUnderAnother() throws {
+        let folder = try makeScratchFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data("#!/bin/sh\necho hello\n".utf8).write(to: folder.appending(path: "hello.sh"))
+        let checked = try oneStep(
+            "first-boot\n    file: hello.sh\n    sha256: bfdeaeb08cffb6a36438bcd12dda25417e3cdd36f1e7e482a2849d539225288b\n")
+        let scripts = try ScriptFiles.verify(checked, in: folder)
+        let other = try oneStep("first-boot\n    file: hello.sh\n    sha256: \(String(repeating: "b", count: 64))\n")
+        let error = try #require(throws: ProvisioningError.self) {
+            try SeedCompiler.cloudConfig(for: other.steps, scripts: scripts)
+        }
+        #expect(error.line == 7)
+        #expect(error.message == "hello.sh was not checked against its sha256")
+    }
+
+    /// A script of exactly the file-size limit, written into a scratch folder with its digest, and the spec that names it.
+    private func maximalScript(in folder: URL, environment: String = "") throws -> (ProvisioningSpec, VerifiedScripts) {
+        let script = Data(("#!/bin/sh\n" + String(repeating: "x", count: ProvisioningLimits.standard.maxFileBytes - 10)).utf8)
+        try script.write(to: folder.appending(path: "big.sh"))
+        let digest = SHA256.hash(data: script).map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined()
+        let spec = try oneStep("first-boot\n    file: big.sh\n    sha256: \(digest)\n" + environment)
+        return (spec, try ScriptFiles.verify(spec, in: folder))
+    }
+
+    @Test
+    func aMaximalScriptAloneStillCompiles() throws {
+        let folder = try makeScratchFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (spec, scripts) = try maximalScript(in: folder)
+        let config = try SeedCompiler.cloudConfig(for: spec.steps, scripts: scripts)
+        #expect(config.hasPrefix("#cloud-config\nruncmd:\n- ['/bin/sh', '-c', 'mkdir -p /var/lib/cloud/vmrunner && printf %s "))
+    }
+
+    /// The encoded script and the environment share one command: a large environment value on a maximal script outgrows it.
+    @Test
+    func aMaximalScriptWithALargeEnvironmentIsRefusedWithTheStepsLine() throws {
+        let folder = try makeScratchFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (spec, scripts) = try maximalScript(in: folder, environment: "    env:\n      BIG: \(String(repeating: "x", count: 40_000))\n")
+        let error = try #require(throws: ProvisioningError.self) { try SeedCompiler.cloudConfig(for: spec.steps, scripts: scripts) }
+        #expect(error.line == 7)
+        #expect(error.message == "the encoded script and the environment are larger than one command can carry")
     }
 
     @Test

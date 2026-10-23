@@ -11,13 +11,17 @@ package enum SeedCompiler {
     /// under cloud-init's own folder, which every cloud image has. Not `/run`: Debian and Ubuntu mount it `noexec`.
     static let scriptDirectory = "/var/lib/cloud/vmrunner"
 
+    /// The most bytes one step's command may hold. Linux caps one argument at 128 KiB, and the command is one argument of
+    /// the guest's shell: the encoded script and the environment must fit with room for the text around them.
+    static let maxCommandBytes = 120_000
+
     /// The `meta-data` file: the identifier cloud-init keys its once-per-instance work on, and the guest's host name.
     static func metaData(name: String, instanceID: String) throws -> String {
         let allowed = instanceID.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "-") }
         guard (1...64).contains(instanceID.utf8.count), allowed else {
             throw ProvisioningError(line: nil, "the instance identifier must be 1 to 64 ASCII letters, digits, ., _ or -")
         }
-        return "instance-id: \(instanceID)\nlocal-hostname: \(name)\n"
+        return "instance-id: '\(instanceID)'\nlocal-hostname: '\(name)'\n"
     }
 
     /// The cloud-config made from the steps, in the spec's order: `bootcmd` for early-boot, `runcmd` for first-boot, and a
@@ -71,15 +75,19 @@ package enum SeedCompiler {
         let path = "\(scriptDirectory)/\(label)"
         let values = step.variables.map { " " + shellQuoted("\($0.name)=\($0.value)") }.joined()
         let unpack = "mkdir -p \(scriptDirectory) && printf %s \(encoded) | base64 -d > \(path)"
-        return unpack + " && chmod 700 \(path) && exec env\(values) \(path)"
+        let command = unpack + " && chmod 700 \(path) && exec env\(values) \(path)"
+        guard command.utf8.count <= maxCommandBytes else {
+            throw ProvisioningError(line: step.line, "the encoded script and the environment are larger than one command can carry")
+        }
+        return command
     }
 
     private static func scriptBytes(of step: ProvisioningStep, scripts: VerifiedScripts) throws -> [UInt8] {
         switch step.script {
         case .inline(let text):
             return Array(text.utf8)
-        case .file(let path, _):
-            guard let bytes = scripts.contents(of: path) else {
+        case .file(let path, let sha256):
+            guard let bytes = scripts.contents(of: path, sha256: sha256) else {
                 throw ProvisioningError(line: step.line, "\(path) was not checked against its sha256")
             }
             guard bytes.starts(with: Array("#!".utf8)) else {

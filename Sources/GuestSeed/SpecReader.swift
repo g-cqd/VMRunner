@@ -116,12 +116,13 @@ struct SpecReader {
     private mutating func map(indent: Int, depth: Int) throws -> SpecNode {
         try checkDepth(depth)
         var entries: [SpecEntry] = []
+        var keys: Set<String> = []
         var start: Int?
         while let line = try significantLine(), line.indent == indent, !Self.isListItem(line.content) {
             guard let entry = Self.entry(line.content) else {
                 throw ProvisioningError(line: line.number, "expected key: value")
             }
-            guard !entries.contains(where: { $0.key == entry.key }) else {
+            guard keys.insert(entry.key).inserted else {
                 throw ProvisioningError(line: line.number, "the key \(entry.key) appears twice in this map")
             }
             start = start ?? line.number

@@ -8,15 +8,21 @@ package import Foundation
 /// The contents of every `file:` step of a spec, each read once and found to match the SHA-256 the spec gives. Only
 /// `ScriptFiles.verify` makes one, so a seed is never built from a file nobody checked.
 package struct VerifiedScripts: Sendable {
-    private let files: [String: [UInt8]]
+    /// A check covers a path and the digest it was checked against: the same path under another digest is not covered.
+    fileprivate struct Key: Hashable, Sendable {
+        let path: String
+        let sha256: String
+    }
 
-    fileprivate init(files: [String: [UInt8]]) {
+    private let files: [Key: [UInt8]]
+
+    fileprivate init(files: [Key: [UInt8]]) {
         self.files = files
     }
 
-    /// The checked bytes of the file a step names by `path`, or nil when no check covered it.
-    func contents(of path: String) -> [UInt8]? {
-        files[path]
+    /// The checked bytes of the file a step names by `path` and `sha256`, or nil when no check covered that pair.
+    func contents(of path: String, sha256: String) -> [UInt8]? {
+        files[Key(path: path, sha256: sha256)]
     }
 }
 
@@ -29,7 +35,7 @@ package enum ScriptFiles {
         _ spec: ProvisioningSpec, in directory: URL, limits: ProvisioningLimits = .standard
     ) throws -> VerifiedScripts {
         let base = directory.standardizedFileURL.resolvingSymlinksInPath()
-        var contents: [String: [UInt8]] = [:]
+        var contents: [VerifiedScripts.Key: [UInt8]] = [:]
         for step in spec.steps {
             guard case .file(let path, let sha256) = step.script else { continue }
             let bytes = try read(path, in: base, line: step.line, limits: limits)
@@ -38,7 +44,7 @@ package enum ScriptFiles {
                 throw ProvisioningError(
                     line: step.line, "\(path) does not match its sha256: the spec says \(sha256), the file is \(actual)")
             }
-            contents[path] = bytes
+            contents[VerifiedScripts.Key(path: path, sha256: sha256)] = bytes
         }
         return VerifiedScripts(files: contents)
     }

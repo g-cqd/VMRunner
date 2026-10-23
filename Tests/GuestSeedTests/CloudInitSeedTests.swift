@@ -47,7 +47,7 @@ struct CloudInitSeedTests {
         ]
         let expected = (head + firstStepConfig + ["--==vmrunner-seed-boundary==--"]).joined(separator: "\n") + "\n"
         #expect(compiled.userData == expected)
-        #expect(compiled.metaData == "instance-id: i-1\nlocal-hostname: node\n")
+        #expect(compiled.metaData == "instance-id: 'i-1'\nlocal-hostname: 'node'\n")
         #expect(compiled.networkConfig == "version: 2\n")
     }
 

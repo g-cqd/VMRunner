@@ -22,7 +22,7 @@ struct SeedImageTests {
                     label: "cidata",
                     files: [
                         ISOFile(name: "user-data", contents: Array("#cloud-config\n".utf8)),
-                        ISOFile(name: "meta-data", contents: Array("instance-id: i-1\nlocal-hostname: node\n".utf8)),
+                        ISOFile(name: "meta-data", contents: Array("instance-id: 'i-1'\nlocal-hostname: 'node'\n".utf8)),
                     ]))
         #expect(SeedImage.bytes(for: seed) == image, "the same seed gives the same bytes")
     }
@@ -50,10 +50,10 @@ struct SeedImageTests {
         let first = try compiledSeed("  cloudInit:\n    userData: |\n      #cloud-config\n")
         try SeedImage.write(first, to: url)
         let permissions = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
-        #expect(permissions == 0o444)
+        #expect(permissions == 0o400)
         let second = try compiledSeed("  cloudInit:\n    userData: |\n      #!/bin/sh\n      true\n")
         try SeedImage.write(second, to: url)
         #expect(try [UInt8](Data(contentsOf: url)) == SeedImage.bytes(for: second))
-        #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int == 0o444)
+        #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int == 0o400)
     }
 }
