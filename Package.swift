@@ -35,10 +35,14 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "VMRunner",
-            dependencies: ["GuestConsole", "NetPolicy", "NetStack", .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")],
+            dependencies: [
+                "ControlProtocol", "GuestConsole", "NetPolicy", "NetStack",
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+            ],
             path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(
-            name: "VMRunnerTests", dependencies: ["VMRunner", "NetPolicy", "NetStack", "TestKit"], path: "Tests/VMRunnerTests",
+            name: "VMRunnerTests", dependencies: ["VMRunner", "ControlProtocol", "NetPolicy", "NetStack", "TestKit"],
+            path: "Tests/VMRunnerTests",
             swiftSettings: hardening),
 
         // The network policy (rules, host and IP parsing, the gate): system frameworks only, no app type. The app, the

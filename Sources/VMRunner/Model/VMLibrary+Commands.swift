@@ -38,6 +38,21 @@ extension VMLibrary {
         return Self.result(of: controller) { $0 == .stopped }
     }
 
+    /// Stops a machine and returns: a forced stop once the machine is released, a clean shutdown as soon as the guest was asked
+    /// (it powers off in its own time; its state says when).
+    func stopAndWait(_ id: UUID, force: Bool) async -> MachineCommandResult {
+        guard let config = machine(id) else { return .refused("There is no such machine.") }
+        let controller = controller(for: id)
+        guard controller.state.isActive else { return .refused("“\(config.name)” is not running.") }
+        controller.errorMessage = nil
+        if force {
+            await controller.forceStop()
+            return Self.result(of: controller) { $0 == .stopped }
+        }
+        controller.requestStop()
+        return Self.result(of: controller) { $0 == .shuttingDown || $0 == .stopped }
+    }
+
     /// The machine reached the state the request wanted: done, whatever notice the controller holds. Otherwise its message is
     /// the failure; without one, the state it is in.
     static func result(of controller: VMController, reached wanted: (MachineState) -> Bool) -> MachineCommandResult {

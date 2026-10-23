@@ -69,12 +69,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             InputLatencyMonitor.startIfRequested()
             // No setup runs yet, so every install clone in the image cache is one that a crash or a forced quit left behind.
             ImageStore.sweepInstallClones()
+            // The control service runs only while the user turned it on and the organisation allows it (ADR-0056).
+            Task { await ControlService.shared.applySetting() }
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
             InputLatencyMonitor.current?.finish()
+            ControlService.shared.stopAtQuit()
             VMLibrary.shared.flushPendingWrites()
             // Let go of what the running machines hold (their network stacks, a half-written suspend image) before the
             // sweep removes the disposable copies of every machine.

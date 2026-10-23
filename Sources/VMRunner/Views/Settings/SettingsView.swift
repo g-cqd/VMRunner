@@ -59,6 +59,11 @@ struct SettingsView: View {
                         + "reachable only while its own Allow agent access switch is on."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                if let path = ControlService.shared.socketPath {
+                    Text("Listening at \(path)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                } else if let failure = ControlService.shared.failure {
+                    Text("The control service could not start: \(failure)").font(.caption).foregroundStyle(.red)
+                }
             } header: {
                 HelpHeader("Automation", topic: .controlService)
             }
@@ -68,6 +73,7 @@ struct SettingsView: View {
         .padding()
         .task { await model.refresh() }
         .onChange(of: holdsLatencyActivity) { LatencyActivity.shared.isEnabled = $1 }
+        .onChange(of: runsControlService) { Task { await ControlService.shared.applySetting() } }
         .confirmationDialog("Delete all downloaded IPSW and ISO files?", isPresented: $model.confirmingClear, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { await model.clearImages() } }
         } message: {

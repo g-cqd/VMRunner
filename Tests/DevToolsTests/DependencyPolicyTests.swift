@@ -39,9 +39,9 @@ struct DependencyPolicyTests {
     }
 
     /// Library targets of this repository the app links besides the packages, none of them outside code: the network policy and
-    /// the user-mode stack (ADR-0047), and the console, which imports Foundation and the system's C library only (ADR-0052).
-    /// A new one is a decision of its own.
-    private static let repositoryLibraries: Set<String> = ["GuestConsole", "NetPolicy", "NetStack"]
+    /// the user-mode stack (ADR-0047), the console, which imports Foundation and the system's C library only (ADR-0052), and
+    /// the control service's protocol, which links the console (ADR-0056). A new one is a decision of its own.
+    private static let repositoryLibraries: Set<String> = ["ControlProtocol", "GuestConsole", "NetPolicy", "NetStack"]
 
     @Test
     func theAppTargetDependsOnExactlyThePackagesTheAdrNames() throws {

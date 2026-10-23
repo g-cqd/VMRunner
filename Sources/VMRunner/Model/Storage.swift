@@ -16,6 +16,8 @@ enum AppPaths {
     /// Downloaded IPSW / ISO files, shared between machines.
     static let images = root.appending(path: "Images", directoryHint: .isDirectory)
     static let partialDownloads = images.appending(path: ".partial", directoryHint: .isDirectory)
+    /// The control service's private folder: its socket and its token digests (ADR-0056).
+    static let control = root.appending(path: "Control", directoryHint: .isDirectory)
 
     /// The folder the data goes in: the one `VMRUNNER_DATA_DIR` names, or the default when it is not set.
     ///
