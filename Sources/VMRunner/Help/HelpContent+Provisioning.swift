@@ -6,8 +6,9 @@ extension HelpCatalog {
             title: "Provisioning (experimental)",
             summary: "Runs your scripts in a Linux guest at boot, from a spec file, through a cloud-init seed. Experimental.",
             paragraphs: [
-                "Experimental: this has not yet been tried with a real guest, so it may not work with every Linux image. It is "
-                    + "meant for cloud images that include cloud-init.",
+                "Experimental: the seed has been tried once, on one Debian 13 cloud image, where cloud-init read it, merged it "
+                    + "and ran its steps. Other distributions, suspend with the seed attached and installer media have not been "
+                    + "tried, so it may not work with every Linux image. It is meant for cloud images that include cloud-init.",
                 "A provisioning spec is a small text file you write. It names the machine and lists scripts to run at "
                     + "**early-boot** (early in every boot), **first-boot** (once per machine) or **every-boot**, and "
                     + "it can carry cloud-init data of your own. Choose it under **Provisioning** in the machine's settings.",

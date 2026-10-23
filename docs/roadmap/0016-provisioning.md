@@ -15,7 +15,7 @@ A cloud image boots with a generated seed, runs a `first-boot` script whose hash
 ## Built so far (2026-10-23): the spec, the seed's files and its image, as a library
 
 `Sources/GuestSeed`, a library target of the root package that links the system frameworks only (a test in
-`DevToolsTests` checks it). Nothing links it yet, so nothing of it is visible in the app, and none of it has run in a guest.
+`DevToolsTests` checks it). The app links it now (see the next section), and the seed has run in a guest on one image, Debian 13 generic arm64, on 2026-10-23 (see Remaining item 1).
 
 - **The spec.** A document with `apiVersion: vmrunner.dev/v1alpha1`, `kind: Provisioning`, `metadata.name` (a DNS label,
   the guest's host name) and a `spec` holding `cloudInit` (`userData`, `userDataBase64`, `networkData`,
@@ -30,7 +30,7 @@ A cloud image boots with a generated seed, runs a `first-boot` script whose hash
 - **The compiler.** `early-boot` becomes a `bootcmd` entry, `first-boot` a `runcmd` entry, `every-boot` a per-boot script;
   each script travels base64-encoded and runs from `/var/lib/cloud/vmrunner` with its values (not `/run`, which some images
   mount `noexec`; not checked here). With the spec's own `userData`, the `user-data` is a two-part MIME document whose second part
-  appends its lists to the first (a `Merge-Type` header). Neither the script folder nor the merge has run in a guest. `meta-data` carries an
+  appends its lists to the first (a `Merge-Type` header). The script folder and the merge ran in a guest on one image (2026-10-23, see Remaining item 1). `meta-data` carries an
   instance identifier the caller gives, and the host name. Output is the same for the same input (golden tests).
 - **Refused until built:** installer phases (`pre-install`, `post-install`, `install-error`), `ready` and `pre-shutdown`,
   `user: user`, and any `secretRef` (a secret never goes in the seed; it waits for the vsock agent).
@@ -42,8 +42,8 @@ A cloud image boots with a generated seed, runs a `first-boot` script whose hash
 
 ## Built so far (2026-10-23): the seed attached to a Linux machine, experimental
 
-The app links `Sources/GuestSeed`. Every part is tested on the host; none of it has run in a guest, so the help says
-"experimental".
+The app links `Sources/GuestSeed`. Every part is tested on the host; the seed has run in a guest on one image (Debian 13 generic arm64, 2026-10-23, see
+Remaining item 1), so the help says "experimental".
 
 - **The setting.** A Linux machine has a provisioning spec path: absolute, at most 1024 bytes, checked where the
   configuration is read, approved like the installer image (one read-only approval, which covers the script files below the
