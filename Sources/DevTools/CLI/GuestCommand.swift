@@ -191,16 +191,23 @@ struct GuestCommand: AsyncParsableCommand {
                 Every key goes to the guest as typed. What the guest prints is filtered before it reaches this terminal: text, \
                 colours, cursor movement and erasing pass; window titles, the clipboard, hyperlinks, queries that make the \
                 terminal answer, mode changes (alternate screen, mouse, bracketed paste, keypad and keyboard modes) and resets \
-                are removed, so the guest cannot set this terminal's title, clipboard or modes, or make it answer. The console \
-                takes one client at a time.
+                are removed, so the guest cannot set this terminal's title, clipboard or modes, or make it answer. --raw passes \
+                everything unchanged, for a guest you trust whose full-screen programs need it, and turns the usual modes off \
+                when the session ends. \
+                Ctrl-] detaches. SIGHUP, SIGINT, SIGQUIT, SIGPIPE and SIGTERM end the session the same way, put the terminal \
+                back, and exit with 128 plus the signal's number. If the client itself crashes, `stty sane` puts the terminal \
+                back. The console takes one client at a time.
                 """
         )
 
         @Argument(help: ArgumentHelp("The console socket `vmr guest start` printed.", valueName: "socket"))
         var socket: String
 
+        @Flag(help: "Pass the guest's output to this terminal unchanged (only for a guest you trust).")
+        var raw = false
+
         func run() async throws {
-            try await perform { try ConsoleAttach.run(socket: socket) }
+            try await perform { try ConsoleAttach.run(socket: socket, raw: raw) }
         }
     }
 

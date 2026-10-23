@@ -112,4 +112,27 @@ struct GuestCommandTests {
             #expect(!FileManager.default.fileExists(atPath: library.path), "nothing was created there")
         }
     }
+
+    @Test
+    func consoleWithRawWarnsOnStandardErrorAndWithoutItDoesNot() async throws {
+        try await withTemporaryDirectory { directory in
+            let socket = "/tmp/vmr-no-such-console.sock"
+            let raw = try await VMR.vmr(["guest", "console", "--raw", socket], in: directory)
+            #expect(raw.status == 125, "\(raw.combined)")
+            #expect(raw.error.contains(ConsoleAttach.rawWarning), "\(raw.error)")
+            let filtered = try await VMR.vmr(["guest", "console", socket], in: directory)
+            #expect(filtered.status == 125, "\(filtered.combined)")
+            #expect(filtered.error.contains("nothing is serving"), "\(filtered.error)")
+            #expect(!filtered.error.contains("warning"), "\(filtered.error)")
+        }
+    }
+
+    @Test
+    func consoleHelpOffersRaw() async throws {
+        try await withTemporaryDirectory { directory in
+            let help = try await VMR.vmr(["guest", "console", "--help"], in: directory)
+            #expect(help.status == 0, "\(help.combined)")
+            #expect(help.output.contains("--raw"), "\(help.output)")
+        }
+    }
 }
