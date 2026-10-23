@@ -46,17 +46,38 @@ those capabilities, with tests for the capability checks.
 - Not yet verified: the service in the running app, a real client, and a real machine started through it. The owner's run
   is the next step; ADR-0056 stays proposed until then.
 
+## Built so far: the command-line client and the MCP server, 2026-10-23
+
+- The library's client keeps one buffer for its answers, so several requests can be sent before the first answer is read,
+  and refuses an answer nested more than 8 levels deep or longer than 1 MiB unparsed. A caller makes one call per
+  connection with its token, and first checks with `getpeereid` that the process serving the socket runs as the same
+  user, so a token is never sent to another user's socket.
+- `vmr control status | list | state | start | stop` in the tooling: the socket from `--socket`, otherwise
+  `Control/control.sock` in the data folder (`VMRUNNER_DATA_DIR` when it is set); the token from `--token-file`, a file
+  of the user's that no one else may read or write, or from `VMR_CONTROL_TOKEN`, never from an argument, which `ps` shows
+  to every user; a machine named by its id or its name; human output or `--json`; exit statuses documented in
+  `vmr control --help` and CONTRIBUTING.
+- `AgentBridge` (library) and `vmr control mcp`: an MCP server over stdio (protocol 2025-11-25, and 2025-06-18) with four
+  tools, `machines_list`, `machines_state`, `machines_start` and `machines_stop`, each one call of the control service
+  with the token. A tool result is the service's JSON as text; a refusal is a tool error that names the control error
+  code. Messages are read strictly: one JSON-RPC 2.0 object per line, no batch, no null id, at most 1 MiB and 16 levels
+  deep. The app does not link it.
+- Tested end to end against the library's own service on sockets under `/tmp`, with machines held in memory: the real
+  `vmr` binary for each subcommand, and an MCP session piped into `vmr control mcp`. Not yet run against the app or with
+  an MCP client application.
+
 ## Remaining
 
-1. The owner's run of the control service in the app (Settings switch, a token, `machines.list`, a start and a stop
-   through it, the log of refusals), then accepting ADR-0056 or changing it.
-2. A command-line client of the control service in the tooling, on the library's client.
-3. The MCP server over stdio on top of it, with `exec` using `ConsoleSession`.
-4. Screenshots (window capture), then keyboard and mouse input, each behind its capability.
-5. Choosing a token's machines in Settings (the store and the checks already support it), and token expiry.
-6. Opening the console in the user's terminal application: an app-wide preferred application with a per-machine
+1. The owner's run of the control service in the app (Settings switch, a token, `vmr control status` and `list`, a start
+   and a stop through `vmr control` and through an MCP client, the log of refusals), then accepting ADR-0056 or changing
+   it.
+2. `exec` through `ConsoleSession` as a control method and an MCP tool, behind a capability of its own.
+3. Screenshots (window capture), then keyboard and mouse input, each behind its capability.
+4. Choosing a token's machines in Settings (the store and the checks already support it), and token expiry.
+5. Opening the console in the user's terminal application: an app-wide preferred application with a per-machine
    override. It needs the console client inside the app's bundle first.
-7. A guest agent over vsock for `exec` without a getty, and for macOS guests.
-8. The App Sandbox helper cannot bind the console socket outside its container (tried, see the sandboxing study); decide
+6. A guest agent over vsock for `exec` without a getty, and for macOS guests.
+7. The App Sandbox helper cannot bind the console socket outside its container (tried, see the sandboxing study); decide
    whether a socket inside the container is worth supporting.
-9. Recording.
+8. Recording.
+9. `package` access for `ControlProtocol` and `AgentBridge` now that the tooling links them (CONTRIBUTING, "Code rules").

@@ -148,9 +148,12 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   a trailing `// @dw:accept:this referenced-only-by-tests -- <reason>` on its line.
 - `Sources/ControlProtocol` (the control service's protocol, ADR-0056) is a library target of the root package. It links
   `GuestConsole` for the socket calls and imports Foundation, Synchronization and CryptoKit only; the manifest test in
-  `DevToolsTests` checks its dependencies. Its API is `public`, as the console's is: nothing in the package links its client
-  yet, and the dead-code gate roots public declarations. The follow-up is to move it to `package` access, with a narrow
-  directive where the gate needs one, once the command-line client links it.
+  `DevToolsTests` checks its dependencies. Its API is `public`, as the console's is, and the dead-code gate roots public
+  declarations. The tooling (`vmr control`) and `AgentBridge` now link its client, so moving it to `package` access, with
+  a narrow directive where the gate needs one, is the open follow-up.
+- `Sources/AgentBridge` (the MCP server over stdio, roadmap 0005) is a library target of the same kind: it links
+  `ControlProtocol` and `GuestConsole` and the system frameworks only (the manifest test in `DevToolsTests` checks it), the
+  app does not link it, and `vmr control mcp` serves it. Its API is `public`, like the control library's.
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 
@@ -234,6 +237,26 @@ used as a fast target. A policy that blocks the package mirror stops the image f
 fails with 124. Anything else a guest does is the guest's: with NAT it can reach the network, so run only what you would run
 on a throwaway machine. The decision behind the console is `docs/adr/0052-*`; `docs/research/automation-2026-10.md` has the
 measured numbers.
+
+## The control service from a terminal: `vmr control`
+
+`vmr control` calls the control service of a running app (ADR-0056) as a script or an AI agent would. It never starts the
+app by itself. Its tests run it against the library's own service on a socket under `/tmp`, never against the app. Against
+the app, use a scratch data directory as for any real run, and treat a start through it as a real-guest run.
+
+```sh
+export VMRUNNER_DATA_DIR=/tmp/vmr-owner      # the folder the app was started with; the socket is Control/control.sock in it
+chmod 600 token.txt                          # a token made in Settings; a file other users may read is refused
+swift run vmr control status --token-file token.txt
+swift run vmr control list --token-file token.txt [--json]
+swift run vmr control state|start|stop MACHINE --token-file token.txt [--force] [--json]   # MACHINE: an id, or a name
+VMR_CONTROL_TOKEN="$(cat token.txt)" .build/debug/vmr control mcp   # MCP over stdin and stdout, for an agent's settings
+```
+
+The token is never an argument: `ps` shows arguments to every user. Exit statuses: 0 done; 1 refused by the service (no
+such machine, agent access off, refused); 64 a usage error or no token; 66 the token file cannot be read; 69 nothing
+serves the socket; 75 no answer in time (what the call started may still finish); 76 an answer the client cannot read;
+77 not permitted (the token lacks the capability, the token file is open to others, or another user serves the socket).
 
 ## Developer tooling
 

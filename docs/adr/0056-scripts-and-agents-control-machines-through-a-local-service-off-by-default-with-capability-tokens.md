@@ -76,3 +76,10 @@ helper now that two libraries use it (ADR-0042).
 
 (Update 2026-10-23: built as decided, with unit and end-to-end tests over local sockets; the service has not yet run in the
 app with a real client or a real machine. The status stays proposed until the owner's run, roadmap 0005.)
+
+(Update 2026-10-23, later: the command-line client, `vmr control` in the tooling, and an MCP server over stdio,
+`vmr control mcp`, are built on the library's client. The MCP server is a library target of its own, `AgentBridge`, which
+links this library and the console's and which the app does not link: an agent reaches machines only through the service
+and its checks. The client now keeps its read buffer across answers, bounds an answer's size and nesting, and checks the
+socket's user before it sends a token. The library's API stays `public`; moving it to `package` is still open. Neither
+has run against the app yet; the status stays proposed.)
