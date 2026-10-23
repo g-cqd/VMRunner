@@ -26,3 +26,7 @@ Which settings are lockable first.
 `AllowMicrophone`, `AllowSuspend`, `AllowHostInformation`, `RequireDisposableMachines`, `MaxRuntimeMinutes` and the app's
 own settings. A forced value of the wrong type restricts. A forced `MaxRuntimeMinutes` of 0 sets no limit, by the owner's
 decision; any other value outside 15 to 1440 becomes 15. The status stays proposed until the owner accepts the key set.)
+
+(Update 2026-10-23: `AllowControlService` joins the keys: forced to anything but true, the local control service for scripts
+and agents (ADR-0056) stays off, agent access is off on every machine, and both switches are locked. The app setting
+`runsControlService` is lockable like the others. The status stays proposed.)

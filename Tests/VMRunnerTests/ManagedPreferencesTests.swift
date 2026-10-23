@@ -98,6 +98,26 @@ struct ManagedPreferencesTests {
         #expect(AppSetting.allCases.allSatisfy { !ManagedPreferences(forcedValue: { _ in nil }).isLocked($0) })
     }
 
+    @Test func aDeniedControlServiceLocksItAndTurnsAgentAccessOffOnEveryMachine() {
+        var config = VMConfig.new(name: "m", guest: .linux)
+        config.agentAccess = true
+        let refusals: [Any] = [false, "yes", 0]
+        for value in refusals {
+            let policy = forced(["AllowControlService": value])
+            #expect(policy.isLocked(.allowControlService), "\(value)")
+            #expect(!policy.clamp(config).agentAccess, "\(value)")
+        }
+        let allowed = forced(["AllowControlService": true])
+        #expect(!allowed.isLocked(.allowControlService))
+        #expect(allowed.clamp(config).agentAccess)
+        #expect(ManagedPreferences(forcedValue: { _ in nil }).clamp(config).agentAccess, "nothing forced changes nothing")
+    }
+
+    @Test func theControlServiceSwitchIsLockedWhenItsValueIsForced() {
+        #expect(forced(["runsControlService": false]).isLocked(.runsControlService))
+        #expect(!forced([:]).isLocked(.runsControlService))
+    }
+
     @Test func theHelpNamesEveryKeyThatCanBeManaged() {
         let entry = HelpTopic.managedSettings.entry
         let text = (entry.paragraphs + entry.advanced).joined(separator: " ")

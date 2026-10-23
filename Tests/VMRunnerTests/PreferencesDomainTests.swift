@@ -66,7 +66,7 @@ struct AppSettingTests {
     @Test func theKeysAreTheOnesEveryVersionHasStored() {
         #expect(
             AppSetting.allCases.map(\.rawValue) == [
-                "hidesToolbarInFullScreen", "keepsRestoreImages", "holdsLatencyActivity", "ipswDeviceIdentifier",
+                "hidesToolbarInFullScreen", "keepsRestoreImages", "holdsLatencyActivity", "ipswDeviceIdentifier", "runsControlService",
             ])
         #expect(LatencyActivity.settingKey == AppSetting.holdsLatencyActivity.rawValue)
         #expect(NewMachineModel.deviceDefaultsKey == AppSetting.ipswDeviceIdentifier.rawValue)

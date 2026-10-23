@@ -7,6 +7,8 @@ struct SettingsView: View {
     private var keepsRestoreImages = false
     @AppStorage(AppSetting.holdsLatencyActivity.rawValue, store: PreferencesDomain.defaults)
     private var holdsLatencyActivity = true
+    @AppStorage(AppSetting.runsControlService.rawValue, store: PreferencesDomain.defaults)
+    private var runsControlService = false
     @State private var model = SettingsModel()
 
     var body: some View {
@@ -42,6 +44,23 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             } header: {
                 HelpHeader("Input", topic: .inputResponsiveness)
+            }
+            Section {
+                // Under the organisation's deny the service is off whatever was stored, so the locked switch shows off.
+                Toggle(
+                    "Let scripts and AI agents control machines",
+                    isOn: ManagedPreferences.current.isLocked(.allowControlService) ? .constant(false) : $runsControlService
+                )
+                .managedLock(.runsControlService)
+                .managedLock(.allowControlService)
+                .settingHelp(.controlService)
+                Text(
+                    "A private local socket on this Mac, off by default. A client needs a control token, and a machine is "
+                        + "reachable only while its own Allow agent access switch is on."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                HelpHeader("Automation", topic: .controlService)
             }
         }
         .formStyle(.grouped)

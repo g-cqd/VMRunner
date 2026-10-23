@@ -8,6 +8,7 @@ enum ManagedKey: String, CaseIterable, Sendable {
     case allowMicrophone = "AllowMicrophone"
     case allowSuspend = "AllowSuspend"
     case allowHostInformation = "AllowHostInformation"
+    case allowControlService = "AllowControlService"
     case requireDisposableMachines = "RequireDisposableMachines"
     case maxRuntimeMinutes = "MaxRuntimeMinutes"
 }
@@ -85,6 +86,7 @@ struct ManagedPreferences: Equatable, Sendable {
         if denied.contains(.allowMicrophone) { config.audioInput = false }
         if denied.contains(.allowSuspend) { config.allowsSuspend = false }
         if denied.contains(.allowHostInformation) { config.hostInfo = HostInfoSharing() }
+        if denied.contains(.allowControlService) { config.agentAccess = false }
         if requiresDisposable { config.ephemeral = true }
         if let limit = maxRuntimeMinutes, config.maxRuntimeMinutes == 0 || config.maxRuntimeMinutes > limit {
             config.maxRuntimeMinutes = limit

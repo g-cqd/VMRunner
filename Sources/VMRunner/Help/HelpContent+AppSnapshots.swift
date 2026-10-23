@@ -31,8 +31,10 @@ extension HelpCatalog {
                 "• **Default Mac model**: only used for the ipsw.me list, and has no effect on what you can install.",
                 "• **Keep input responsive**: stops macOS from slowing the app while a machine runs, at some cost in battery. On by "
                     + "default.",
+                "• **Let scripts and AI agents control machines**: turns on the control service, a private local socket. Off by "
+                    + "default; each machine must also allow agent access.",
             ],
-            related: [.macRestoreImage, .duplicateDelete, .inputResponsiveness, .managedSettings]
+            related: [.macRestoreImage, .duplicateDelete, .inputResponsiveness, .controlService, .managedSettings]
         ),
         .shortcuts: HelpEntry(
             area: .app,
@@ -113,10 +115,12 @@ extension HelpCatalog {
                 "For every machine:",
                 "• `AllowSharedFolders`, `AllowClipboardSharing`, `AllowMicrophone`, `AllowSuspend` and `AllowHostInformation`: "
                     + "set to false, the feature is off on every machine and its control is locked.",
+                "• `AllowControlService`: set to false, the control service for scripts and AI agents stays off, agent access is "
+                    + "off on every machine, and both switches are locked.",
                 "• `RequireDisposableMachines`: set to true, every machine is disposable.",
                 "• `MaxRuntimeMinutes`: every machine stops after at most that many minutes (from 15 to 1440); 0 sets no limit.",
-                "For the app itself, any of `hidesToolbarInFullScreen`, `keepsRestoreImages`, `holdsLatencyActivity` and "
-                    + "`ipswDeviceIdentifier` can be set; the matching control is locked.",
+                "For the app itself, any of `hidesToolbarInFullScreen`, `keepsRestoreImages`, `holdsLatencyActivity`, "
+                    + "`ipswDeviceIdentifier` and `runsControlService` can be set; the matching control is locked.",
                 "A machine is brought within the policy when VMRunner loads it and whenever it changes, so it cannot start "
                     + "outside it.",
             ],

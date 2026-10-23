@@ -18,6 +18,33 @@ extension HelpCatalog {
                     + "the start is refused. Start the machine once from the app to approve them."
             ],
             related: [.exposureSummary, .securityProfiles, .serialConsole]
-        )
+        ),
+        .controlService: HelpEntry(
+            area: .app,
+            title: "Control service for scripts and agents",
+            summary: "A private local socket through which scripts and AI agents with a token control machines. Off by default.",
+            paragraphs: [
+                "The control service lets a script or an AI agent on this Mac list your machines, read their state, and start and "
+                    + "stop them. It is off until you turn on **Let scripts and AI agents control machines** in Settings.",
+                "Three things must all be true before anything happens: the service is on, the client presents a control token "
+                    + "that has the capability it needs (list, read state, start, stop), and the machine's own **Allow agent "
+                    + "access** switch is on.",
+                "Only your user account can open the socket, and nothing listens on the network. Every request refused for "
+                    + "its token, its capability or a machine's access is logged, without the token.",
+                "Your organisation can keep it off with the managed setting `AllowControlService`.",
+            ],
+            advanced: [
+                "The socket is `Control/control.sock` in VMRunner's data folder (`~/Library/Application Support/VMRunner`), mode "
+                    + "0600 in a folder only you can enter. The protocol is JSON-RPC 2.0, one request per line: `machines.list`, "
+                    + "`machines.state`, `machines.start` and `machines.stop`, each with `token` in its `params`, and `machine` "
+                    + "(the machine's id) for the last three. `machines.stop` asks the guest to shut down; with `force` set to "
+                    + "true it cuts the power. Batches are refused.",
+                "Limits: a request is at most 64 KiB; 4 clients at a time; a client is disconnected after 10 seconds without a "
+                    + "request; an answer that would take over 2 minutes says it timed out, and what it started goes on.",
+                #"From a terminal: `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"machines.list","params":{"token":"…"}}' "#
+                    + "| nc -U <socket>`.",
+            ],
+            related: [.agentAccess, .settings, .managedSettings]
+        ),
     ]
 }

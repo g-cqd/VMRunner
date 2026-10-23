@@ -73,6 +73,7 @@ struct AgentAccessSection: View {
     var body: some View {
         Section {
             Toggle("Allow agent access", isOn: $agentAccess)
+                .managedLock(.allowControlService)
                 .settingHelp(.agentAccess)
             Text("Scripts and AI agents with a control token can see this machine and start or stop it.")
                 .font(.caption).foregroundStyle(.secondary)
