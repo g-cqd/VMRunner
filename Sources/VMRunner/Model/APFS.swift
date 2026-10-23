@@ -165,11 +165,13 @@ extension VMBundle {
         if let identity { try identity.writePrivately(to: ephemeralMachineIdentifier) }
     }
 
-    /// Removes what one run leaves in the bundle: the disposable copies, and the host-information folder, whose last facts
+    /// Removes what one run leaves in the bundle: the disposable copies, the provisioning seed (built again at each start),
+    /// and the host-information folder, whose last facts
     /// must not travel with a copied bundle. Runs at every stop, at launch for every machine that is not running, and
     /// before a disposable start.
     func discardEphemeral() {
-        for file in [ephemeralDisk, ephemeralAuxiliaryStorage, ephemeralEFIVariables, ephemeralMachineIdentifier, hostInfoFolder] {
+        let leftovers = [ephemeralDisk, ephemeralAuxiliaryStorage, ephemeralEFIVariables, ephemeralMachineIdentifier, provisioningSeed]
+        for file in leftovers + [hostInfoFolder] {
             remove(file)
         }
     }

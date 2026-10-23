@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 /// A file of an ISO 9660 image's root directory: its name as a guest reads it, and its bytes.
 struct ISOFile: Equatable, Sendable {
     /// Lowercase ASCII letters, digits and `-`, 1 to 30 characters.

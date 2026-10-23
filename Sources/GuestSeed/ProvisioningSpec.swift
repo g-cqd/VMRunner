@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 /// What a user asks a new machine to run (ADR-0012): `apiVersion: vmrunner.dev/v1alpha1`, `kind: Provisioning`,
 /// `metadata.name`, and a `spec` with a `cloudInit` section passed through as given and an ordered `provision` list of steps.
 package struct ProvisioningSpec: Equatable, Sendable {

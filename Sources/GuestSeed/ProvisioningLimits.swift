@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 /// The bounds the host holds a provisioning spec to before it reads, checks or packs anything. A spec comes from the user's
 /// files and a seed is read by an untrusted guest, so every size is capped, and an input past a cap is refused, never cut.
 package struct ProvisioningLimits: Equatable, Sendable {

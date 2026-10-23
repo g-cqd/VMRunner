@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 import Foundation
 
 /// The entries of one map of the spec, each key checked against the ones its section allows.

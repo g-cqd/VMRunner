@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 import Foundation
 
 /// Turns a checked spec into the text files of a cloud-init NoCloud seed. Every output is a function of its inputs alone:

@@ -36,7 +36,7 @@ let package = Package(
         .executableTarget(
             name: "VMRunner",
             dependencies: [
-                "ControlProtocol", "GuestConsole", "NetPolicy", "NetStack",
+                "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack",
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             ],
             path: "Sources/VMRunner", swiftSettings: hardening),
@@ -66,8 +66,8 @@ let package = Package(
         .testTarget(name: "GuestConsoleTests", dependencies: ["GuestConsole"], path: "Tests/GuestConsoleTests", swiftSettings: hardening),
 
         // GuestSeed (roadmap 0016, ADR-0012): the spec a user writes, its compiler to a cloud-init seed, the host's check of
-        // every script file's SHA-256 and the seed's ISO 9660 image. System frameworks only and no other target; nothing links
-        // it yet. The app, the helper and the tooling share it through `package` access once they need it.
+        // every script file's SHA-256 and the seed's ISO 9660 image. System frameworks only and no other target. The app links
+        // it to build a Linux machine's seed at each start; what another target uses is `package`.
         .target(name: "GuestSeed", path: "Sources/GuestSeed", swiftSettings: hardening),
         .testTarget(
             name: "GuestSeedTests", dependencies: ["GuestSeed"], path: "Tests/GuestSeedTests", swiftSettings: hardening),

@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 /// The text files of a cloud-init NoCloud seed. Only `SeedCompiler.compile` makes one, from a spec whose script files were
 /// checked. Every field is text the guest may read: the seed holds no secret, and no field can hold one.
 package struct CloudInitSeed: Equatable, Sendable {

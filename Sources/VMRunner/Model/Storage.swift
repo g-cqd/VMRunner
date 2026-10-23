@@ -144,6 +144,9 @@ struct VMBundle: Sendable {
     /// The folder the host-information share serves to the guest, read-only. No directory hint: the path has no trailing
     /// slash, so a link planted here is removed itself, never followed.
     var hostInfoFolder: URL { url.appending(path: "HostInfo") }
+    /// The cloud-init seed of one Linux start (ADR-0012), written from the machine's provisioning spec before the machine is
+    /// configured, attached read-only, and removed with the run's other leftovers.
+    var provisioningSeed: URL { url.appending(path: "ProvisioningSeed.iso") }
 
     /// The installer to attach for a configuration that stores `path`.
     ///

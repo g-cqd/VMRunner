@@ -112,6 +112,9 @@ struct VZMachineFactory: MachineFactory {
     func prepare(
         _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
     ) async throws -> PreparedMachine {
+        // The seed is built from the spec and its scripts as they are now, before the configuration that attaches it; a spec
+        // that cannot be used stops the start with its line. The disposable copy, which clears the run's leftovers, is made before.
+        try ProvisioningSeed.prepare(for: config, bundle: bundle)
         let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend = Self.suspendSupport(

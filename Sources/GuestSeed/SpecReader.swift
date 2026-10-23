@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 /// A value of a spec document and the 1-based line it starts on. Every scalar is text: the reader never guesses a type, so
 /// `no`, `1.10` and `null` stay the words they are, and the spec's model decides what each field means.
 enum SpecNode: Equatable, Sendable {

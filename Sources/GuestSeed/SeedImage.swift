@@ -1,7 +1,3 @@
-// The provisioning library has no caller outside its tests until a later change attaches the seed to a machine, so a
-// declaration only the tests reach is expected here; every other dead-code rule still applies.
-// @dw:disable referenced-only-by-tests
-
 package import Foundation
 
 /// The seed as cloud-init's NoCloud source finds it: an ISO 9660 volume labelled `cidata` with `user-data`, `meta-data`

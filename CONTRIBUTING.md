@@ -143,9 +143,9 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   these targets' own tests use `@testable import`. Keep the per-packet path inside `NetStack`: no `public` or
   `@inlinable` on it without a measurement from `swift run vmr check bench`.
 - `Sources/GuestSeed` (the provisioning spec, its compiler and the seed image, roadmap 0016) is a library target of the
-  same kind: system frameworks only, `package` access, and the same test of the manifest and the imports. Nothing links it
-  yet, so each of its files starts with `// @dw:disable referenced-only-by-tests` and the reason; the dead-code analyzer's
-  other rules still apply there, and the change that links the library removes the directives.
+  same kind: system frameworks only, `package` access, and the same test of the manifest and the imports. The app links it
+  to build a Linux machine's seed at each start (`ProvisioningSeed`). A declaration only the library's own tests read carries
+  a trailing `// @dw:accept:this referenced-only-by-tests -- <reason>` on its line.
 - `Sources/ControlProtocol` (the control service's protocol, ADR-0056) is a library target of the root package. It links
   `GuestConsole` for the socket calls and imports Foundation, Synchronization and CryptoKit only; the manifest test in
   `DevToolsTests` checks its dependencies. Its API is `public`, as the console's is: nothing in the package links its client
