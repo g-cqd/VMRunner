@@ -122,6 +122,7 @@ let package = Package(
                 "VMHelperCore",
                 "GuestConsole",
                 "ControlProtocol",
+                "AgentBridge",
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],

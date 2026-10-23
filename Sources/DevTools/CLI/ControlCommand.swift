@@ -1,3 +1,4 @@
+import AgentBridge
 import ArgumentParser
 import ControlProtocol
 import Foundation
@@ -5,7 +6,7 @@ import Foundation
 struct ControlCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "control",
-        abstract: "Call the local control service of a running VMRunner app.",
+        abstract: "Call the local control service of a running VMRunner app, or serve it to an AI agent over MCP.",
         discussion: """
             The app serves its control service on a private local socket once it is turned on in Settings (Automation): \
             Control/control.sock in the app's data folder, which is $VMRUNNER_DATA_DIR when that is set; --socket names \
@@ -19,7 +20,7 @@ struct ControlCommand: AsyncParsableCommand {
             an answer this client cannot read; 77 not permitted (the token lacks the capability, the token file is open to \
             other users, or another user serves the socket).
             """,
-        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self]
+        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self, MCP.self]
     )
 
     /// `--socket` and `--token-file`, shared by every subcommand.
@@ -184,6 +185,30 @@ struct ControlCommand: AsyncParsableCommand {
 
         func run() async throws {
             try await options.call(.stop, params: ["force": .bool(force)], describe: ControlInvocation.stateLine)
+        }
+    }
+
+    struct MCP: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "mcp",
+            abstract: "Serve the control service to an AI agent: an MCP server over standard input and output.",
+            discussion: """
+                Give an agent's MCP configuration the built vmr binary with the arguments `control mcp`, and the token in \
+                VMR_CONTROL_TOKEN (or --token-file). It speaks the Model Context Protocol (2025-11-25, and 2025-06-18) as one \
+                JSON-RPC message per line and offers four tools, machines_list, machines_state, machines_start and \
+                machines_stop: each one call of the control service with the token, so the service's checks decide what the \
+                agent may do. Only answers are written to standard output; it ends with its input. The service may be off \
+                when it starts: a tool call then answers that the service could not be used.
+                """
+        )
+
+        @OptionGroup var target: TargetOptions
+
+        func run() async throws {
+            try await perform {
+                let caller = ControlCaller(token: try target.requiredToken(), socket: try target.socketPath())
+                return MCPStdio.serve(input: STDIN_FILENO, output: STDOUT_FILENO, caller: caller)
+            }
         }
     }
 }
