@@ -121,6 +121,7 @@ extension VMConfig {
         config.networkMode = .none
         config.serialConsole = false
         config.agentAccess = false
+        config.provisioningSpecPath = ""
         config.audioOutput = false
         config.sharedFolders = []
         config.extraDisks = []
@@ -160,6 +161,7 @@ extension VMConfig {
         var vsock: Bool
         var serialConsole: Bool
         var agentAccess: Bool
+        var provisioning: Bool
         var balloon: Bool
         var ephemeral: Bool
         var suspend: Bool
@@ -189,6 +191,7 @@ extension VMConfig {
             vsock: socketDevice,
             serialConsole: linux && serialConsole,
             agentAccess: agentAccess,
+            provisioning: linux && !provisioningSpecPath.isEmpty,
             balloon: memoryBalloon,
             ephemeral: ephemeral,
             suspend: allowsSuspend,
@@ -239,6 +242,14 @@ extension VMConfig {
         }
         if let installer = attachedInstallerPath {
             items.append(Exposure(level: .medium, text: "The guest can read the installer image \(installer) (attached read-only)."))
+        }
+        if let spec = activeProvisioningSpecPath {
+            // The guest reads the whole seed and runs its steps as root: the spec's text and its scripts reach it.
+            items.append(
+                Exposure(
+                    level: .medium,
+                    text: "Provisioning (experimental): at each start the guest reads a seed built from \(spec) and runs its "
+                        + "steps as root."))
         }
         if guest == .linux, sharesClipboard { items.append(Exposure(level: .medium, text: "Clipboard is shared with the host.")) }
         if !hostInfo.isEmpty {
