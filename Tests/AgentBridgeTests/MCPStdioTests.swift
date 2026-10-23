@@ -23,7 +23,8 @@ struct MCPStdioTests {
     /// status and the answers. The answers' end is non-blocking: should they ever outgrow the pipe, the session fails instead
     /// of waiting forever for a reader that reads only once it ends.
     private func session(
-        _ input: [String], capabilities: Set<ControlCapability> = Set(ControlCapability.allCases), lineBytes: Int = MCPServer.lineBytes
+        _ input: [String], capabilities: Set<ControlCapability> = Set(ControlCapability.allCases), lineBytes: Int = MCPServer.lineBytes,
+        endsWithNewline: Bool = true
     ) async throws -> (status: Int32, answers: [[String: Any]]) {
         let folder = FileManager.default.temporaryDirectory.appending(path: "mcp-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -41,7 +42,9 @@ struct MCPStdioTests {
         let fromServer = Pipe()
         let answers = fromServer.fileHandleForWriting.fileDescriptor
         _ = fcntl(answers, F_SETFL, fcntl(answers, F_GETFL) | O_NONBLOCK)
-        try toServer.fileHandleForWriting.write(contentsOf: Data(input.map { $0 + "\n" }.joined().utf8))
+        var text = input.map { $0 + "\n" }.joined()
+        if !endsWithNewline { text.removeLast() }
+        try toServer.fileHandleForWriting.write(contentsOf: Data(text.utf8))
         try toServer.fileHandleForWriting.close()
         let reading = toServer.fileHandleForReading.fileDescriptor
         let status = await runOnThread { MCPStdio.serve(input: reading, output: answers, caller: caller, lineBytes: lineBytes) }
@@ -111,6 +114,14 @@ struct MCPStdioTests {
         #expect(status == 1)
         #expect(answers.count == 1, "nothing after the refusal")
         #expect((answers.first?["error"] as? [String: Any])?["code"] as? Int == -32600)
+    }
+
+    @Test
+    func aPartialLineAtTheEndOfTheInputIsDroppedAndTheSessionEndsCleanly() async throws {
+        let (status, answers) = try await session(
+            [#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#, #"{"jsonrpc":"2.0","id":2,"method":"ping"}"#], endsWithNewline: false)
+        #expect(status == 0)
+        #expect(answers.compactMap { $0["id"] as? Int } == [1], "the last line lacks its newline, so it is not a message")
     }
 
     @Test

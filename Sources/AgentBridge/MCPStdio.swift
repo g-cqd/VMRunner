@@ -11,7 +11,7 @@ public enum MCPStdio {
     /// limit is answered with an error before the end. A last line without its newline is dropped: a message ends with one.
     public static func serve(input: Int32, output: Int32, caller: ControlCaller, lineBytes: Int = MCPServer.lineBytes) -> Int32 {
         var buffer = LineBuffer(limit: lineBytes)
-        var chunk = [UInt8](repeating: 0, count: 4_096)
+        var chunk = [UInt8](repeating: 0, count: 65_536)
         while true {
             switch buffer.next() {
             case .line(let bytes):

@@ -67,25 +67,40 @@ enum ControlTarget {
     }
 
     private static func contents(of url: URL) throws -> String {
-        // `attributesOfItem` describes a link itself and does not follow it.
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+        // The file is opened once without following a link, and checked and read through that descriptor, so the file
+        // that is checked is the file that is read.
+        let descriptor = unsafe open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
             throw ToolError("cannot read the token file \(url.path)", status: ControlExit.noInput)
         }
-        guard attributes[.type] as? FileAttributeType == .typeRegular else {
+        defer { _ = close(descriptor) }
+        var info = stat()
+        guard unsafe fstat(descriptor, &info) == 0 else {
+            throw ToolError("cannot read the token file \(url.path)", status: ControlExit.noInput)
+        }
+        guard info.st_mode & S_IFMT == S_IFREG else {
             throw ToolError("the token file \(url.path) is not a regular file", status: ControlExit.noInput)
         }
-        guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
+        guard info.st_uid == geteuid() else {
             throw ToolError("the token file \(url.path) belongs to another user", status: ControlExit.notPermitted)
         }
-        let mode = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
+        let mode = Int(info.st_mode)
         guard mode & 0o077 == 0 else {
             let shown = String(mode & 0o777, radix: 8)
             throw ToolError(
                 "the token file \(url.path) is open to other users (mode \(shown)); make it private: chmod 600 \(url.path)",
                 status: ControlExit.notPermitted)
         }
-        guard (attributes[.size] as? NSNumber)?.intValue ?? 0 <= tokenFileBytes,
-            let data = try? Data(contentsOf: url), data.count <= tokenFileBytes, let text = String(bytes: data, encoding: .utf8)
+        var bytes = [UInt8](repeating: 0, count: tokenFileBytes + 1)
+        var count = 0
+        while count < bytes.count {
+            let got = unsafe read(descriptor, &bytes[count], bytes.count - count)
+            guard got >= 0 else { throw ToolError("cannot read the token file \(url.path)", status: ControlExit.noInput) }
+            if got == 0 { break }
+            count += got
+        }
+        guard Int(info.st_size) <= tokenFileBytes, count <= tokenFileBytes,
+            let text = String(bytes: bytes[..<count], encoding: .utf8)
         else {
             throw ToolError(
                 "cannot read the token file \(url.path) as text, or it is longer than \(tokenFileBytes) bytes", status: ControlExit.noInput)

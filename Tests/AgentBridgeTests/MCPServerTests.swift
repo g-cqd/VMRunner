@@ -123,6 +123,18 @@ struct MCPServerTests {
         #expect(try errorCode(#"{"jsonrpc":"2.0","id":1,"method":"ping","params":{"x":"# + deep + "}}") == -32600)
     }
 
+    @Test(arguments: [(16, false), (17, true)])
+    func aMessageNestedSixteenLevelsDeepIsReadAndSeventeenIsRefused(depth: Int, refused: Bool) throws {
+        // The message and its params object are two levels; the arrays inside `x` make up the rest.
+        let arrays = String(repeating: "[", count: depth - 2) + String(repeating: "]", count: depth - 2)
+        let line = #"{"jsonrpc":"2.0","id":1,"method":"ping","params":{"x":"# + arrays + "}}"
+        if refused {
+            #expect(try errorCode(line) == -32600)
+        } else {
+            #expect(try answer(line)["result"] != nil)
+        }
+    }
+
     @Test
     func aToolResultCarriesItsTextAndWhetherItFailed() throws {
         let data = MCPServer.toolResult(id: .string("x"), text: "error -32003: off", isError: true)

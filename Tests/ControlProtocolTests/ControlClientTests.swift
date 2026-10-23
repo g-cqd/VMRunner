@@ -129,6 +129,26 @@ struct ControlClientTests {
     }
 
     @Test
+    func aCallDoesNotTakeAStaleAnswerForAnotherRequest() throws {
+        let pair = try Pair()
+        defer { pair.close() }
+        try pair.answer(#"{"id":7,"jsonrpc":"2.0","result":{}}"# + "\n")
+        #expect(throws: ControlClientError.malformedAnswer) { try pair.client.call("machines.list", id: 1) }
+    }
+
+    @Test
+    func aCallerSendsNothingWhenItCannotTellWhoServesTheSocket() throws {
+        let pair = try #require(ConsoleSocket.streamPair(bufferBytes: 64 * 1_024))
+        defer { ConsoleSocket.close(pair.second) }
+        let caller = ControlCaller(
+            token: "vmrc_secret", peerUser: { _ in nil },
+            connect: { ControlClient(descriptor: pair.first, timeoutMilliseconds: 1_000) })
+        #expect(throws: ControlClientError.peerIsAnotherUser) { try caller.call(.list) }
+        var buffer = [UInt8](repeating: 0, count: 64)
+        #expect(ConsoleSocket.read(pair.second, into: &buffer) == .endOfStream, "closed with nothing written")
+    }
+
+    @Test
     func aCallerOfASocketNobodyServesSaysSo() {
         let path = "/tmp/vmr-no-such-control-\(UUID().uuidString.prefix(8)).sock"
         #expect(throws: ConsoleError.notServed(path)) { try ControlCaller(token: "vmrc_secret", socket: path).call(.list) }

@@ -122,10 +122,11 @@ public final class ControlClient: Sendable {
         try send(try JSONSerialization.data(withJSONObject: request, options: [.sortedKeys]))
     }
 
-    /// Sends a request and returns its answer.
+    /// Sends a request and returns its answer; an answer to another request is refused, not taken for this one.
     public func call(_ method: String, id: Int = 1, params: [String: RPCValue] = [:]) throws -> ControlAnswer {
         try request(method, id: id, params: params)
         guard let answer = try receive() else { throw ControlClientError.closed }
+        guard answer.id == id || answer.id == nil else { throw ControlClientError.malformedAnswer }
         return answer
     }
 

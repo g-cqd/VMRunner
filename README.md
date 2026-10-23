@@ -187,7 +187,7 @@ swift run vmr guest fetch alpine-netboot --directory /tmp/g   # a signed Alpine 
 swift run vmr guest start|exec|console|stop ...   # a small Linux guest behind a console socket; start boots a VM, owner-authorised runs only
 swift run vmr guest start --net filtered --policy p.json; vmr guest policy|flows SOCKET ...   # the filtered network on a real guest
 swift run vmr control status|list|state|start|stop ... --token-file F   # call a running app's control service (CONTRIBUTING)
-swift run vmr control mcp                    # the control service as an MCP server over stdio; token in VMR_CONTROL_TOKEN
+.build/debug/vmr control mcp                 # the control service as an MCP server over stdio; token in VMR_CONTROL_TOKEN
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files
 ```
