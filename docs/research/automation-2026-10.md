@@ -159,3 +159,12 @@ line, Ctrl-X), or, as that run did, from a FAT boot image with the ISO's files a
 own command line. No image in the catalog is known to start a login on `hvc0` by itself: Alpine's was checked and does
 not; the others were not tried. An installed system that runs systemd may start one on `hvc0` in a virtual machine
 through its getty generator, which was not tried either.
+
+## Built: the control service (2026-10-23)
+
+The "Control service" of the proposed architecture is built as ADR-0056 decides: JSON-RPC 2.0 over one private local
+socket in the app's data folder, the peer's user checked, per-client capability tokens stored as digests, a per-machine
+agent access switch that the closed profiles turn off, and `machines.list`, `machines.state`, `machines.start` and
+`machines.stop`. Tested with unit tests and end to end over local sockets; not yet run in the app with a real machine. The
+command-line client and the MCP server over stdio come next (roadmap 0005).
+

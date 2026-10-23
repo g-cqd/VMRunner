@@ -73,3 +73,6 @@ The command-line client and the MCP server over stdio (the next steps of roadmap
 execution and their capabilities, confirmations in the app for dangerous calls, token expiry, choosing a token's machines in
 Settings (the store supports it), a log of calls the user can read in the app, and a neutral name for the console's socket
 helper now that two libraries use it (ADR-0042).
+
+(Update 2026-10-23: built as decided, with unit and end-to-end tests over local sockets; the service has not yet run in the
+app with a real client or a real machine. The status stays proposed until the owner's run, roadmap 0005.)
