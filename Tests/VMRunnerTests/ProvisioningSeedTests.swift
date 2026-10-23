@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import Virtualization
 
 @testable import VMRunner
 
@@ -141,5 +142,21 @@ struct ProvisioningSeedTests {
         scratch.bundle.discardEphemeral()
 
         #expect(!FileManager.default.fileExists(atPath: scratch.bundle.provisioningSeed.path))
+    }
+
+    @Test
+    func theSeedAStartWritesIsTheReadOnlyDriveTheMachineGets() throws {
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch.root) }
+        let config = machine(spec: scratch.specPath)
+        try Data(count: 1 << 20).write(to: scratch.bundle.disk)
+
+        try ProvisioningSeed.prepare(for: config, bundle: scratch.bundle)
+        let devices = try ConfigurationBuilder.storage(for: config, bundle: scratch.bundle)
+
+        let drive = try #require(devices.last as? VZUSBMassStorageDeviceConfiguration)
+        let attachment = try #require(drive.attachment as? VZDiskImageStorageDeviceAttachment)
+        #expect(attachment.isReadOnly)
+        #expect(attachment.url.lastPathComponent == "ProvisioningSeed.iso")
     }
 }

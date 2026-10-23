@@ -51,6 +51,52 @@ struct StorageDevicesTests {
         #expect(try ConfigurationBuilder.storage(for: config, bundle: bundle).count == 2)
     }
 
+    @Test func aSpecInUseAttachesItsSeedAsAReadOnlyUSBDriveAfterTheDisks() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.extraDisks = [ExtraDisk(path: try image(named: "extra.img", in: directory))]
+        config.provisioningSpecPath = "/Users/me/machine.yaml"
+        let bundle = try makeBundle(in: directory)
+        try Data(count: 1 << 20).write(to: bundle.provisioningSeed)
+
+        let attached = try ConfigurationBuilder.storage(for: config, bundle: bundle)
+        #expect(attached.count == 3)
+        #expect(attached[0] is VZVirtioBlockDeviceConfiguration && attached[1] is VZVirtioBlockDeviceConfiguration)
+        let drive = try #require(attached[2] as? VZUSBMassStorageDeviceConfiguration)
+        let seed = try #require(drive.attachment as? VZDiskImageStorageDeviceAttachment)
+        #expect(seed.isReadOnly)
+        #expect(seed.url.lastPathComponent == "ProvisioningSeed.iso")
+    }
+
+    @Test func aSpecInUseWithoutItsSeedFailsTheBuildInsteadOfStartingWithoutIt() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var config = VMConfig.new(name: "x", guest: .linux)
+        config.provisioningSpecPath = "/Users/me/machine.yaml"
+
+        #expect(throws: SetupError.self) { try ConfigurationBuilder.storage(for: config, bundle: makeBundle(in: directory)) }
+    }
+
+    @Test func noSeedForAMacGuestOrWhileTheInstallerIsAttached() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundle = try makeBundle(in: directory)
+        try Data(count: 1 << 20).write(to: bundle.provisioningSeed)
+        var mac = VMConfig.new(name: "m", guest: .macOS)
+        mac.provisioningSpecPath = "/Users/me/machine.yaml"
+        #expect(try ConfigurationBuilder.storage(for: mac, bundle: bundle).count == 1)
+
+        var installing = VMConfig.new(name: "x", guest: .linux)
+        installing.provisioningSpecPath = "/Users/me/machine.yaml"
+        installing.installerISO = try image(named: "installer.iso", in: directory)
+        let attached = try ConfigurationBuilder.storage(for: installing, bundle: bundle)
+        #expect(attached.count == 2)
+        let drive = try #require(attached[1] as? VZUSBMassStorageDeviceConfiguration)
+        let installer = try #require(drive.attachment as? VZDiskImageStorageDeviceAttachment)
+        #expect(installer.url.lastPathComponent == "installer.iso", "the installer, not the seed")
+    }
+
     @Test func aDiskFromTheMachinesFolderIsNeverAttached() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

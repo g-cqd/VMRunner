@@ -220,6 +220,13 @@ enum ConfigurationBuilder {
             let readOnly = try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)
             devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
         }
+        if config.activeProvisioningSpecPath != nil {
+            // Written by `ProvisioningSeed.prepare` for this start; never the installer's slot, which is empty while a spec is active.
+            let seed = bundle.provisioningSeed
+            guard FileManager.default.fileExists(atPath: seed.path) else { throw SetupError.missingFile(seed.path) }
+            let readOnly = try VZDiskImageStorageDeviceAttachment(url: seed, readOnly: true)
+            devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
+        }
         return devices
     }
 
