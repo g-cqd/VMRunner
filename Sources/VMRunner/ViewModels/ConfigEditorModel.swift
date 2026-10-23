@@ -5,7 +5,7 @@ import Observation
 @MainActor @Observable
 final class ConfigEditorModel {
     enum PickerTarget: Identifiable {
-        case extraDisk, installerISO
+        case extraDisk, installerISO, provisioningSpec
         var id: Self { self }
     }
 
@@ -92,6 +92,9 @@ final class ConfigEditorModel {
             config.installerISO = url.path
             config.installerAttached = true
             grant = HostPathGrant(.installer, url.path, writable: false)
+        case .provisioningSpec:
+            config.provisioningSpecPath = url.path
+            grant = HostPathGrant(.provisioningSpec, url.path, writable: false)
         }
         library.update(config)
         // The user picked this file just now; a writable approval also covers it being switched to read-only.

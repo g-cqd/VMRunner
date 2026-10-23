@@ -292,6 +292,23 @@ struct HostPathApprovalsTests {
         #expect(library.unapprovedHostPaths(for: config.id).isEmpty)
     }
 
+    @Test func theSpecPickerStoresThePathAndApprovesItReadOnly() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = makeLibrary(in: directory)
+        library.load()
+        let config = VMConfig.new(name: "m", guest: .linux)
+        try library.add(config)
+        let editor = ConfigEditorModel(id: config.id, library: library)
+
+        editor.importFile(URL(filePath: "/Users/me/machine.yaml"), for: .provisioningSpec)
+
+        let saved = try #require(library.machine(config.id))
+        #expect(saved.provisioningSpecPath == "/Users/me/machine.yaml")
+        #expect(saved.hostGrants == [HostPathGrant(.provisioningSpec, "/Users/me/machine.yaml", writable: false)])
+        #expect(library.unapprovedHostPaths(for: config.id).isEmpty)
+    }
+
     @Test func aDuplicateInheritsOnlyWhatItsSourceHadApproved() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

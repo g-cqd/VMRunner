@@ -202,4 +202,27 @@ struct ProvisioningSeedTests {
         scratch.bundle.discardEphemeral()
         #expect(FileManager.default.fileExists(atPath: digest.path), "it lives as long as the saved state it guards")
     }
+
+    @Test
+    func theEditorsCheckListsEachStepWithItsLineAndWritesNothing() throws {
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch.root) }
+
+        #expect(
+            ProvisioningCheck(specAt: scratch.specPath)
+                == .ready(["line 7: first-boot, inline script", "line 11: every-boot, scripts/hello.sh, sha256 9fac65956eed…"]))
+        #expect(!FileManager.default.fileExists(atPath: scratch.bundle.provisioningSeed.path))
+    }
+
+    @Test
+    func theEditorsCheckShowsWhyTheStartWouldRefuse() throws {
+        let scratch = try makeScratch(script: "#!/bin/sh\necho changed\n")
+        defer { try? FileManager.default.removeItem(at: scratch.root) }
+
+        guard case .refused(let reason) = ProvisioningCheck(specAt: scratch.specPath) else {
+            Issue.record("the check accepted a script that does not match its digest")
+            return
+        }
+        #expect(reason.hasPrefix("line 11: scripts/hello.sh does not match its sha256"))
+    }
 }

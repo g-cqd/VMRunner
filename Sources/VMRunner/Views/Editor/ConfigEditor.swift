@@ -28,6 +28,9 @@ struct ConfigEditor: View {
                 InstallerSection(
                     isoPath: config.installerISO, attached: $config.installerAttached,
                     choose: { model.pickerTarget = .installerISO })
+                ProvisioningSection(
+                    specPath: config.provisioningSpecPath, installerAttached: config.attachedInstallerPath != nil,
+                    choose: { model.pickerTarget = .provisioningSpec }, remove: { config.provisioningSpecPath = "" })
             }
             displaySection
             InputSection(guest: config.guest, pointing: $config.pointingDevice, capturesSystemKeys: $config.capturesSystemKeys)
