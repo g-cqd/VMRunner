@@ -38,7 +38,7 @@ A cloud image boots with a generated seed, runs a `first-boot` script whose hash
   always gives the same bytes), saved read-only. The system's `tar` lists and extracts its files in the tests.
   `hdiutil makehybrid` was measured as the alternative: it builds a readable image but two runs differ in their dates, and
   it would be a subprocess of the app.
-- **Limits.** 64 KiB of spec, 32 steps, 64 KiB per script file, 8 levels of nesting, each tested at its boundary.
+- **Limits.** 64 KiB of spec, 32 steps, 64 KiB per script file, 8 levels of nesting, each tested at its boundary with the limits lowered.
 
 ## Remaining
 

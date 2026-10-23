@@ -8,7 +8,7 @@ import Foundation
 /// the same spec, scripts and instance identifier give the same bytes.
 package enum SeedCompiler {
     /// Where a step's script is unpacked and run in the guest: on the root file system, which allows running files, and
-    /// under cloud-init's own folder, which every cloud image has. Not `/run`: Debian and Ubuntu mount it `noexec`.
+    /// under cloud-init's own folder, which every cloud image has. Not `/run`, which some images mount `noexec` (not checked here).
     static let scriptDirectory = "/var/lib/cloud/vmrunner"
 
     /// The most bytes one step's command may hold. Linux caps one argument at 128 KiB, and the command is one argument of
