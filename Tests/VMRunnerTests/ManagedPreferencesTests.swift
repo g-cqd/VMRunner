@@ -128,6 +128,13 @@ struct ManagedPreferencesTests {
         #expect(ManagedPreferences(forcedValue: { _ in nil }).clamp(config) == config, "nothing forced changes nothing")
     }
 
+    @Test func theEmptySpecSaysWhenTheOrganisationTurnedProvisioningOff() {
+        #expect(ProvisioningSection.emptyNote(in: forced(["AllowProvisioning": false])) == "Your organisation turned provisioning off.")
+        #expect(
+            ProvisioningSection.emptyNote(in: ManagedPreferences(forcedValue: { _ in nil }))
+                == "No spec: the machine starts without a seed.")
+    }
+
     @Test func theControlServiceSwitchIsLockedWhenItsValueIsForced() {
         #expect(forced(["runsControlService": false]).isLocked(.runsControlService))
         #expect(!forced([:]).isLocked(.runsControlService))

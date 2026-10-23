@@ -54,7 +54,7 @@ The app links `Sources/GuestSeed`. Every part is tested on the host; none of it 
   (`ProvisioningSeed.iso`, readable by its owner only). A spec that cannot be used stops the start with its line. The seed
   is attached as a read-only USB mass storage device after the disks, and removed with the run's other leftovers when the
   machine stops; a disposable machine gets a new one at each start, like every machine.
-- **Saved state.** A suspended machine resumes only with the seed it was saved with. An edit that adds, removes or moves the
+- **Saved state.** If the machine can be suspended with the drive attached (not yet checked), it resumes only with the seed it was saved with. An edit that adds, removes or moves the
   spec drops the saved state, and so does a seed whose contents changed: the digest of the last seed is kept in the bundle
   (`ProvisioningSeed.sha256`). The machine then boots afresh.
 - **Posture.** The Isolated and Hardened profiles remove the spec; the exposure summary lists it while it is in use; the

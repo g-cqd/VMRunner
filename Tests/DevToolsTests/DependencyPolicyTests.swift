@@ -41,7 +41,7 @@ struct DependencyPolicyTests {
     /// Library targets of this repository the app links besides the packages, none of them outside code: the network policy and
     /// the user-mode stack (ADR-0047), the console, which imports Foundation and the system's C library only (ADR-0052), and
     /// the control service's protocol, which links the console (ADR-0056), and the provisioning library, system frameworks only
-    /// (roadmap 0016). A new one is a decision of its own.
+    /// (ADR-0012, roadmap 0016). A new one is a decision of its own.
     private static let repositoryLibraries: Set<String> = ["ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack"]
 
     @Test

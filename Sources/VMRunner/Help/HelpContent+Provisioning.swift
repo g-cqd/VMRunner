@@ -9,11 +9,12 @@ extension HelpCatalog {
                 "Experimental: this has not yet been tried with a real guest, so it may not work with every Linux image. It is "
                     + "meant for cloud images that include cloud-init.",
                 "A provisioning spec is a small text file you write. It names the machine and lists scripts to run at "
-                    + "**early-boot** (every boot, before the network), **first-boot** (once per machine) or **every-boot**, and "
+                    + "**early-boot** (early in every boot), **first-boot** (once per machine) or **every-boot**, and "
                     + "it can carry cloud-init data of your own. Choose it under **Provisioning** in the machine's settings.",
                 "At each start VMRunner reads the spec and every script file it names again, checks each file against the "
                     + "SHA-256 the spec gives, and builds a small read-only drive labelled `cidata` that cloud-init in the guest "
-                    + "reads. If anything is wrong, the machine does not start, and the message names the line of the spec.",
+                    + "reads. If anything is wrong, the machine does not start, and the message names the spec and, when it has one,"
+                    + " the line.",
                 "Everything in the spec and its scripts can be read inside the guest, and the scripts run as root: never put "
                     + "a password or a key in them. \"What this machine can reach\" lists the spec while it is in use.",
                 "The Isolated and Hardened profiles remove the spec. It is not used while the installer is attached: detach "
@@ -29,7 +30,7 @@ extension HelpCatalog {
                 "Limits: 64 KiB of spec, 32 steps, 64 KiB per script file. A `file` path is relative to the spec's folder "
                     + "and may not leave it or go through a symbolic link.",
                 "The seed is an ISO 9660 image attached as a read-only USB drive. It is rebuilt at every start, so an edited "
-                    + "spec takes effect at the next start and deleted when the machine stops. Its instance identifier is the "
+                    + "spec takes effect at the next start and is deleted when the machine stops. Its instance identifier is the "
                     + "machine's, so first-boot steps run once per machine (editing one that has already run changes nothing in "
                     + "that machine); a disposable machine runs them at every start. A suspended machine whose seed changed "
                     + "starts afresh instead of resuming.",
