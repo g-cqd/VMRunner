@@ -19,7 +19,7 @@ struct ControlCommand: AsyncParsableCommand {
             an answer this client cannot read; 77 not permitted (the token lacks the capability, the token file is open to \
             other users, or another user serves the socket).
             """,
-        subcommands: [Status.self, List.self, State.self]
+        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self]
     )
 
     /// `--socket` and `--token-file`, shared by every subcommand.
@@ -147,6 +147,43 @@ struct ControlCommand: AsyncParsableCommand {
                 let found = try ControlInvocation.decode(ControlMachine.self, from: data)
                 return "\(found.name) (\(found.id.uuidString)): \(found.state.rawValue)"
             }
+        }
+    }
+
+    struct Start: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Start a machine and wait until it runs or the start fails.",
+            discussion: """
+                Needs a token with the start capability; naming the machine by its name also needs the list capability. A start \
+                the app would ask about (a host folder not yet approved) is refused, never asked. The service answers within \
+                120 seconds; past that it says the start timed out (exit 75) and the start goes on.
+                """
+        )
+
+        @OptionGroup var options: MachineOptions
+
+        func run() async throws {
+            try await options.call(.start, describe: ControlInvocation.stateLine)
+        }
+    }
+
+    struct Stop: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Ask a machine's guest to shut down, or with --force cut its power.",
+            discussion: """
+                Needs a token with the stop capability; naming the machine by its name also needs the list capability. Without \
+                --force the service answers at once (shuttingDown) and the guest shuts down by itself; with --force it answers \
+                once the machine is stopped.
+                """
+        )
+
+        @OptionGroup var options: MachineOptions
+
+        @Flag(help: "Cut the power at once instead of asking the guest to shut down.")
+        var force = false
+
+        func run() async throws {
+            try await options.call(.stop, params: ["force": .bool(force)], describe: ControlInvocation.stateLine)
         }
     }
 }

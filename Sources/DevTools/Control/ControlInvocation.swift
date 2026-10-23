@@ -55,6 +55,12 @@ struct ControlInvocation {
 
     static func text(_ data: Data) -> String { String(bytes: data, encoding: .utf8) ?? "" }
 
+    /// What a start or a stop came to, as `<id>: <state>`.
+    static func stateLine(_ data: Data) throws -> String {
+        let change = try decode(MachineStateChange.self, from: data)
+        return "\(change.id.uuidString): \(change.state.rawValue)"
+    }
+
     /// One line per machine: id, state, guest and name.
     static func lines(listing machines: [ControlMachine]) -> [String] {
         guard !machines.isEmpty else { return ["no machine has agent access"] }
@@ -69,4 +75,10 @@ struct ControlInvocation {
         let object: [String: Any] = ["error": ["code": code, "message": message]]
         return text((try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data())
     }
+}
+
+/// The answer of `machines.start` and `machines.stop`.
+struct MachineStateChange: Decodable {
+    let id: UUID
+    let state: ControlState
 }

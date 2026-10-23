@@ -119,4 +119,56 @@ struct ControlMachineCommandTests {
             #expect(run.output.contains("alpha"))
         }
     }
+
+    @Test
+    func startByNameAnswersOnceTheMachineRuns() async throws {
+        try await withService { fixture in
+            let run = try await VMR.vmr(
+                ["control", "start", "alpha", "--socket", fixture.socket], in: fixture.folder,
+                environment: try fixture.environment([.list, .start]))
+            #expect(run.status == 0, "\(run.combined)")
+            #expect(run.output == "\(alpha.id.uuidString): running\n")
+            #expect(fixture.machines.requests == ["start \(alpha.id.uuidString)"])
+        }
+    }
+
+    @Test
+    func stopAsksTheGuestAndForceCutsThePower() async throws {
+        try await withService { fixture in
+            let environment = try fixture.environment([.stop])
+            let polite = try await VMR.vmr(
+                ["control", "stop", alpha.id.uuidString, "--socket", fixture.socket], in: fixture.folder, environment: environment)
+            #expect(polite.status == 0, "\(polite.combined)")
+            #expect(polite.output == "\(alpha.id.uuidString): shuttingDown\n")
+            let forced = try await VMR.vmr(
+                ["control", "stop", alpha.id.uuidString, "--force", "--json", "--socket", fixture.socket], in: fixture.folder,
+                environment: environment)
+            #expect(forced.status == 0, "\(forced.combined)")
+            #expect(forced.output == #"{"id":"\#(alpha.id.uuidString)","state":"stopped"}"# + "\n")
+            #expect(fixture.machines.requests == ["stop \(alpha.id.uuidString)", "stop \(alpha.id.uuidString) force"])
+        }
+    }
+
+    @Test
+    func aMachineWhoseAgentAccessIsOffIsNotStarted() async throws {
+        try await withService { fixture in
+            let run = try await VMR.vmr(
+                ["control", "start", beta.id.uuidString, "--socket", fixture.socket], in: fixture.folder,
+                environment: try fixture.environment([.start]))
+            #expect(run.status == 1, "\(run.combined)")
+            #expect(run.error.contains("Agent access is off for this machine (-32003)"), "\(run.error)")
+            #expect(fixture.machines.requests.isEmpty)
+        }
+    }
+
+    @Test
+    func aStartWithoutTheCapabilityExits77AndStartsNothing() async throws {
+        try await withService { fixture in
+            let run = try await VMR.vmr(
+                ["control", "start", alpha.id.uuidString, "--socket", fixture.socket], in: fixture.folder,
+                environment: try fixture.environment([.list, .state, .stop]))
+            #expect(run.status == 77, "\(run.combined)")
+            #expect(fixture.machines.requests.isEmpty)
+        }
+    }
 }
