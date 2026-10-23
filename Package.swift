@@ -110,6 +110,7 @@ let package = Package(
             dependencies: [
                 "VMHelperCore",
                 "GuestConsole",
+                "ControlProtocol",
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
