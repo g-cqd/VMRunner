@@ -60,3 +60,22 @@ func transfer(_ rect: GPURect, offset: UInt64, resource: UInt32) -> [UInt8] {
 func word(_ bytes: [UInt8], at offset: Int) -> UInt32 {
     (0..<4).reduce(0) { $0 | UInt32(bytes[offset + $1]) << (8 * $1) }
 }
+
+/// Guest RAM made of regions; a read is answered only when it lies inside one region. Each byte of a region is its offset
+/// in the region plus the region's `seed`, so a test can tell which bytes were copied.
+struct FakeGuestMemory: GuestMemoryReader {
+    var regions: [(address: UInt64, bytes: [UInt8])] = []
+
+    mutating func add(at address: UInt64, count: Int, seed: UInt8 = 0) {
+        regions.append((address, (0..<count).map { UInt8(truncatingIfNeeded: $0) &+ seed }))
+    }
+
+    func copyBytes(atPhysicalAddress address: UInt64, count: Int) -> [UInt8]? {
+        for region in regions where address >= region.address {
+            let start = address - region.address
+            guard start <= UInt64(region.bytes.count), UInt64(count) <= UInt64(region.bytes.count) - start else { continue }
+            return Array(region.bytes[Int(start)..<Int(start) + count])
+        }
+        return nil
+    }
+}
