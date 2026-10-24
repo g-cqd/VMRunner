@@ -7,6 +7,8 @@ included:
   - Tests
   - Packages/Containers/Sources
   - Packages/Containers/Tests
+  - Packages/VirtioGPU/Sources
+  - Packages/VirtioGPU/Tests
 
 excluded:
   - Sources/TestKit

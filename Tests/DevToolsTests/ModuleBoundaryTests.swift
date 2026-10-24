@@ -127,7 +127,25 @@ struct ModuleBoundaryTests {
         #expect(!direct.contains("VMRunner"), "VMHelper names the app target: \(direct)")
     }
 
-    @Test(arguments: ["Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol", "Sources/AgentBridge"])
+    /// The host-implemented GPU device (roadmap 0014) is a package of its own that the app never links: the root manifest
+    /// does not name it, no source of the root package imports it, so `vmr build-app` cannot bundle it, and it depends on
+    /// no package.
+    @Test
+    func theVirtioGPUPackageStaysOutOfTheRootPackageAndTheApp() throws {
+        #expect(!(try Self.manifest()).contains("VirtioGPU"), "the root Package.swift names the VirtioGPU package")
+        for file in try Self.swiftFiles(under: "Sources") {
+            let imported = Self.importedModules(in: try String(contentsOf: file, encoding: .utf8))
+            let forbidden = imported.intersection(["VirtioGPURunnerCore", "VirtioGPURunner"])
+            #expect(forbidden.isEmpty, "\(file.path) imports \(forbidden.sorted())")
+        }
+        let nested = try String(contentsOf: Self.root.appending(path: "Packages/VirtioGPU/Package.swift"), encoding: .utf8)
+        #expect(!nested.contains(".package("), "the VirtioGPU package depends on no package")
+    }
+
+    @Test(arguments: [
+        "Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol", "Sources/AgentBridge",
+        "Packages/VirtioGPU/Sources/VirtioGPURunnerCore",
+    ])
     func noSourceOfTheLibraryTargetsImportsAUserInterfaceOrVirtualizationFramework(directory: String) throws {
         let files = try Self.swiftFiles(under: directory)
         #expect(!files.isEmpty, "\(directory) holds Swift files")

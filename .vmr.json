@@ -1,6 +1,6 @@
 {
-  "lintPaths": ["Sources", "Plugins", "Tests", "Packages/Containers/Sources", "Packages/Containers/Tests"],
-  "packages": ["Packages/Containers"],
+  "lintPaths": ["Sources", "Plugins", "Tests", "Packages/Containers/Sources", "Packages/Containers/Tests", "Packages/VirtioGPU/Sources", "Packages/VirtioGPU/Tests"],
+  "packages": ["Packages/Containers", "Packages/VirtioGPU"],
   "skipTestsWhenInstrumented": ["DevToolsTests"],
   "coverage": {
     "minimum": 55,
