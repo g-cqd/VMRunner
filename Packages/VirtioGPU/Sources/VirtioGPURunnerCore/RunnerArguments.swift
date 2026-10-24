@@ -33,15 +33,20 @@ package struct RunnerOptions: Equatable, Sendable {
     package var maxSeconds = 900
     /// Build and validate the configuration, start nothing.
     package var dryRun = false
+    /// Seconds after the driver is ready at which the device sets the display event in its configuration space, to see
+    /// whether that change reaches the guest.
+    package var probeConfigChangeSeconds: Int?
 
     package static let cpuRange = 1...2
     package static let memoryRange = 1024...2048
     package static let secondsRange = 10...3600
+    package static let probeRange = 1...600
 
     /// The machine's files inside the scratch directory.
     package var variableStorePath: String { directory + "/efi-vars.fd" }
     package var consoleLogPath: String { directory + "/console.log" }
     package var pidPath: String { directory + "/runner.pid" }
+    package var commandsLogPath: String { directory + "/commands.log" }
 }
 
 /// What the command line asks for.
@@ -64,6 +69,8 @@ package enum RunnerArguments {
           --cpus <n>           1 to 2 (default 2)
           --memory-mib <n>     1024 to 2048 (default 2048)
           --max-seconds <n>    10 to 3600 (default 900); the machine is stopped then, whatever it does
+          --probe-config-change <s>  1 to 600: that many seconds after the driver is ready, signal a display change through
+                               the configuration space and record whether the guest asks for the display information again
           --dry-run            build and validate the configuration, start nothing
           --describe           print the virtio identity and the configuration space the guest sees
         """
@@ -81,7 +88,7 @@ package enum RunnerArguments {
             case "-h", "--help": return .help
             case "--describe": return .describe
             case "--dry-run": dryRun = true
-            case "--directory", "--disk", "--seed", "--cpus", "--memory-mib", "--max-seconds":
+            case "--directory", "--disk", "--seed", "--cpus", "--memory-mib", "--max-seconds", "--probe-config-change":
                 guard index < arguments.count else { throw .missingValue(option: argument) }
                 values[argument] = arguments[index]
                 index += 1
@@ -97,6 +104,8 @@ package enum RunnerArguments {
         options.memoryMiB = try number(values["--memory-mib"], option: "--memory-mib", in: RunnerOptions.memoryRange) ?? options.memoryMiB
         options.maxSeconds =
             try number(values["--max-seconds"], option: "--max-seconds", in: RunnerOptions.secondsRange) ?? options.maxSeconds
+        options.probeConfigChangeSeconds = try number(
+            values["--probe-config-change"], option: "--probe-config-change", in: RunnerOptions.probeRange)
         options.dryRun = dryRun
         return .run(options)
     }

@@ -9,11 +9,12 @@ import Virtualization
 final class RunnerMain: NSObject, VZVirtualMachineDelegate {
     private let options: RunnerOptions
     /// Held here because the device provider keeps its delegate weakly.
-    private let device = GPUDevice()
+    private let device: GPUDevice
     private var machine: VZVirtualMachine?
 
     init(options: RunnerOptions) {
         self.options = options
+        device = GPUDevice(probeConfigChangeSeconds: options.probeConfigChangeSeconds)
     }
 
     /// Builds and validates the configuration without writing a file or starting anything.
@@ -61,8 +62,15 @@ final class RunnerMain: NSObject, VZVirtualMachineDelegate {
         }
     }
 
+    /// Writes the command record to `commands.log` (private), then ends the process.
     private func finish(_ text: String, status: Int32) {
         device.log(text)
+        let report = Data(device.report().utf8)
+        if FileManager.default.createFile(atPath: options.commandsLogPath, contents: report, attributes: [.posixPermissions: 0o600]) {
+            device.log("command record written to \(options.commandsLogPath)")
+        } else {
+            device.log("could not write \(options.commandsLogPath)")
+        }
         exit(status)
     }
 

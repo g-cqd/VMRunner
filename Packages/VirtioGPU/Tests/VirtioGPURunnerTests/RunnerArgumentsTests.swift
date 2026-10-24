@@ -31,17 +31,20 @@ struct RunnerArgumentsTests {
         #expect(parsed.variableStorePath == "/tmp/gpu-run/efi-vars.fd")
         #expect(parsed.consoleLogPath == "/tmp/gpu-run/console.log")
         #expect(parsed.pidPath == "/tmp/gpu-run/runner.pid")
+        #expect(parsed.commandsLogPath == "/tmp/gpu-run/commands.log")
+        #expect(parsed.probeConfigChangeSeconds == nil)
     }
 
     @Test
     func everyOptionIsRead() throws {
         let parsed = try options([
             "--dry-run", "--seed", "/tmp/s/seed.iso", "--cpus", "1", "--memory-mib", "1024", "--max-seconds", "60",
-            "--directory", "/tmp/r", "--disk", "/tmp/d.raw",
+            "--directory", "/tmp/r", "--disk", "/tmp/d.raw", "--probe-config-change", "30",
         ])
         #expect(parsed.seed == "/tmp/s/seed.iso")
         #expect([parsed.cpuCount, parsed.memoryMiB, parsed.maxSeconds] == [1, 1024, 60])
         #expect(parsed.dryRun)
+        #expect(parsed.probeConfigChangeSeconds == 30)
     }
 
     @Test
@@ -68,6 +71,10 @@ struct RunnerArgumentsTests {
             .outOfRange(option: "--max-seconds", value: 3601, allowed: 10...3600)
         ),
         (["--directory", "/tmp/r", "--disk", "/tmp/d", "--cpus", "two"], .notANumber(option: "--cpus", value: "two")),
+        (
+            ["--directory", "/tmp/r", "--disk", "/tmp/d", "--probe-config-change", "0"],
+            .outOfRange(option: "--probe-config-change", value: 0, allowed: 1...600)
+        ),
         (["--directory", "tmp/r", "--disk", "/tmp/d"], .notAbsolute(option: "--directory", path: "tmp/r")),
         (["--directory", "/tmp/../Users/someone", "--disk", "/tmp/d"], .notAbsolute(option: "--directory", path: "/tmp/../Users/someone")),
         (["--directory", "/tmp/r", "--disk", "/tmp/./d"], .notAbsolute(option: "--disk", path: "/tmp/./d")),
