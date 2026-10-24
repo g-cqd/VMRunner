@@ -12,11 +12,19 @@ private func policy(_ configure: (inout NetworkPolicy) throws -> Void) rethrows 
     return value
 }
 
-/// Whether this process may open an unprivileged ICMP socket (a sandbox may forbid it).
+/// Whether this host really answers a loopback echo through an unprivileged ICMP socket. Creating the socket is not
+/// enough: a sandbox may forbid it, and the Application Firewall's stealth mode (seen on macOS 27) drops echo requests
+/// addressed to local addresses. So the gate sends one echo request to 127.0.0.1 and waits up to 1 second for a reply.
 private let icmpSocketsWork: Bool = {
     guard let descriptor = SocketCalls.makeSocket(type: SOCK_DGRAM, protocolNumber: Int32(IPPROTO_ICMP)) else { return false }
-    SocketCalls.close(descriptor)
-    return true
+    defer { SocketCalls.close(descriptor) }
+    guard SocketCalls.connect(descriptor, address: loopback, port: 0) == 0 else { return false }
+    // Type 8 (echo request), code 0, checksum 0xE5CA (0xFFFF - 0x0800 - 0x1234 - 0x0001), identifier 0x1234, sequence 1.
+    let request: [UInt8] = [8, 0, 0xE5, 0xCA, 0x12, 0x34, 0, 1]
+    let sent = request.withUnsafeBytes { unsafe send(descriptor, $0.baseAddress, $0.count, 0) }
+    guard sent == request.count else { return false }
+    var entry = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+    return unsafe poll(&entry, 1, 1_000) == 1 && entry.revents & Int16(POLLIN) != 0
 }()
 
 extension UserNetIntegration {
@@ -219,7 +227,8 @@ extension UserNetIntegration {
             }
         }
 
-        @Test(.enabled(if: icmpSocketsWork, "needs an unprivileged ICMP socket")) func pingToLoopbackThroughTheStack() async throws {
+        @Test(.enabled(if: icmpSocketsWork, "needs a host that answers loopback ICMP echo (not a sandbox, not Firewall stealth mode)"))
+        func pingToLoopbackThroughTheStack() async throws {
             try await withNetwork { network in
                 network.guest.ping(loopback, identifier: 0x3344, sequence: 7)
                 let reply = try #require(network.guest.receivePingReply(timeout: 5))
@@ -228,7 +237,8 @@ extension UserNetIntegration {
             }
         }
 
-        @Test(.enabled(if: icmpSocketsWork, "needs an unprivileged ICMP socket")) func aDeniedPingGetsNoAnswer() async throws {
+        @Test(.enabled(if: icmpSocketsWork, "needs a host that answers loopback ICMP echo (not a sandbox, not Firewall stealth mode)"))
+        func aDeniedPingGetsNoAnswer() async throws {
             try await withNetwork(policy: NetworkPolicy(), config: UserNetConfig()) { network in
                 network.guest.ping(loopback, identifier: 1)
                 #expect(network.guest.receivePingReply(timeout: 0.3) == nil)
