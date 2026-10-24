@@ -33,18 +33,21 @@ struct RunnerArgumentsTests {
         #expect(parsed.pidPath == "/tmp/gpu-run/runner.pid")
         #expect(parsed.commandsLogPath == "/tmp/gpu-run/commands.log")
         #expect(parsed.probeConfigChangeSeconds == nil)
+        #expect(!parsed.headlessDump && !parsed.window)
+        #expect(parsed.scanoutPNGPath == "/tmp/gpu-run/scanout.png")
     }
 
     @Test
     func everyOptionIsRead() throws {
         let parsed = try options([
             "--dry-run", "--seed", "/tmp/s/seed.iso", "--cpus", "1", "--memory-mib", "1024", "--max-seconds", "60",
-            "--directory", "/tmp/r", "--disk", "/tmp/d.raw", "--probe-config-change", "30",
+            "--directory", "/tmp/r", "--disk", "/tmp/d.raw", "--probe-config-change", "30", "--headless-dump", "--window",
         ])
         #expect(parsed.seed == "/tmp/s/seed.iso")
         #expect([parsed.cpuCount, parsed.memoryMiB, parsed.maxSeconds] == [1, 1024, 60])
         #expect(parsed.dryRun)
         #expect(parsed.probeConfigChangeSeconds == 30)
+        #expect(parsed.headlessDump && parsed.window)
     }
 
     @Test
@@ -59,7 +62,7 @@ struct RunnerArgumentsTests {
         (["--disk", "/tmp/d"], .missing(option: "--directory")),
         ([], .missing(option: "--directory")),
         (["--directory"], .missingValue(option: "--directory")),
-        (["--window"], .unknownOption("--window")),
+        (["--bogus"], .unknownOption("--bogus")),
         (["--directory", "/tmp/r", "--disk", "/tmp/d", "--cpus", "3"], .outOfRange(option: "--cpus", value: 3, allowed: 1...2)),
         (["--directory", "/tmp/r", "--disk", "/tmp/d", "--cpus", "0"], .outOfRange(option: "--cpus", value: 0, allowed: 1...2)),
         (

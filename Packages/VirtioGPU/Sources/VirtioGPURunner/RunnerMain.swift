@@ -14,7 +14,12 @@ final class RunnerMain: NSObject, VZVirtualMachineDelegate {
 
     init(options: RunnerOptions) {
         self.options = options
-        device = GPUDevice(probeConfigChangeSeconds: options.probeConfigChangeSeconds)
+        let device = GPUDevice(probeConfigChangeSeconds: options.probeConfigChangeSeconds)
+        var sinks: [any ScanoutSink] = []
+        if options.headlessDump { sinks.append(ScanoutDump(path: options.scanoutPNGPath) { device.log($0) }) }
+        if options.window { sinks.append(ScanoutWindow()) }
+        device.sinks = sinks
+        self.device = device
     }
 
     /// Builds and validates the configuration without writing a file or starting anything.
@@ -45,6 +50,16 @@ final class RunnerMain: NSObject, VZVirtualMachineDelegate {
                 }
             }
         }
+        let sinks = device.sinks
+        if !sinks.isEmpty {
+            // Ends with the runner; the process ends with it in any case.
+            Task { @MainActor [weak self, device] in
+                while self != nil {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    for sink in sinks { sink.tick(atMilliseconds: device.milliseconds) }
+                }
+            }
+        }
         let limit = options.maxSeconds
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(limit))
@@ -62,9 +77,10 @@ final class RunnerMain: NSObject, VZVirtualMachineDelegate {
         }
     }
 
-    /// Writes the command record to `commands.log` (private), then ends the process.
+    /// Writes the newest picture and the command record to `commands.log` (private), then ends the process.
     private func finish(_ text: String, status: Int32) {
         device.log(text)
+        for sink in device.sinks { sink.finish() }
         let report = Data(device.report().utf8)
         if FileManager.default.createFile(atPath: options.commandsLogPath, contents: report, attributes: [.posixPermissions: 0o600]) {
             device.log("command record written to \(options.commandsLogPath)")

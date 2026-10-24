@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import VirtioGPURunnerCore
 
@@ -37,10 +38,15 @@ case .run(let options):
             Output.line("configuration valid")
             exit(0)
         }
+        if options.window { NSApplication.shared.setActivationPolicy(.regular) }
         try runner.start()
     } catch {
         Output.line("error: \(error)", error: true)
         exit(1)
     }
-    withExtendedLifetime(runner) { dispatchMain() }
+    // A window needs the application's event loop; a headless run needs only the main queue.
+    withExtendedLifetime(runner) {
+        if options.window { NSApplication.shared.run() }
+        dispatchMain()
+    }
 }

@@ -36,6 +36,10 @@ package struct RunnerOptions: Equatable, Sendable {
     /// Seconds after the driver is ready at which the device sets the display event in its configuration space, to see
     /// whether that change reaches the guest.
     package var probeConfigChangeSeconds: Int?
+    /// Write the newest scanout picture to `scanout.png`, at most once a second and once at the end.
+    package var headlessDump = false
+    /// Show the scanout in a window of the runner's own.
+    package var window = false
 
     package static let cpuRange = 1...2
     package static let memoryRange = 1024...2048
@@ -47,6 +51,7 @@ package struct RunnerOptions: Equatable, Sendable {
     package var consoleLogPath: String { directory + "/console.log" }
     package var pidPath: String { directory + "/runner.pid" }
     package var commandsLogPath: String { directory + "/commands.log" }
+    package var scanoutPNGPath: String { directory + "/scanout.png" }
 }
 
 /// What the command line asks for.
@@ -71,6 +76,8 @@ package enum RunnerArguments {
           --max-seconds <n>    10 to 3600 (default 900); the machine is stopped then, whatever it does
           --probe-config-change <s>  1 to 600: that many seconds after the driver is ready, signal a display change through
                                the configuration space and record whether the guest asks for the display information again
+          --headless-dump      write the newest scanout picture to scanout.png in the directory (at most once a second)
+          --window             show the scanout in a window of the runner's own
           --dry-run            build and validate the configuration, start nothing
           --describe           print the virtio identity and the configuration space the guest sees
         """
@@ -80,6 +87,8 @@ package enum RunnerArguments {
     package static func parse(_ arguments: [String], home: String) throws(RunnerArgumentError) -> RunnerRequest {
         var values: [String: String] = [:]
         var dryRun = false
+        var headlessDump = false
+        var window = false
         var index = 0
         while index < arguments.count {
             let argument = arguments[index]
@@ -88,6 +97,8 @@ package enum RunnerArguments {
             case "-h", "--help": return .help
             case "--describe": return .describe
             case "--dry-run": dryRun = true
+            case "--headless-dump": headlessDump = true
+            case "--window": window = true
             case "--directory", "--disk", "--seed", "--cpus", "--memory-mib", "--max-seconds", "--probe-config-change":
                 guard index < arguments.count else { throw .missingValue(option: argument) }
                 values[argument] = arguments[index]
@@ -107,6 +118,8 @@ package enum RunnerArguments {
         options.probeConfigChangeSeconds = try number(
             values["--probe-config-change"], option: "--probe-config-change", in: RunnerOptions.probeRange)
         options.dryRun = dryRun
+        options.headlessDump = headlessDump
+        options.window = window
         return .run(options)
     }
 

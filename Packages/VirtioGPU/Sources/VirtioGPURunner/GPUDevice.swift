@@ -20,12 +20,15 @@ final class GPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate, VZCu
     private var flushes = 0
     private var failures = 0
     private var probeArmed = false
+    /// Where each new picture of the scanout goes (the window, the PNG file); none in a run without either.
+    var sinks: [any ScanoutSink] = []
 
     init(probeConfigChangeSeconds: Int?) {
         self.probeConfigChangeSeconds = probeConfigChangeSeconds
     }
 
-    private var milliseconds: UInt64 {
+    /// Milliseconds since the device object was made: the clock of the log, the record and the pictures.
+    var milliseconds: UInt64 {
         let elapsed = ContinuousClock.now - started
         return UInt64(elapsed.components.seconds) * 1000 + UInt64(elapsed.components.attoseconds / 1_000_000_000_000_000)
     }
@@ -111,6 +114,7 @@ final class GPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate, VZCu
         if let update = handled.scanoutUpdate {
             flushes += 1
             if flushes == 1 { log("first scanout flush: \(update.width) x \(update.height), format \(update.format)") }
+            for sink in sinks { sink.show(update, atMilliseconds: milliseconds) }
         }
         if let response = handled.response { answer(element, with: response) }
     }
