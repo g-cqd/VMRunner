@@ -97,6 +97,7 @@ picture) and copy the log lines it produced. After each step wait two seconds so
 5. Move the window to the external display and resize it there; then back.
 6. With "Resize guest display with window" off (in the machine's Display section), resize the window: the picture should scale and stay centred.
 7. Suspend, resume, and repeat step 2.
+8. With a macOS guest running, move the window from a Retina display to a non-Retina one and back: the picture should keep its size and sharpness, with no stale area (the framework reconfigures the display itself; the density is the configured one).
 
 Report, per step: the window size in points and the scanout size in pixels (the log lines `container … pt`, `asked for … px`,
 `framework finished reconfiguring the display; it is … px`), the backing scale, whether each request got `guest responded` or
