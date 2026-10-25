@@ -95,8 +95,13 @@ private struct HelpParagraph: View {
 extension View {
     /// Adds a tooltip with the topic's summary and a trailing "?" button that opens its explanation.
     func settingHelp(_ topic: HelpTopic) -> some View {
+        settingHelp(topic, tooltip: topic.summary)
+    }
+
+    /// Like `settingHelp(_:)`, with the row's own tooltip in place of the topic's summary.
+    func settingHelp(_ topic: HelpTopic, tooltip: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            self.help(topic.summary)
+            self.help(tooltip)
             HelpButton(topic)
         }
     }

@@ -30,11 +30,14 @@ struct NetworkSection: View {
         Picker("When a connection is blocked", selection: $config.networkDenyAction) {
             ForEach(DenyAction.allCases) { Text($0.label).tag($0) }
         }
-        .help("Refusing fails fast and tells the guest. Ignoring reveals less, but programs in the guest hang until they time out.")
+        .settingHelp(
+            .networkPolicy,
+            tooltip: "Refusing fails fast and tells the guest. Ignoring reveals less, but programs in the guest hang until they time out.")
         Toggle("Reset connections when my Mac changes network", isOn: $config.networkResetsOnHostChange)
-            .help(
-                "When Wi-Fi, Ethernet or a VPN changes, open connections are reset so the guest reconnects over the new path. "
-                    + "Off: they stay and may stall. Applies at the next start.")
+            .settingHelp(
+                .networkPolicy,
+                tooltip: "When Wi-Fi, Ethernet or a VPN changes, open connections are reset so the guest reconnects over the new "
+                    + "path. Off: they stay and may stall. Applies at the next start.")
         Text("Filtered networking is VMRunner's own network stack. It has not been validated against every guest.")
             .font(.caption).foregroundStyle(.secondary)
     }

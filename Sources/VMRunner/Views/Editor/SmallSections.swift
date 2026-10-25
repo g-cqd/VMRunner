@@ -31,10 +31,10 @@ struct AudioSection: View {
 
     var body: some View {
         Section {
-            Toggle("Sound output", isOn: $output).help(HelpTopic.audio.summary)
+            Toggle("Sound output", isOn: $output).settingHelp(.audio)
             Toggle("Microphone input", isOn: $input)
                 .managedLock(.allowMicrophone)
-                .help("The guest can record from your Mac's microphone. Leave off unless needed.")
+                .settingHelp(.audio, tooltip: "The guest can record from your Mac's microphone. Leave off unless needed.")
         } header: {
             HelpHeader("Audio", topic: .audio)
         }
@@ -97,7 +97,7 @@ struct BootSection: View {
         }
         if !hasBooted, #available(macOS 27.0, *) {
             Section {
-                Toggle("Create account automatically", isOn: $provisioning.enabled)
+                Toggle("Create account automatically", isOn: $provisioning.enabled).settingHelp(.firstBootAccount)
                 if provisioning.enabled {
                     TextField("Full name", text: $provisioning.fullName.limited())
                     TextField("Username", text: $provisioning.username.limited())

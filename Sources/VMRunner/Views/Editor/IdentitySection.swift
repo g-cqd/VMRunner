@@ -32,6 +32,7 @@ struct IdentitySection: View {
             }
             TextField("Disk serial number", text: serial, prompt: Text("None"))
                 .disabled(config.guest == .linux && config.diskInterface == .nvme)
+                .settingHelp(.guestIdentity)
             Toggle("New identity at each start", isOn: $config.freshIdentityPerStart)
                 .disabled(!config.ephemeral)
                 .settingHelp(.guestIdentity)

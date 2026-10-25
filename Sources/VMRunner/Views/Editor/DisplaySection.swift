@@ -26,7 +26,6 @@ struct DisplaySection: View {
                         + "a server) cannot follow the window: switch the resizing below off for it."
                 )
                 .font(.caption).foregroundStyle(.secondary)
-                .settingHelp(.linuxBootText)
             }
             Toggle("Resize guest display with window", isOn: $followsWindow)
                 .settingHelp(.resizeWithWindow)
@@ -38,7 +37,7 @@ struct DisplaySection: View {
                 .settingHelp(.pixelsPerPoint)
             }
         } header: {
-            HelpHeader("Display", topic: .resolution)
+            HelpHeader("Display", topic: guest == .linux ? .linuxBootText : .resolution)
         }
     }
 
