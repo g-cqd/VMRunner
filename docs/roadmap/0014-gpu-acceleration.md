@@ -39,8 +39,16 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   scanout's pictures and the guest's cursor, and a request to resize the display, which sets the display event in the
   configuration space and answers the next display-information request with the new size. The size may be up to 8192 on a
   side as long as one picture fits a resource (64 MiB), so 4K and 5K are allowed and 8K is not; a cursor image above 256 on a
-  side is treated as no cursor. Nothing builds a machine with it yet, and it has not run against a guest: the host tests
-  check the configuration it hands the framework and the library's behaviour.
+  side is treated as no cursor. A queue notification is served in turns of at most 32 elements: when a turn ends on its
+  budget, another is scheduled on the main actor, because the guest does not notify again for the rest of a batch and the
+  framework offers no look at the queue without taking an element (the library's `serveTurn`, tested with a fake queue).
+- The builder: a Linux machine set to the custom GPU gets that device as its one custom virtio device and no framework
+  graphics device; the USB keyboard and pointer stay. The machine's factory makes the device on the main actor
+  (`CustomGPUSession`: the device and the `CustomScreen` it draws on, seen by the rest of the app only as a
+  `CustomDisplaySource`) and the machine object holds it, because the framework holds the device it makes weakly. Its
+  display starts at the size the start chose, scaled down to the library's limits. A host older than macOS 27 refuses the
+  machine with a message. The picture of each flush is kept as the newest one; nothing shows it yet. It has not run against
+  a guest: the host tests check the configuration the builder hands the framework and the library's behaviour.
 - The scanout: `--headless-dump` writes the newest picture to `scanout.png` in the scratch directory (at most once a
   second), `--window` shows it in the runner's own window. The picture goes through a temporary file created with mode 0600
   and renamed into place, so it is never readable by others, not even for a moment.
@@ -91,9 +99,9 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 
 ## Remaining
 
-1. The app's side (ADR-0058): the builder that puts the device in a Linux machine's configuration, behind macOS 27, and the
-   machine's window that shows the sinks' pictures and cursor. The adapter takes every queue element of a notification before
-   it returns; a per-turn budget so that a guest cannot hold the main queue is to be decided there.
+1. The app's side (ADR-0058): the machine's window that shows the screen's picture and cursor. Each flush already copies the
+   scanout's rows once in the library (about 4 MB at 1280 × 800) before the window decides whether to draw it; a picture made
+   only when the window asks would avoid that copy for the flushes it skips.
 2. Resizing: the configuration update re-triggers the display-information request (measured above) and the adapter answers
    it with the new size, but a second resize has not been tried (the event bit stays set in the configuration space) and the
    window that asks for the size does not exist yet.

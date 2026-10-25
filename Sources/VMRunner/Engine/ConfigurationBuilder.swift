@@ -26,9 +26,9 @@ enum ConfigurationBuilder {
     /// is sent back to the caller.
     @concurrent
     static func buildInBackground(
-        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil
     ) async throws -> sending Built {
-        try build(config, bundle: bundle, display: display)
+        try build(config, bundle: bundle, display: display, customGPU: customGPU)
     }
 
     /// A validated configuration, and the user-mode network stack its NIC talks to when the machine is `.filtered`.
@@ -44,7 +44,10 @@ enum ConfigurationBuilder {
         let consoleBridge: ConsoleBridge?
     }
 
-    static func build(_ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil) throws -> Built {
+    /// `customGPU` is the machine's custom GPU, made by the caller on the main actor; a Linux machine set to use it needs it.
+    static func build(
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil
+    ) throws -> Built {
         let display = display ?? (config.displayWidth, config.displayHeight)
         let vz = VZVirtualMachineConfiguration()
         vz.cpuCount = min(max(config.cpuCount, cpuRange.lowerBound), cpuRange.upperBound)
@@ -52,7 +55,7 @@ enum ConfigurationBuilder {
 
         switch config.guest {
         case .macOS: try configureMac(vz, config, bundle, display)
-        case .linux: try configureLinux(vz, config, bundle, display)
+        case .linux: try configureLinux(vz, config, bundle, display, customGPU)
         }
 
         vz.storageDevices += try storage(for: config, bundle: bundle)
@@ -135,7 +138,8 @@ enum ConfigurationBuilder {
     // MARK: Linux
 
     private static func configureLinux(
-        _ vz: VZVirtualMachineConfiguration, _ config: VMConfig, _ bundle: VMBundle, _ display: (width: Int, height: Int)
+        _ vz: VZVirtualMachineConfiguration, _ config: VMConfig, _ bundle: VMBundle, _ display: (width: Int, height: Int),
+        _ customGPU: (any CustomDisplaySource)?
     ) throws {
         let platform = VZGenericPlatformConfiguration()
         if let data = try? Data(contentsOf: bundle.activeMachineIdentifier(ephemeral: config.ephemeral)),
@@ -157,12 +161,7 @@ enum ConfigurationBuilder {
         boot.variableStore = variableStore
         vz.bootLoader = boot
 
-        let graphics = VZVirtioGraphicsDeviceConfiguration()
-        // The framework supports exactly one scanout per graphics device.
-        graphics.scanouts = [VZVirtioGraphicsScanoutConfiguration(widthInPixels: display.width, heightInPixels: display.height)]
-        vz.graphicsDevices = [graphics]
-        vz.keyboards = [VZUSBKeyboardConfiguration()]
-        vz.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
+        try configureLinuxScreen(vz, config, display, customGPU: customGPU)
 
         if config.sharesClipboard {
             let attachment = VZSpiceAgentPortAttachment()

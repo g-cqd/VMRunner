@@ -8,6 +8,9 @@ import os
 @MainActor
 final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     let machine: VZVirtualMachine
+    /// The machine's custom GPU, when it has one. The framework holds the device it makes weakly, so this is what keeps the
+    /// device alive: it lives and ends with this object.
+    let customDisplay: (any CustomDisplaySource)?
     /// Serves the guest's serial console on a local socket. It starts with the machine and ends when this object is released
     /// (or earlier, when the guest side of the port closes), so the socket exists exactly while the machine can use it.
     private let console: ConsoleBridge?
@@ -29,10 +32,12 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
 
     init(
-        machine: VZVirtualMachine, console: ConsoleBridge? = nil, networkCutoff: NetworkCutoff? = nil,
-        hostInfo: HostInfoPublisher? = nil, startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
+        machine: VZVirtualMachine, customDisplay: (any CustomDisplaySource)? = nil, console: ConsoleBridge? = nil,
+        networkCutoff: NetworkCutoff? = nil, hostInfo: HostInfoPublisher? = nil,
+        startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
     ) {
         self.machine = machine
+        self.customDisplay = customDisplay
         self.console = console
         self.networkCutoff = networkCutoff
         self.hostInfo = hostInfo
@@ -117,7 +122,9 @@ struct VZMachineFactory: MachineFactory {
         // that cannot be used stops the start with its line. The disposable copy, which clears the run's leftovers, is made before.
         // The configuration is clamped again here: a managed key that arrived after the library loaded still blocks the seed.
         try await ProvisioningSeed.prepare(for: ManagedPreferences.current.clamp(config), bundle: bundle)
-        let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display)
+        // The custom GPU is made here, on the main actor, and handed to the machine, which keeps it for as long as it lives.
+        let customGPU = Self.customGPU(for: config, display: display)
+        let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display, customGPU: customGPU)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend =
             config.customGPUSuspendReason().map { SuspendSupport.unavailable(reason: $0) }
@@ -125,13 +132,20 @@ struct VZMachineFactory: MachineFactory {
         let machine = VZVirtualMachine(configuration: built.configuration)
         return PreparedMachine(
             machine: VZGuestMachine(
-                machine: machine, console: built.consoleBridge,
+                machine: machine, customDisplay: customGPU, console: built.consoleBridge,
                 networkCutoff: config.hasNetworkCutoff ? NetworkCutoff(config: config) : nil,
                 hostInfo: config.hostInfo.isEmpty ? nil : HostInfoPublisher(directory: bundle.hostInfoFolder, sharing: config.hostInfo),
                 startOptions: { try Self.startOptions(for: config) }),
             network: network,
             suspend: suspend
         )
+    }
+
+    /// The custom GPU of a machine set to use it, or `nil` for any other machine and on a host that cannot build the device
+    /// (the builder then refuses the machine with a message).
+    private static func customGPU(for config: VMConfig, display: (width: Int, height: Int)) -> (any CustomDisplaySource)? {
+        guard config.usesCustomGPU, #available(macOS 27.0, *) else { return nil }
+        return CustomGPUSession(display: display)
     }
 
     private static func suspendSupport(

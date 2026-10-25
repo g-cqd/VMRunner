@@ -7,6 +7,13 @@ import Virtualization
 protocol GuestMachine: Workload {
     /// The framework's machine, for the view that displays it; `nil` for a test double.
     var virtualMachine: VZVirtualMachine? { get }
+    /// The machine's custom GPU, for the view that displays it; `nil` for a machine that has the framework's own graphics device
+    /// and for a test double.
+    var customDisplay: (any CustomDisplaySource)? { get }
+}
+
+extension GuestMachine {
+    var customDisplay: (any CustomDisplaySource)? { nil }
 }
 
 /// Whether a configuration's memory can be saved, and if not, what to tell the user.

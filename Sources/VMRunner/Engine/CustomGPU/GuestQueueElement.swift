@@ -24,3 +24,13 @@ struct GuestQueueElement: QueueElement {
         element.returnToQueue()
     }
 }
+
+/// A queue of the framework, as the library takes elements from it.
+@available(macOS 27.0, *)
+struct GuestQueue: ElementQueue {
+    let queue: VZVirtioQueue
+
+    func nextElement() -> GuestQueueElement? {
+        queue.nextElement().map { GuestQueueElement(element: $0) }
+    }
+}

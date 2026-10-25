@@ -31,6 +31,19 @@ package struct GPULimits: Equatable, Sendable {
         return Int(width) * Int(height) * GPUPixelFormat.bytesPerPixel <= maxResourceBytes
     }
 
+    /// `width` × `height` made to satisfy `allowsDisplay`: each side at least 1 and at most `maxDisplaySide`, and when the picture
+    /// is still too large for one resource, both sides scaled down together, which keeps the aspect ratio.
+    package func fittingDisplay(width: UInt32, height: UInt32) -> (width: UInt32, height: UInt32) {
+        var fitted = (width: min(max(width, 1), maxDisplaySide), height: min(max(height, 1), maxDisplaySide))
+        let pixels = Double(fitted.width) * Double(fitted.height)
+        let room = Double(maxResourceBytes / GPUPixelFormat.bytesPerPixel)
+        if pixels > room {
+            let scale = (room / pixels).squareRoot()
+            fitted = (width: max(UInt32(Double(fitted.width) * scale), 1), height: max(UInt32(Double(fitted.height) * scale), 1))
+        }
+        return fitted
+    }
+
     /// The longest request the device reads: an attach-backing header followed by the most entries it accepts.
     package var maxCommandBytes: Int { GPUWireSize.attachBacking + GPUWireSize.memoryEntry * maxBackingEntries }
 }

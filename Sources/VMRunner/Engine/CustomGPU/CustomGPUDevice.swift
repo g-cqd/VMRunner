@@ -7,9 +7,13 @@ import os
 /// which need macOS 27. The framework calls it on the device queue, which is the main queue, so its state is main-actor state.
 /// The library decides everything about a request (`GPUDeviceState.serve`); this class gives it the framework's queue elements
 /// and guest memory, passes the pictures and cursor changes on to its sinks, and tells the guest when the display changed.
+///
+/// The configuration is made off the main actor, with the rest of the machine's configuration, so the conformance to the
+/// configuration delegate is `@preconcurrency`: the framework still calls the object only on the main queue, and the compiler
+/// checks that at run time instead of refusing to hand the object over.
 @available(macOS 27.0, *)
 @MainActor
-final class CustomGPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate, VZCustomVirtioDeviceDelegate {
+final class CustomGPUDevice: NSObject, @preconcurrency VZCustomVirtioDeviceConfigurationDelegate, VZCustomVirtioDeviceDelegate {
     /// Where the guest's picture goes: each new picture of the scanout and each change of the guest's cursor. Both run on the
     /// main actor, inside the device's handling of a request, so they must not block.
     struct Sinks {
@@ -25,10 +29,16 @@ final class CustomGPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate
         case writeFailed
     }
 
+    /// How many elements one turn serves before the main queue is given back to the app. Each element is bounded by the
+    /// library's limits, so a turn is too, and a guest that keeps the ring full cannot keep the main queue.
+    static let turnBudget = 32
+
     private let sinks: Sinks
     private var state: GPUDeviceState
     private var device: VZCustomVirtioDevice?
     private var logged: Set<Trouble> = []
+    /// The queues with a later turn already scheduled, so a busy guest does not pile up tasks.
+    private var resuming: Set<UInt16> = []
 
     init(limits: GPULimits = GPULimits(), sinks: Sinks) {
         state = GPUDeviceState(limits: limits)
@@ -53,14 +63,22 @@ final class CustomGPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate
     }
 
     func customVirtioDevice(_ device: VZCustomVirtioDevice, didReceiveNotificationFor queue: VZVirtioQueue) {
+        serveTurn(of: queue, on: device)
+    }
+
+    /// Serves up to `turnBudget` elements. A guest that notifies once for a batch does not notify again for the rest of it, so
+    /// when the budget ended the turn another one is scheduled on the main actor, after whatever else is waiting there. The
+    /// framework gives no way to look at the queue without taking an element, so that turn may find it empty.
+    private func serveTurn(of queue: VZVirtioQueue, on device: VZCustomVirtioDevice) {
         let kind: GPUQueueKind = queue.queueIndex == GPUWire.cursorQueue ? .cursor : .control
-        let memory = GuestMemoryMapping(device: device)
-        // Every element is taken before the method returns: a guest that notifies once does not notify again for them.
-        while let element = queue.nextElement() {
-            let outcome = state.serve(GuestQueueElement(element: element), on: kind, memory: memory) { handled in
-                self.deliver(handled)
-            }
-            note(outcome)
+        let more = state.serveTurn(
+            from: GuestQueue(queue: queue), on: kind, memory: GuestMemoryMapping(device: device), budget: Self.turnBudget,
+            whenHandled: { self.deliver($0) }, whenServed: { self.note($0) })
+        guard more, resuming.insert(queue.queueIndex).inserted else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            resuming.remove(queue.queueIndex)
+            serveTurn(of: queue, on: device)
         }
     }
 

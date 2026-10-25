@@ -35,6 +35,13 @@ package enum ServeOutcome {
     case unreadable(length: Int, error: any Error)
 }
 
+/// A virtio queue as the device takes elements from it: the next element the guest made available, or `nil` when none waits.
+/// An adapter conforms its framework's queue to this protocol, so `serveTurn` is written once and tested without a machine.
+package protocol ElementQueue {
+    associatedtype Element: QueueElement
+    func nextElement() -> Element?
+}
+
 extension GPUDeviceState {
     /// Serves one queue element, whatever it holds. The request is read once, in one piece, and a request longer than
     /// `GPULimits.maxCommandBytes` only as far as its header, which is answered as an invalid parameter on the control queue.
@@ -59,6 +66,23 @@ extension GPUDeviceState {
         whenHandled(handled)
         guard let response = handled.response else { return .handled(answer: .notNeeded) }
         return .handled(answer: Self.write(response, to: element))
+    }
+
+    /// Serves at most `budget` elements of `queue` (at least one), so that a guest which refills the ring as fast as it is
+    /// drained cannot keep the caller's thread for good. Returns `true` when the budget ended the turn: more elements may still
+    /// wait, and the caller must come back for them, because the guest notifies once for a batch and not again. Returns `false`
+    /// when the queue ran dry first. `whenServed` sees the outcome of each element, `whenHandled` its carried-out command.
+    package mutating func serveTurn(
+        from queue: some ElementQueue, on kind: GPUQueueKind, memory: some GuestMemoryReader, budget: Int,
+        whenHandled: (HandledCommand) -> Void = { _ in }, whenServed: (ServeOutcome) -> Void = { _ in }
+    ) -> Bool {
+        let budget = max(budget, 1)
+        var served = 0
+        while served < budget, let element = queue.nextElement() {
+            whenServed(serve(element, on: kind, memory: memory, whenHandled: whenHandled))
+            served += 1
+        }
+        return served == budget
     }
 
     /// Reads only the header of an element that is too long, and answers it on the control queue.
