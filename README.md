@@ -161,7 +161,7 @@ Sources/NetStack    the user-mode network stack behind Filtered networking (link
 Sources/GuestSeed   the provisioning spec, its compiler to a cloud-init seed and the seed's ISO 9660 image (the app builds a machine's seed with it)
 Sources/ControlProtocol   the control service's protocol: JSON-RPC, tokens, connection, listener and client (links GuestConsole; public API, ADR-0056)
 Sources/AgentBridge   the MCP server over stdio: four tools, each a call of the control service (links ControlProtocol and GuestConsole; not the app)
-Sources/VirtioGPU   the pure core of the host-implemented virtio GPU: wire format, resource store, device state (imports nothing; ADR-0058)
+Sources/VirtioGPU   the pure core of the host-implemented virtio GPU: wire format, resource store, device state (imports nothing; the app links it; ADR-0058)
 Sources/VirtioGPURunner   boots one Linux guest on that GPU to measure it; the owner runs it, the app neither links nor bundles it (command line in VirtioGPURunnerCore)
 Sources/VMRunner
   Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),

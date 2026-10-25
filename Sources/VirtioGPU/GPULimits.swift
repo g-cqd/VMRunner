@@ -12,11 +12,24 @@ package struct GPULimits: Equatable, Sendable {
     /// The most rows a transfer of a rectangle narrower than its resource may copy. Such a transfer is read one span per row,
     /// so its cost grows with its rows rather than its bytes. The Linux driver's scanouts are at most 8192 rows high.
     package var maxTransferRows = 8192
-    /// The size of the one display the device reports.
+    /// The size of the one display the device reports until the host changes it.
     package var displayWidth: UInt32 = 1280
     package var displayHeight: UInt32 = 800
+    /// The longest side the host may give the display, in pixels: the Linux driver's own bound. With `maxResourceBytes` it
+    /// allows a 4K or a 5K display (a 5120 × 2880 picture is 56 MiB) and refuses an 8K one (7680 × 4320 is 127 MiB).
+    package var maxDisplaySide: UInt32 = 8192
+    /// The longest side of a cursor image the host is given. The spec's cursor is 64 × 64; a larger resource is treated as
+    /// no cursor, so the guest cannot make the host copy a picture of any size on each cursor update.
+    package var maxCursorSide: UInt32 = 256
 
     package init() {}
+
+    /// Whether a display of this size may be reported: no side is zero or above `maxDisplaySide`, and a picture of it fits one
+    /// resource, which is what the guest's driver allocates for the scanout.
+    package func allowsDisplay(width: UInt32, height: UInt32) -> Bool {
+        guard width > 0, height > 0, width <= maxDisplaySide, height <= maxDisplaySide else { return false }
+        return Int(width) * Int(height) * GPUPixelFormat.bytesPerPixel <= maxResourceBytes
+    }
 
     /// The longest request the device reads: an attach-backing header followed by the most entries it accepts.
     package var maxCommandBytes: Int { GPUWireSize.attachBacking + GPUWireSize.memoryEntry * maxBackingEntries }

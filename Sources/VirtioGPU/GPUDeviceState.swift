@@ -7,11 +7,12 @@ package struct ScanoutUpdate: Equatable, Sendable {
 }
 
 /// What the device does with one request: the answer to write back (`nil` on the cursor queue, whose requests get none), the
-/// log entry, and the new picture when the request flushed the scanout.
+/// log entry, the new picture when the request flushed the scanout, and what a cursor request changed.
 package struct HandledCommand: Sendable {
     package let response: [UInt8]?
     package let logEntry: CommandLogEntry
     package let scanoutUpdate: ScanoutUpdate?
+    package let cursorUpdate: CursorUpdate?
 }
 
 /// The state of the 2D device: its resources, its one scanout and the cursor. It decodes and carries out each request the
@@ -21,10 +22,25 @@ package struct GPUDeviceState: Sendable {
     /// The resource shown on scanout 0 and the rectangle of it that is shown, or `nil` while the scanout is off.
     package private(set) var scanout: (resourceID: UInt32, rect: GPURect)?
     package private(set) var cursor: GPUCursor?
+    /// The size of the one display, which the next display-information answer reports.
+    package private(set) var displayWidth: UInt32
+    package private(set) var displayHeight: UInt32
     private var sequence: UInt64 = 0
 
     package init(limits: GPULimits = GPULimits()) {
         store = ResourceStore(limits: limits)
+        displayWidth = limits.displayWidth
+        displayHeight = limits.displayHeight
+    }
+
+    /// Changes the size the display-information answers report, for a host whose window was resized. Refused (`false`, nothing
+    /// changed) when `GPULimits.allowsDisplay` says no. The guest only asks again when the host tells it, by setting the display
+    /// event in the configuration space (`GPUWire.eventDisplay`). A device reset keeps the size: it is the host's choice.
+    package mutating func setDisplaySize(width: UInt32, height: UInt32) -> Bool {
+        guard store.limits.allowsDisplay(width: width, height: height) else { return false }
+        displayWidth = width
+        displayHeight = height
+        return true
     }
 
     /// Handles the bytes of one request, copied once out of guest memory by the caller.
@@ -32,6 +48,7 @@ package struct GPUDeviceState: Sendable {
         sequence += 1
         let request = GPUDecoder.decode(bytes, limits: store.limits)
         var update: ScanoutUpdate?
+        var cursorUpdate: CursorUpdate?
         let response: GPUResponse?
         switch (queue, request.command) {
         case (_, .failure(let failure)):
@@ -39,13 +56,14 @@ package struct GPUDeviceState: Sendable {
         case (.control, .success(let command)):
             (response, update) = control(command, memory: memory)
         case (.cursor, .success(let command)):
-            cursorRequest(command)
+            cursorUpdate = cursorRequest(command)
             response = nil
         }
         let entry = CommandLogEntry(
             sequence: sequence, queue: queue, commandType: request.header.type, resourceID: (try? request.command.get())?.resourceID ?? 0,
             responseType: response?.type, byteCount: bytes.count)
-        return HandledCommand(response: response?.encoded(answering: request.header), logEntry: entry, scanoutUpdate: update)
+        return HandledCommand(
+            response: response?.encoded(answering: request.header), logEntry: entry, scanoutUpdate: update, cursorUpdate: cursorUpdate)
     }
 
     /// Forgets every resource, the scanout and the cursor, as a device reset does. The sequence keeps counting.
@@ -58,7 +76,7 @@ package struct GPUDeviceState: Sendable {
     private mutating func control(_ command: GPUCommand, memory: some GuestMemoryReader) -> (GPUResponse, ScanoutUpdate?) {
         switch command {
         case .getDisplayInfo:
-            let rect = GPURect(x: 0, y: 0, width: store.limits.displayWidth, height: store.limits.displayHeight)
+            let rect = GPURect(x: 0, y: 0, width: displayWidth, height: displayHeight)
             return (.displayInfo([GPUDisplayMode(rect: rect, enabled: true)]), nil)
         case .resourceCreate2D(let id, let format, let width, let height):
             return (answer(store.create2D(resourceID: id, format: format, width: width, height: height)), nil)
@@ -120,18 +138,29 @@ package struct GPUDeviceState: Sendable {
         return ScanoutUpdate(width: rect.width, height: rect.height, format: resource.format, pixels: pixels)
     }
 
-    /// Cursor requests are recorded, not drawn: the scanout picture has no cursor.
-    private mutating func cursorRequest(_ command: GPUCommand) {
+    /// A cursor request is recorded in `cursor` and described to the host, which draws it: the scanout picture has no cursor.
+    private mutating func cursorRequest(_ command: GPUCommand) -> CursorUpdate? {
         switch command {
         case .updateCursor(let new):
             cursor = new
+            return CursorUpdate(x: new.x, y: new.y, hotX: new.hotX, hotY: new.hotY, image: cursorImage(resourceID: new.resourceID))
         case .moveCursor(let moved):
             // A move keeps the image and hot spot of the last update.
-            cursor = GPUCursor(
+            let kept = GPUCursor(
                 scanoutID: moved.scanoutID, x: moved.x, y: moved.y, resourceID: cursor?.resourceID ?? 0, hotX: cursor?.hotX ?? 0,
                 hotY: cursor?.hotY ?? 0)
+            cursor = kept
+            return CursorUpdate(x: kept.x, y: kept.y, hotX: kept.hotX, hotY: kept.hotY, image: .unchanged)
         default:
-            break
+            return nil
         }
+    }
+
+    /// The cursor's image: a picture of its resource as it is now, or none when the guest named no resource (resource 0 hides the
+    /// cursor), one that does not exist, or one larger than `GPULimits.maxCursorSide`.
+    private func cursorImage(resourceID id: UInt32) -> CursorUpdate.Image {
+        let side = store.limits.maxCursorSide
+        guard let resource = store.resource(id), resource.width <= side, resource.height <= side else { return .hidden }
+        return .shown(Self.picture(of: resource, in: GPURect(x: 0, y: 0, width: resource.width, height: resource.height)))
     }
 }

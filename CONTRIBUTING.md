@@ -156,7 +156,8 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   app does not link it, and `vmr control mcp` serves it. Its API is `public`, like the control library's.
 - `Sources/VirtioGPU` (the pure core of the host-implemented virtio GPU, roadmap 0014, ADR-0058) is a library target of the
   same kind as `NetPolicy`, with a stricter import rule: it imports nothing at all, not even Foundation. A declaration
-  another target uses is `package`; the rest stays internal, and its tests use `@testable import`. The runner
+  another target uses is `package`; the rest stays internal, and its tests use `@testable import`. The app links it and
+  holds its own Virtualization adapter in `Sources/VMRunner/Engine/CustomGPU`, behind `@available(macOS 27.0, *)`. The runner
   (`Sources/VirtioGPURunner`, its command line in `Sources/VirtioGPURunnerCore`) links it and boots a virtual machine, so
   only its owner runs it; the app does not link the runner, and `vmr build-app` builds the app's product alone (a test in
   `DevToolsTests` checks the manifest, the imports and the build arguments).

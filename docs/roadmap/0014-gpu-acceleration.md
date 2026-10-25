@@ -34,6 +34,13 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
 - The cost of a transfer is bounded by the backing's pieces, not the picture's rows: a rectangle as wide as its resource is one
   span, listed once and copied once per piece. A narrower one is read one span per row and is refused above 8192 rows, the
   height of the Linux driver's largest scanout, so a hostile resource cannot hold the main queue for millions of rows.
+- The app's adapter (`Sources/VMRunner/Engine/CustomGPU`, macOS 27 only): the framework's delegates over the library, guest
+  memory read through one bounds-checked copy, a configuration for the machine's `customVirtioDevices`, sinks for the
+  scanout's pictures and the guest's cursor, and a request to resize the display, which sets the display event in the
+  configuration space and answers the next display-information request with the new size. The size may be up to 8192 on a
+  side as long as one picture fits a resource (64 MiB), so 4K and 5K are allowed and 8K is not; a cursor image above 256 on a
+  side is treated as no cursor. Nothing builds a machine with it yet, and it has not run against a guest: the host tests
+  check the configuration it hands the framework and the library's behaviour.
 - The scanout: `--headless-dump` writes the newest picture to `scanout.png` in the scratch directory (at most once a
   second), `--window` shows it in the runner's own window. The picture goes through a temporary file created with mode 0600
   and renamed into place, so it is never readable by others, not even for a moment.
@@ -84,10 +91,12 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 
 ## Remaining
 
-1. The app's side (ADR-0058): the app's own adapter in the engine, over the library, and a Linux machine whose display is
-   this device, shown in the machine's window. Everything behind macOS 27.
-2. Resizing the display: the configuration update re-triggers the display-information request (measured above); the device
-   must answer it with the new size, and the size limits are the library's.
+1. The app's side (ADR-0058): the builder that puts the device in a Linux machine's configuration, behind macOS 27, and the
+   machine's window that shows the sinks' pictures and cursor. The adapter takes every queue element of a notification before
+   it returns; a per-turn budget so that a guest cannot hold the main queue is to be decided there.
+2. Resizing: the configuration update re-triggers the display-information request (measured above) and the adapter answers
+   it with the new size, but a second resize has not been tried (the event bit stays set in the configuration space) and the
+   window that asks for the size does not exist yet.
 3. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
 4. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
 5. 3D acceleration is not in scope of this work.
