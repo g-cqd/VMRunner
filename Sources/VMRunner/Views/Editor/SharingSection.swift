@@ -26,9 +26,13 @@ struct SharingSection: View {
                 }
             }
             Button("Add Shared Folder…", systemImage: "plus") { choosingFolder = true }.managedLock(.allowSharedFolders)
-            // The hint quotes a mount command; a Windows guest has none to quote.
-            if !folders.isEmpty, guest != .windows { mountHint }
-            if guest == .linux {
+            // The hint quotes a mount command; a Windows guest has none to quote and gets a note instead.
+            if GuestEditorRows(guest).windowsNotes {
+                Text(WindowsRequirements.sharingNote).font(.caption).foregroundStyle(.secondary)
+            } else if !folders.isEmpty {
+                mountHint
+            }
+            if GuestEditorRows(guest).clipboardAndRosetta {
                 Toggle("Share clipboard (SPICE agent)", isOn: $clipboard).managedLock(.allowClipboardSharing).settingHelp(.clipboard)
                 Text("Needs spice-vdagent running in the guest.")
                     .font(.caption).foregroundStyle(.secondary)

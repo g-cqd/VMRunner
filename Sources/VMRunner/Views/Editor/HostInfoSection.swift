@@ -13,8 +13,12 @@ struct HostInfoSection: View {
             row("Network path (no addresses or names)", $sharing.networkPath)
             row("Time zone", $sharing.timeZone)
             if !sharing.isEmpty {
-                // The hint quotes a mount command; a Windows guest has none to quote.
-                if guest != .windows { mountHint }
+                // The hint quotes a mount command; a Windows guest has none to quote and gets a note instead.
+                if GuestEditorRows(guest).windowsNotes {
+                    Text(WindowsRequirements.sharingNote).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    mountHint
+                }
                 preview
             }
         } header: {

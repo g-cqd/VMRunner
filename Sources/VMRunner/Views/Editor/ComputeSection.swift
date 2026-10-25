@@ -13,7 +13,7 @@ struct ComputeSection: View {
     var body: some View {
         Section {
             CoreAndMemorySteppers(cpuCount: $cpuCount, memoryMiB: $memoryMiB, memoryStepMiB: EditorLimits.memoryStepMiB)
-            if guest == .linux { nestedRows }
+            if GuestEditorRows(guest).nestedVirtualization { nestedRows }
         } header: {
             HelpHeader("Compute", topic: .cpuCores)
         }
@@ -26,7 +26,9 @@ struct ComputeSection: View {
             .settingHelp(.nestedVirtualization)
         Text(
             nestedSupported
-                ? "Exposes /dev/kvm to the guest (for containers, Podman, or QEMU inside the VM)."
+                ? (guest == .windows
+                    ? "Lets the guest run its own hypervisor."
+                    : "Exposes /dev/kvm to the guest (for containers, Podman, or QEMU inside the VM).")
                 : "Needs an M3 or newer chip and macOS 15+."
         )
         .font(.caption).foregroundStyle(.secondary)

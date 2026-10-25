@@ -20,6 +20,9 @@ struct NetworkSection: View {
             if config.networkMode == .filtered { filteredOptions }
             Text("Bridged networking is not offered: it needs the restricted com.apple.vm.networking entitlement.")
                 .font(.caption).foregroundStyle(.secondary)
+            if GuestEditorRows(config.guest).windowsNotes {
+                Text(WindowsRequirements.networkDriver).font(.caption).foregroundStyle(.secondary)
+            }
         } header: {
             HelpHeader("Network", topic: .networkMode)
         }

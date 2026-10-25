@@ -3,13 +3,14 @@ extension HelpCatalog {
         .overview: HelpEntry(
             area: .start,
             title: "What VMRunner does",
-            summary: "Runs macOS and Linux virtual machines on your Mac.",
+            summary: "Runs macOS, Linux and, experimentally, Windows virtual machines on your Mac.",
             paragraphs: [
                 "A virtual machine (VM) is a second computer running inside a window on your Mac. VMRunner lets you create one, install "
                     + "an operating system into it, and run it.",
-                "• Click **+** (or press ⌘N) to create a machine. Pick macOS or Linux, give it a name and some resources, and press "
-                    + "Create.",
-                "• macOS needs a restore image (about 20 GB). Linux needs an installer ISO (from about 200 MB to a few GB).",
+                "• Click **+** (or press ⌘N) to create a machine. Pick macOS, Linux or Windows, give it a name and some resources, "
+                    + "and press Create.",
+                "• macOS needs a restore image (about 20 GB). Linux needs an installer ISO (from about 200 MB to a few GB). Windows "
+                    + "needs an installer ISO that you supply.",
                 "• When setup finishes, press **Start**. The first time, you go through the guest system's own installer or setup "
                     + "assistant.",
                 "Everything you change in a machine's settings is saved immediately and takes effect the next time the machine starts.",
@@ -23,7 +24,7 @@ extension HelpCatalog {
         ),
         .guestSystems: HelpEntry(
             area: .start,
-            title: "macOS or Linux guests",
+            title: "macOS, Linux or Windows guests",
             summary: "Only guests built for Apple silicon (arm64) can run.",
             paragraphs: [
                 "The system inside a VM is called the **guest**; your Mac is the **host**.",
@@ -32,12 +33,15 @@ extension HelpCatalog {
                     + "the same time (an Apple limit).",
                 "• **Linux guests** must be arm64 builds, such as CentOS Stream, Debian, Alpine, or Ubuntu arm64. "
                     + "They boot through UEFI, like a real PC.",
+                "• **Windows guests** are Windows 11 on ARM, an experimental guest that needs your own installer and licence. "
+                    + "See Windows guests.",
                 "• A 64-bit Intel (x86_64) operating system cannot run. It can only run Intel *programs* inside Linux, using Rosetta.",
             ],
             advanced: [
-                "Windows is not supported by this app. For what the graphics can and cannot do, see Graphics and 3D acceleration."
+                "A Windows guest uses a private interface of Apple's framework, so it cannot be offered on the Mac App Store. For "
+                    + "what the graphics can and cannot do, see Graphics and 3D acceleration."
             ],
-            related: [.rosetta, .graphics, .containers, .limits]
+            related: [.windowsMachines, .rosetta, .graphics, .containers, .limits]
         ),
         .macRestoreImage: HelpEntry(
             area: .start,
@@ -90,7 +94,7 @@ extension HelpCatalog {
                 "• **Other ISO** lets you install from any arm64 installer you already have. It must boot with UEFI and support "
                     + "virtio disks and networking, which most current arm64 Linux distributions do. Other arm64 systems, "
                     + "such as the BSDs, may work too, but that has not been tested here.",
-                "Windows is not supported: Apple's framework has no supported way to run it. See the Limits topic.",
+                "A Windows installer is not in this list and is never downloaded. See Windows guests.",
             ],
             advanced: [
                 "A checksum fetched from the same server proves the file arrived intact, not who built it. A valid signature proves "
@@ -153,7 +157,7 @@ extension HelpCatalog {
                     + "then deleted. The file is about as large as the memory the guest was using.",
                 "Suspend is **not available** when the machine is disposable or hardened, or when its devices don't support it. Hover "
                     + "over the "
-                    + "greyed-out button to see why.",
+                    + "greyed-out button to see why. A Windows machine is never suspended: it can only be shut down or stopped.",
                 "Changing a hardware setting (CPU, memory, devices, display size, MAC address, Secure Boot) throws the saved state "
                     + "away, because it "
                     + "only fits the exact machine it was saved from. The next Start is then a normal boot.",

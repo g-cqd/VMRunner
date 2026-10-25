@@ -162,8 +162,8 @@ extension HelpCatalog {
                 "• **Contained**: keeps the network but closes the side doors: no clipboard, microphone, Rosetta, nested "
                     + "virtualization, or vsock, "
                     + "and shared folders become read-only.",
-                "• **Isolated**: Contained, and also no network, no shared folders, extra disks, attached installer image or host "
-                    + "information, and no "
+                "• **Isolated**: Contained, and also no network, no shared folders, extra disks, attached installer image, "
+                    + "driver disc or host information, and no "
                     + "sound. Linux gets Secure Boot if your Mac supports it and the machine's image can boot with it (Alpine "
                     + "cannot, so its Secure Boot stays off).",
                 "• **Hardened**: Isolated, and also disposable (changes are discarded), no suspend, no memory balloon, no automatic "
@@ -231,7 +231,8 @@ extension HelpCatalog {
                     + "the switch was tried on and that the framework still has it in the expected shape, then sets it and "
                     + "reads the value back. If any check fails, the feature stays off and the machine says why.",
                 "A machine that uses a private interface cannot use it under the Isolated or Hardened profile, and your "
-                    + "organisation can turn every private interface off with `AllowPrivateInterfaces`. \"What this machine "
+                    + "organisation can turn every private interface off with `AllowPrivateInterfaces`. A Windows machine needs "
+                    + "one, so under any of these it does not start. \"What this machine "
                     + "can reach\" lists each one a machine would use.",
                 "Because the switch is not documented, a macOS update can remove or change it, and an app that uses it cannot "
                     + "be offered on the Mac App Store.",
@@ -240,9 +241,13 @@ extension HelpCatalog {
                 "A developer can turn every private interface off with a hidden default, `DisablePrivateInterfaces`, in the "
                     + "app's defaults domain (`defaults write` with the app's bundle identifier, the key and `-bool true`). It "
                     + "is read when a machine starts and is not a setting in the app; any value but an explicit false turns "
-                    + "them off. Nothing here changes macOS or switches off any of its protections."
+                    + "them off. Nothing here changes macOS or switches off any of its protections.",
+                "A second hidden default, `WindowsStartsWithoutPMU`, is for developers who want to watch what Windows does without "
+                    + "the emulation. Set to true, it lets a Windows machine start although the emulation is off or unavailable, and "
+                    + "the log records why; it never switches a working emulation off. It is read when a machine starts and is not a "
+                    + "setting in the app; only an explicit true counts.",
             ],
-            related: [.securityProfiles, .exposureSummary, .managedSettings]
+            related: [.securityProfiles, .exposureSummary, .managedSettings, .windowsMachines]
         ),
         .exposureSummary: HelpEntry(
             area: .security,

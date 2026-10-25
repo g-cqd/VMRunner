@@ -33,10 +33,11 @@ extension HelpCatalog {
         .nestedVirtualization: HelpEntry(
             area: .compute,
             title: "Nested virtualization",
-            summary: "Lets the Linux guest run its own virtual machines and containers.",
+            summary: "Lets a Linux or Windows guest run its own virtual machines and containers.",
             paragraphs: [
                 "Turn this on if you want to run KVM, QEMU, or Podman/Docker with VMs *inside* the Linux guest. The guest then has a "
                     + "`/dev/kvm` device.",
+                "A Windows guest can run its own hypervisor with the same switch.",
                 "It needs a Mac with an M3 chip or newer and macOS 15 or later. On other Macs the switch is disabled.",
                 "Nested guests are slower, and a guest that can run its own hypervisor has more ways to attack the host. The "
                     + "Contained, Isolated, and "
@@ -109,14 +110,16 @@ extension HelpCatalog {
         .installerISO: HelpEntry(
             area: .storage,
             title: "Installer ISO",
-            summary: "The installation disc attached to a Linux machine.",
+            summary: "The installation disc attached to a Linux or Windows machine.",
             paragraphs: [
                 "The ISO is attached like a USB stick, so the machine boots from it on its first start.",
                 "After Linux is installed, **untick \"Attach installer at boot\"** so the machine boots from its own disk. "
                     + "If you forget, you may see the installer again.",
                 "**Change ISO** lets you swap in a different installer or rescue image.",
+                "A Windows machine can also have a **driver disc**: a second read-only USB drive that you add, change or remove here.",
                 "While it is attached, the guest can read the whole file, so only attach images you trust it to read. The Isolated "
-                    + "and Hardened profiles detach it; ticking the box again makes the profile read **Custom**.",
+                    + "and Hardened profiles detach the installer and the driver disc; ticking the box again makes the profile read "
+                    + "**Custom**.",
             ],
             advanced: [
                 "A downloaded installer is checked once, then copied into the machine's own folder as a copy-on-write clone, which "
@@ -124,7 +127,7 @@ extension HelpCatalog {
                     + "so a later download or a damaged or replaced file there cannot change what it boots from. An ISO you choose "
                     + "yourself is used where it is."
             ],
-            related: [.linuxImages, .securityProfiles]
+            related: [.linuxImages, .windowsMachines, .securityProfiles]
         ),
         .graphics: HelpEntry(
             area: .display,

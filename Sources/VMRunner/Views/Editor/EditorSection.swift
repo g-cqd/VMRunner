@@ -17,9 +17,10 @@ enum EditorSection: CaseIterable, Identifiable {
         if config.workload == .container { return Self.containerSections.contains(self) }
         switch self {
         case .container: return false
-        case .installer, .provisioning: return config.guest == .linux
+        case .installer: return GuestEditorRows(config.guest).installer
+        case .provisioning: return GuestEditorRows(config.guest).provisioning
         case .networkPolicy: return config.networkMode == .filtered
-        case .boot: return config.guest == .macOS
+        case .boot: return GuestEditorRows(config.guest).firstBoot
         default: return true
         }
     }

@@ -24,7 +24,7 @@ struct IdentitySection: View {
                 }
                 .settingHelp(.guestIdentity)
             }
-            if config.guest == .linux {
+            if GuestEditorRows(config.guest).diskInterface {
                 Picker("Disk interface", selection: $config.diskInterface) {
                     ForEach(DiskInterface.allCases) { Text($0.label).tag($0) }
                 }

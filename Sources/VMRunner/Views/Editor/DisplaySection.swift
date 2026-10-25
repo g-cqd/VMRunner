@@ -13,15 +13,15 @@ struct DisplaySection: View {
 
     var body: some View {
         Section {
-            if guest == .linux { gpuRows }
+            if GuestEditorRows(guest).graphicsDevice { gpuRows }
             resolutionRows
-            if guest == .macOS {
+            if GuestEditorRows(guest).pixelDensity {
                 ValueStepper(
                     title: "Pixel density", value: $pixelsPerInch, range: EditorLimits.pixelsPerInch,
                     step: EditorLimits.pixelsPerInchStep, text: "\(pixelsPerInch) ppi"
                 )
                 .settingHelp(.pixelDensity)
-            } else if guest == .linux {
+            } else if GuestEditorRows(guest).linuxDisplayNote {
                 Text(
                     "Linux starts at no more than 1280 pixels wide, in the shape of the window, so UEFI and GRUB text stays "
                         + "legible, then follows the window once the system runs. A fixed size keeps the same aspect ratio only if "
@@ -32,7 +32,7 @@ struct DisplaySection: View {
             }
             Toggle("Resize guest display with window", isOn: $followsWindow)
                 .settingHelp(.resizeWithWindow)
-            if guest == .linux, followsWindow {
+            if GuestEditorRows(guest).pixelsPerPoint, followsWindow {
                 Picker("Guest pixels per point", selection: $pixelsPerPoint) {
                     Text("1× — legible text (recommended)").tag(1)
                     Text("2× — sharper, but text looks small unless the guest scales it").tag(2)

@@ -5,6 +5,8 @@ struct SecuritySection: View {
     @Binding var config: VMConfig
     let bundle: VMBundle
 
+    private var rows: GuestEditorRows { GuestEditorRows(config.guest) }
+
     private var profileBinding: Binding<SecurityProfile?> {
         Binding(
             get: { config.detectedProfile },
@@ -25,14 +27,19 @@ struct SecuritySection: View {
             .settingHelp(.securityProfiles)
             Text(config.detectedProfile?.summary ?? "Custom: individual settings differ from every profile. Pick one to reset them.")
                 .font(.caption).foregroundStyle(.secondary)
+            if let note = WindowsRequirements.profileNote(for: config) {
+                Label(note, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+            }
 
             Toggle("Disposable (discard all changes on stop)", isOn: $config.ephemeral)
                 .managedLock(.requireDisposableMachines)
                 .settingHelp(.disposable)
-            Toggle("Allow suspend (writes memory to disk)", isOn: $config.allowsSuspend)
-                .disabled(config.ephemeral)
-                .managedLock(.allowSuspend)
-                .settingHelp(.suspendResume)
+            if rows.allowSuspend {
+                Toggle("Allow suspend (writes memory to disk)", isOn: $config.allowsSuspend)
+                    .disabled(config.ephemeral)
+                    .managedLock(.allowSuspend)
+                    .settingHelp(.suspendResume)
+            }
             ValueStepper(
                 title: "Runtime limit", value: $config.maxRuntimeMinutes, range: EditorLimits.runtimeMinutes,
                 step: EditorLimits.runtimeStepMinutes,
@@ -40,7 +47,7 @@ struct SecuritySection: View {
             )
             .managedLock(.maxRuntimeMinutes)
             .settingHelp(.runtimeLimit)
-            if config.guest == .linux { secureBootRows }
+            if rows.secureBoot { secureBootRows }
             exposures
         } header: {
             HelpHeader("Security", topic: .securityProfiles)

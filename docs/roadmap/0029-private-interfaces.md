@@ -24,6 +24,10 @@ Isolated or Hardened profile, when the managed key `AllowPrivateInterfaces` is f
 default `DisablePrivateInterfaces` is on, and it names the first of those in that order. The exposure summary lists each private
 interface a machine would use, and the help has a topic for them. No guest uses one yet.
 
+2026-10-25: a guest uses one now. The Windows preset is in the app, experimental (roadmap 0015): a Windows machine needs the
+performance-monitoring emulation, so under the Isolated or Hardened profile, with the managed key, or with the kill switch on it
+does not start. When the profile is the cause, the editor says so under the profile picker. Not run on a real guest.
+
 ## Done when
 
 The module exists, a lint test keeps private lookups out of every other target, both capabilities validate on this host (or

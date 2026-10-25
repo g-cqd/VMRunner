@@ -47,11 +47,15 @@ struct StorageSection: View {
     }
 }
 
-/// The ISO attached to a Linux machine for installation.
+/// The ISO attached to a Linux or Windows machine for installation, and a Windows machine's driver disc.
 struct InstallerSection: View {
+    let guest: GuestOS
     let isoPath: String?
     @Binding var attached: Bool
     let choose: () -> Void
+    let driverDiscPath: String?
+    let chooseDriverDisc: () -> Void
+    let removeDriverDisc: () -> Void
 
     var body: some View {
         Section {
@@ -63,8 +67,19 @@ struct InstallerSection: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Button(isoPath == nil ? "Choose ISO…" : "Change ISO…", action: choose)
+            if GuestEditorRows(guest).driverDisc { driverDiscRows }
         } header: {
             HelpHeader("Installer", topic: .installerISO)
         }
+    }
+
+    @ViewBuilder
+    private var driverDiscRows: some View {
+        LabeledContent("Driver disc", value: driverDiscPath.map { URL(filePath: $0).lastPathComponent } ?? "None")
+        HStack {
+            Button(driverDiscPath == nil ? "Choose Driver Disc…" : "Change Driver Disc…", action: chooseDriverDisc)
+            if driverDiscPath != nil { Button("Remove Driver Disc", role: .destructive, action: removeDriverDisc) }
+        }
+        Text(WindowsRequirements.driverDiscNote).font(.caption).foregroundStyle(.secondary)
     }
 }

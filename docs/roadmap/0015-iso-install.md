@@ -13,6 +13,10 @@ The media section accepts any ISO. Study: `docs/research/windows-on-arm-2026-10.
 2026-10-25: ADR-0059 supersedes ADR-0010. Windows on ARM becomes an experimental guest, built on the private capability of
 roadmap 0029, with no virtual TPM, no suspend and no custom GPU. Nothing below is built or run yet.
 
+2026-10-25: the Windows preset is in the app, experimental (items 1 to 3): the guest picker lists Windows, the sheet takes a local
+installer ISO with an optional expected SHA-256 and a read-only driver disc, the editor shows the rows a Windows machine has, and
+the help has a topic for it. No Windows installer has been run (item 4).
+
 ## Windows items
 
 1. A guest kind of its own for Windows, with the machine of ADR-0059 item 5: generic platform, EFI, Secure Boot off, NVMe main

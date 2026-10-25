@@ -13,9 +13,11 @@ enum WindowsRequirements {
         "No suspend: a Windows machine can only be shut down or stopped.",
         "Each Windows installation needs its own licence. Insider Preview builds follow the Windows Insider Program's terms and "
             + "expire; retail builds do not.",
-        "Windows has no built-in driver for this machine's network device: networking needs a driver disc.",
+        networkDriver,
         "Secure Boot is off.",
     ]
+
+    static let networkDriver = "Windows has no built-in driver for this machine's network device: networking needs a driver disc."
 
     static let installerNote = "Choose a Windows 11 ARM64 installer ISO that you already have. The app does not download Windows."
 
@@ -25,4 +27,17 @@ enum WindowsRequirements {
 
     static let driverDiscNote =
         "Attached as a read-only USB drive. You can add, change or remove it later in the machine's settings."
+
+    static let sharingNote =
+        "A Windows guest sees shared folders and host information only if you install a virtio file-system driver in it."
+
+    /// What the settings say under the security profile of a Windows machine whose profile closes private interfaces: it
+    /// needs one, so it would not start. Nil for any other machine.
+    static func profileNote(for config: VMConfig) -> String? {
+        guard config.guest == .windows, let profile = config.detectedProfile,
+            PrivateCapabilityPolicy.closingProfiles.contains(profile)
+        else { return nil }
+        return "The \(profile.label) profile turns off private interfaces and this machine needs one: it will not start. "
+            + "Pick another profile."
+    }
 }

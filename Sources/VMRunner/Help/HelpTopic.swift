@@ -19,7 +19,7 @@ enum HelpArea: String, CaseIterable, Identifiable, Sendable {
 /// Everything the help system can explain. Each case has an entry in `HelpCatalog`; a test fails if one is missing.
 enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     // Getting started
-    case overview, guestSystems, macRestoreImage, linuxImages, setup
+    case overview, guestSystems, windowsMachines, macRestoreImage, linuxImages, setup
     // Machines
     case controls, suspendResume, runtimeLimit, duplicateDelete, diskUsage, provisioning, containers
     // CPU and memory
@@ -66,7 +66,7 @@ struct HelpEntry: Sendable {
 
 enum HelpCatalog {
     static let entries: [HelpTopic: HelpEntry] = [
-        machines, hardware, networkAndSecurity, filteredNetwork, snapshotsAndApp, automation, provisioning,
+        machines, hardware, networkAndSecurity, filteredNetwork, snapshotsAndApp, automation, provisioning, windows,
     ].reduce(into: [:]) { $0.merge($1) { first, _ in first } }
 
     static func entry(for topic: HelpTopic) -> HelpEntry {

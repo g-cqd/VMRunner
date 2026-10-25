@@ -57,8 +57,9 @@ struct ConfigEditor: View {
                 addDisk: { model.pickerTarget = .extraDisk })
         case .installer:
             InstallerSection(
-                isoPath: config.installerISO, attached: $config.installerAttached,
-                choose: { model.pickerTarget = .installerISO })
+                guest: config.guest, isoPath: config.installerISO, attached: $config.installerAttached,
+                choose: { model.pickerTarget = .installerISO }, driverDiscPath: config.driverDiscPath,
+                chooseDriverDisc: { model.pickerTarget = .driverDisc }, removeDriverDisc: { config.driverDiscPath = nil })
         case .provisioning:
             ProvisioningSection(
                 specPath: config.provisioningSpecPath, installerAttached: config.attachedInstallerPath != nil,

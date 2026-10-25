@@ -5,7 +5,7 @@ import Observation
 @MainActor @Observable
 final class ConfigEditorModel {
     enum PickerTarget: Identifiable {
-        case extraDisk, installerISO, provisioningSpec
+        case extraDisk, installerISO, driverDisc, provisioningSpec
         var id: Self { self }
     }
 
@@ -97,6 +97,13 @@ final class ConfigEditorModel {
             config.installerISO = url.path
             config.installerAttached = true
             grant = HostPathGrant(.installer, url.path, writable: false)
+        case .driverDisc:
+            guard !AppPaths.isInside(url, library.bundle(id).url.deletingLastPathComponent()) else {
+                alertMessage = HostPathError.insideMachinesFolder(url.path).localizedDescription
+                return
+            }
+            config.driverDiscPath = url.path
+            grant = HostPathGrant(.driverDisc, url.path, writable: false)
         case .provisioningSpec:
             config.provisioningSpecPath = url.path
             grant = HostPathGrant(.provisioningSpec, url.path, writable: false)

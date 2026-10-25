@@ -8,7 +8,7 @@ struct InputSection: View {
 
     var body: some View {
         Section {
-            if guest == .macOS {
+            if GuestEditorRows(guest).pointingDevice {
                 Picker("Pointing device", selection: $pointing) {
                     ForEach(PointingDevice.allCases) { Text($0.label).tag($0) }
                 }
@@ -54,9 +54,11 @@ struct DevicesSection: View {
             Toggle("Memory balloon", isOn: $balloon).settingHelp(.memoryBalloon)
             Toggle("Entropy (virtio-rng)", isOn: $entropy).settingHelp(.entropy)
             Toggle("Host–guest socket (vsock)", isOn: $vsock).settingHelp(.vsock)
-            Toggle("Serial console (local socket)", isOn: guest == .linux ? $serialConsole : .constant(false))
-                .disabled(guest != .linux)
-                .settingHelp(.serialConsole)
+            if GuestEditorRows(guest).serialConsole {
+                Toggle("Serial console (local socket)", isOn: guest == .linux ? $serialConsole : .constant(false))
+                    .disabled(guest != .linux)
+                    .settingHelp(.serialConsole)
+            }
             if guest == .macOS {
                 Text("Not available for macOS guests.").font(.caption).foregroundStyle(.secondary)
             }

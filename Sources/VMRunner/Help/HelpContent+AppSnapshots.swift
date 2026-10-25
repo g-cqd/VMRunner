@@ -98,12 +98,13 @@ extension HelpCatalog {
                 "• Only Apple silicon Macs, and only arm64 guests. An Intel operating system cannot run.",
                 "• At most two macOS guests at once (an Apple limit).",
                 "• No bridged networking and no USB device passthrough.",
-                "• No Windows guests: Apple's framework has no supported way to run them.",
+                "• Windows guests are experimental: they need a private interface of Apple's framework, have no TPM and cannot be "
+                    + "suspended. See Windows guests.",
                 "• Secure Boot needs macOS 27 or later on your Mac.",
                 "• No 3D acceleration for Linux guests (software rendering); macOS guests use the GPU.",
                 "• Suspend only works when the machine's devices support it, and the saved memory is not encrypted.",
             ],
-            related: [.guestSystems, .networkMode, .secureBoot, .graphics]
+            related: [.guestSystems, .windowsMachines, .networkMode, .secureBoot, .graphics]
         ),
         .managedSettings: HelpEntry(
             area: .app,

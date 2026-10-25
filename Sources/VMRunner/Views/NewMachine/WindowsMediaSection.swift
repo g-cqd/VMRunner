@@ -35,7 +35,7 @@ struct WindowsMediaSection: View {
                 }
             }
         } header: {
-            HelpHeader("Windows installation media", topic: .guestSystems)
+            HelpHeader("Windows installation media", topic: .windowsMachines)
         }
         .fileImporter(
             isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }), allowedContentTypes: [.diskImage, .data]

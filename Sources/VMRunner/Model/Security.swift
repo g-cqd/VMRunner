@@ -25,8 +25,8 @@ enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
             "Keeps the network, but cuts host channels: no clipboard, microphone, Rosetta, nested virtualization, or vsock; "
                 + "shared folders become read-only."
         case .isolated:
-            "Contained, plus no network, no shared folders, extra disks, attached installer or host information, no sound, "
-                + "and Secure Boot on Linux when the host runs macOS 27 or later and the image can boot with it."
+            "Contained, plus no network, no shared folders, extra disks, attached installer or driver disc, or host information, "
+                + "no sound, and Secure Boot on Linux when the host runs macOS 27 or later and the image can boot with it."
         case .hardened:
             "Isolated, plus a disposable disk (changes are discarded on stop), no suspend files, no memory balloon, "
                 + "no first-boot auto-login or SSH, and a 2-hour runtime limit."
@@ -302,7 +302,7 @@ extension VMConfig {
             ephemeral
                 ? Exposure(level: .none, text: "Disposable: disk and firmware changes are discarded when the VM stops.")
                 : Exposure(level: .low, text: "Persistent: anything the guest writes, including malware, stays in the disk image."))
-        if guest == .linux { items.append(secureBootExposure) }
+        if guest.usesGenericPlatform { items.append(secureBootExposure) }
         if guest == .macOS, provisioning.enabled, !hasBooted {
             if provisioning.logsInAutomatically {
                 items.append(Exposure(level: .medium, text: "The first-boot account logs in automatically."))
