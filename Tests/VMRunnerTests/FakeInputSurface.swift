@@ -47,20 +47,6 @@ final class FakeInputSurface: GuestInputSurface {
 /// Events of every kind the picture's view passes on, made without a window.
 @MainActor
 enum SampleEvents {
-    static func key(_ type: NSEvent.EventType) throws -> NSEvent {
-        try #require(
-            NSEvent.keyEvent(
-                with: type, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: "a",
-                charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0))
-    }
-
-    static func mouse(_ type: NSEvent.EventType) throws -> NSEvent {
-        try #require(
-            NSEvent.mouseEvent(
-                with: type, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0,
-                clickCount: 1, pressure: 1))
-    }
-
     static func key(
         _ type: NSEvent.EventType, keyCode: UInt16 = 0, flags: NSEvent.ModifierFlags = [], isRepeat: Bool = false
     ) throws -> NSEvent {

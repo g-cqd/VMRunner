@@ -170,6 +170,17 @@ struct VirtioInputSurfaceTests {
         #expect(pointer.positions.count == 1)
     }
 
+    /// A device runs its pause hook (the surface releases the keys held) before it stops delivering events.
+    @Test(.enabled(if: CustomGPUConfigurationTests.hostHasCustomDevices))
+    func aDevicesPauseRunsItsHookOnce() {
+        guard #available(macOS 27.0, *) else { return }
+        let device = VirtioInputDevice(layout: .keyboard, label: "keyboard")
+        var hooks = 0
+        device.onPause = { hooks += 1 }
+        device.pause()
+        #expect(hooks == 1)
+    }
+
     @Test(.enabled(if: CustomGPUConfigurationTests.hostHasCustomDevices))
     func theRealSurfaceHasAKeyboardAndATabletOfTheLibrarysLayoutsAndASurfaceOverStandInsHasNone() {
         guard #available(macOS 27.0, *) else { return }

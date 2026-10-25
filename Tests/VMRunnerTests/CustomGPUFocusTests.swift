@@ -48,11 +48,18 @@ struct CustomGPUFocusTests {
         #expect(focusLosses() == 1)
     }
 
+    /// After the first view is detached, the same surface attached to a second view in another window: a resign-key of the first
+    /// window reaches no surface, so the detached view forwards nothing even though the surface is in use elsewhere.
     @Test
-    func aDetachedViewListensToNothing() {
+    func aDetachedViewListensToNothingWhileTheSurfaceServesAnotherView() {
         putViewInWindow()
         view.detach()
+        let otherWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: true)
+        let other = CustomGPUView()
+        otherWindow.contentView?.addSubview(other)
+        other.use(surface)
         NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
-        #expect(focusLosses() == 0)
+        #expect(focusLosses() == 0, "the first window lost key, but its detached view must not forward it")
     }
 }

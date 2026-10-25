@@ -84,6 +84,28 @@ struct CustomGPUPolicyTests {
         #expect(nothing.clamp(config) == config, "nothing forced changes nothing")
     }
 
+    @Test @MainActor
+    func aKeyForcedAfterTheLibraryLoadedStillMakesTheStartUseAppleDevice() {
+        let config = machine(gpu: .custom)
+        #expect(VZMachineFactory.effective(config, policy: forced(["AllowCustomGPU": false])).gpu == .apple)
+        #expect(VZMachineFactory.effective(config, policy: forced([:])).gpu == .custom, "nothing forced changes nothing")
+    }
+
+    @Test
+    func aCustomGPUMachineWritesNoMemorySnapshotSoItDoesNotSayItDoes() {
+        var custom = machine(gpu: .custom)
+        custom.allowsSuspend = true
+        custom.ephemeral = false
+        let customTexts = custom.exposures.map(\.text)
+        #expect(!customTexts.contains { $0.hasPrefix("Suspending writes") })
+        #expect(customTexts.contains("No memory snapshot is written to disk."))
+
+        var apple = machine(gpu: .apple)
+        apple.allowsSuspend = true
+        apple.ephemeral = false
+        #expect(apple.exposures.contains { $0.text.hasPrefix("Suspending writes") }, "the framework's device still can suspend")
+    }
+
     @Test
     func theManagedKeyIsNamedInTheHelpOfManagedSettings() {
         let entry = HelpTopic.managedSettings.entry

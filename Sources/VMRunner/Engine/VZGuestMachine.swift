@@ -117,8 +117,11 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
 /// networking.
 struct VZMachineFactory: MachineFactory {
     func prepare(
-        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
+        _ requested: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
     ) async throws -> PreparedMachine {
+        // A key forced after the library loaded still applies: the configuration is clamped once, here, and everything below
+        // (the custom GPU, the suspend reason, the network) uses the clamped copy.
+        let config = Self.effective(requested, policy: ManagedPreferences.current)
         // The seed is built from the spec and its scripts as they are now, before the configuration that attaches it; a spec
         // that cannot be used stops the start with its line. The disposable copy, which clears the run's leftovers, is made before.
         // The configuration is clamped again here: a managed key that arrived after the library loaded still blocks the seed.
@@ -141,6 +144,11 @@ struct VZMachineFactory: MachineFactory {
             network: network,
             suspend: suspend
         )
+    }
+
+    /// The configuration a start uses: the one stored, with the managed keys of `policy` applied to it.
+    static func effective(_ config: VMConfig, policy: ManagedPreferences) -> VMConfig {
+        policy.clamp(config)
     }
 
     /// The custom GPU of a machine set to use it, or `nil` for any other machine and on a host that cannot build the device

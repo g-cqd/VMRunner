@@ -44,6 +44,9 @@ final class VirtioInputSurface: GuestInputSurface {
         let keyboard = VirtioInputDevice(layout: .keyboard, label: "keyboard")
         let pointer = VirtioInputDevice(layout: .tablet, label: "pointer")
         self.init(keyboard: keyboard, pointer: pointer, devices: [keyboard, pointer])
+        // A pause releases what the guest holds down, before the devices stop delivering events.
+        keyboard.onPause = { [weak self] in self?.focusLost() }
+        pointer.onPause = { [weak self] in self?.focusLost() }
     }
 
     /// The framework's view and its setting have no part in this path.

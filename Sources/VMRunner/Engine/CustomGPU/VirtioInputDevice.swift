@@ -26,6 +26,8 @@ final class VirtioInputDevice: NSObject, @preconcurrency VZCustomVirtioDeviceCon
     private var troubles = TroubleLog<Trouble>(Log.input)
     /// While the machine is paused the guest runs nothing, and events are not delivered.
     private var isPaused = false
+    /// Told before the device pauses, so that the surface can release what the guest holds down.
+    var onPause: (@MainActor () -> Void)?
 
     /// `label` names the device in the log.
     init(layout: VirtioInputStaticConfig, label: String) {
@@ -94,10 +96,17 @@ final class VirtioInputDevice: NSObject, @preconcurrency VZCustomVirtioDeviceCon
     }
 
     func customVirtioDeviceWillPause(_ device: VZCustomVirtioDevice) {
-        isPaused = true
+        pause()
     }
 
     func customVirtioDeviceWillResume(_ device: VZCustomVirtioDevice) {
         isPaused = false
+    }
+
+    /// Runs `onPause` while the events still go through, so that the keys and buttons held are released to the guest before
+    /// it stops (its buffers are not given back: the release is an ordinary event), and only then stops delivering events.
+    func pause() {
+        onPause?()
+        isPaused = true
     }
 }

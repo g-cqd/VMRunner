@@ -290,7 +290,7 @@ extension VMConfig {
         }
         if memoryBalloon { items.append(Exposure(level: .low, text: "Memory balloon device present.")) }
         items.append(
-            allowsSuspend && !ephemeral
+            allowsSuspend && !ephemeral && !usesCustomGPU
                 ? Exposure(level: .medium, text: "Suspending writes the guest's memory, including secrets, unencrypted to disk.")
                 : Exposure(level: .none, text: "No memory snapshot is written to disk."))
         items.append(
