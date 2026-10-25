@@ -65,10 +65,28 @@ struct ResolvedVersionsTests {
     func theAppBuildReadsOnlyTheResolvedFile() async throws {
         try await withFakeSwift(exitStatus: 1) { environment, log, directory in
             try write(AppFixture.files(), to: directory)
-            let run = try await VMR.vmr(["build-app"], in: directory, environment: environment)
+            let runner = try AppFixture.runner(in: directory)
+            let run = try await VMR.vmr(["build-app", "--container-runner", runner.path], in: directory, environment: environment)
             #expect(run.status == 1, "\(run.combined)")
             #expect(run.error.contains("swift build failed"), "\(run.error)")
             #expect(calls(log).count == 1 && calls(log).allSatisfy { $0.contains(Self.flag) }, "\(calls(log))")
+        }
+    }
+
+    @Test
+    func theAppBuildBuildsTheRunnerFromItsOwnPackageInTheSameConfigurationReadingOnlyTheResolvedFile() async throws {
+        try await withFakeSwift(exitStatus: 1) { environment, log, directory in
+            try write(AppFixture.files(), to: directory)
+            let run = try await VMR.vmr(["build-app", "debug"], in: directory, environment: environment)
+            #expect(run.status == 1, "\(run.combined)")
+            #expect(run.error.contains("swift build failed"), "\(run.error)")
+            let recorded = calls(log)
+            #expect(recorded.count == 1, "the runner's package is built first, and its failure ends the run: \(recorded)")
+            let call = try #require(recorded.first)
+            #expect(call.contains(Self.flag), "\(call)")
+            #expect(call.contains("--package-path \(directory.path)/Packages/Containers"), "\(call)")
+            #expect(call.contains("--scratch-path \(directory.path)/.build-packages/Packages-Containers"), "\(call)")
+            #expect(call.contains("-c debug --product ContainerRunner"), "\(call)")
         }
     }
 

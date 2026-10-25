@@ -24,7 +24,10 @@ open build/VMRunner.app
 swift test                      # unit tests
 ```
 
-The app needs the `com.apple.security.virtualization` entitlement, which `vmr build-app` applies when signing.
+The app needs the `com.apple.security.virtualization` entitlement, which `vmr build-app` applies when signing. The bundle
+also holds the container runner at `Contents/Helpers/ContainerRunner`, built from `Packages/Containers` in the same
+configuration and signed first with its own entitlements file (virtualization only); the first build of that package is
+slow.
 `swift run VMRunner` won't work for the same reason: use `vmr build-app`.
 
 Requires an Apple silicon Mac on macOS 26+. Built with Xcode 27 / Swift 6.
@@ -180,7 +183,7 @@ swift run vmr check --full                   # + ASan, TSan and UBSan test runs,
 swift run vmr check test coverage            # only the named steps; --list shows all of them
 swift run vmr analyzers [run|install|baseline|versions] [arcleak|dolly|deadwood...]
 swift run vmr bench record                   # re-record the benchmark baseline (.vmr-bench.json)
-swift run vmr build-app [debug|release] [--hardened] [--arm64e]
+swift run vmr build-app [debug|release] [--hardened] [--arm64e] [--container-runner PATH]   # embeds the signed container runner
 swift run vmr container-sign [debug|release]     # container runner: build it and sign it for virtualization; running it boots a VM, owner only
 swift run vmr container-run --boot [--image I] [--command C]...   # sign and run the container runner; boots a VM, owner-authorised runs only
 swift run vmr sandbox run --engine seatbelt|app-sandbox|none --descriptor d.json   # sandbox helper; --boot starts a VM, owner only

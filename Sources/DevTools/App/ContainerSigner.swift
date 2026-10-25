@@ -18,12 +18,33 @@ struct ContainerSigner {
 
     private var entitlementsURL: URL { root.appending(path: "Resources/\(Self.productName).entitlements") }
 
-    /// Signs the runner and returns it.
+    /// Signs the runner where it is and returns it.
     @discardableResult
     func run() async throws -> URL {
+        let expected = try checkedEntitlements()
+        let target = try await executable()
+        try await sign(target, expected: expected)
+        return target
+    }
+
+    /// Copies `source` to `destination` (replacing what is there; `source` is left as it is) and signs the copy. `expected` comes
+    /// from ``checkedEntitlements()``, which a caller runs before it builds anything.
+    func install(_ source: URL, at destination: URL, expected: Entitlements.Dictionary) async throws {
+        let fileManager = FileManager.default
+        try? fileManager.removeItem(at: destination)
+        try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.copyItem(at: source, to: destination)
+        try await sign(destination, expected: expected)
+    }
+
+    /// The entitlements file's contents, once it grants virtualization and nothing outside ``EntitlementPolicy/runnerAllowed``.
+    func checkedEntitlements() throws -> Entitlements.Dictionary {
         let expected = try Entitlements.load(fileAt: entitlementsURL)
         try verifyFile(expected)
-        let target = try await executable()
+        return expected
+    }
+
+    private func sign(_ target: URL, expected: Entitlements.Dictionary) async throws {
         try await BuildTools.codesign([
             "--force", "--sign", "-", "--options", "runtime", "--entitlements", entitlementsURL.path, target.path,
         ])
@@ -32,7 +53,6 @@ struct ContainerSigner {
             of: target, expected: expected, isRelease: true, expectation: entitlementsURL.lastPathComponent)
         report("entitlements OK (\(effective.keys.sorted().joined(separator: ", ")))")
         report("Signed \(target.path)")
-        return target
     }
 
     private func verifyFile(_ expected: Entitlements.Dictionary) throws {
@@ -40,7 +60,7 @@ struct ContainerSigner {
         guard expected[Entitlements.virtualization] == .bool(true) else {
             throw ToolError("\(file) must grant \(Entitlements.virtualization): without it the runner cannot start a virtual machine")
         }
-        let problems = EntitlementPolicy.problems(in: expected, isRelease: true)
+        let problems = EntitlementPolicy.problems(in: expected, isRelease: true, allowing: EntitlementPolicy.runnerAllowed)
         guard problems.isEmpty else {
             Output.err("entitlement policy FAILED:")
             for problem in problems {
@@ -51,7 +71,7 @@ struct ContainerSigner {
     }
 
     /// The `binary` given, or the product built in `configuration`.
-    private func executable() async throws -> URL {
+    func executable() async throws -> URL {
         let target: URL
         if let binary {
             target = binary

@@ -155,6 +155,35 @@ struct PureLogicTests {
     }
 
     @Test
+    func theRunnersPolicyIsVirtualizationAloneAndNothingTheAppMayCarry() throws {
+        func problems(_ entries: [String: String]) throws -> [String] {
+            let parsed = try Entitlements.parse(Data(AppFixture.entitlements(entries).utf8))
+            return EntitlementPolicy.problems(in: parsed, isRelease: true, allowing: EntitlementPolicy.runnerAllowed)
+        }
+        #expect(EntitlementPolicy.runnerAllowed == [Entitlements.virtualization: .bool(true)])
+        #expect(try problems(["com.apple.security.virtualization": "<true/>"]).isEmpty)
+        #expect(
+            try problems(["com.apple.security.virtualization": "<true/>", "com.apple.security.device.audio-input": "<true/>"]) == [
+                "com.apple.security.device.audio-input is not in the entitlement allowlist (EntitlementPolicy.allowed)"
+            ], "the app's microphone entitlement is not the runner's")
+        #expect(
+            try problems(["com.apple.security.virtualization": "<false/>"]) == [
+                "com.apple.security.virtualization is false; the policy allows only true"
+            ])
+        #expect(try problems(["com.apple.security.hardened-process": "<true/>"]).count == 1, "the hardened family is the app's")
+    }
+
+    @Test
+    func thisRepositorysRunnerFileSatisfiesItsPolicy() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appending(path: "Resources/ContainerRunner.entitlements"))
+        let entitlements = try Entitlements.parse(data)
+        #expect(EntitlementPolicy.problems(in: entitlements, isRelease: true, allowing: EntitlementPolicy.runnerAllowed).isEmpty)
+        let text = try #require(String(data: data, encoding: .utf8))
+        #expect(EntitlementPolicy.commentProblems(in: text, name: "ContainerRunner.entitlements").isEmpty)
+    }
+
+    @Test
     func commentsWithDoubleHyphensAreFoundWithTheirLine() {
         let text = "<plist>\n<!-- fine -->\n<!--\n  two -- hyphens\n-->\n<!-- ends in a hyphen --->\n</plist>"
         #expect(

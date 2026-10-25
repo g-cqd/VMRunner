@@ -171,6 +171,16 @@ family) and a refusal of everything else, named for `com.apple.security.cs.*` (h
 entitlement files before it builds anything, and again to the effective entitlements it reads back from the signed
 bundle, which must also equal the file used to sign. It also rejects a double hyphen inside an XML comment of an
 entitlement file (the kernel's parser does). A new entitlement therefore needs a change to the policy, which review sees.
+
+`vmr build-app` also embeds the container runner at `VMRunner.app/Contents/Helpers/ContainerRunner`. It builds the product
+from `Packages/Containers` in the app's configuration, from the pinned versions of that package's `Package.resolved` and
+in its own scratch directory (`.build-packages/Packages-Containers`, shared with `vmr check build`), copies the executable
+and signs the copy ad hoc with the hardened runtime and `Resources/ContainerRunner.entitlements` before it signs the app,
+so the app's signature seals it. The runner's policy is `EntitlementPolicy.runnerAllowed`: virtualization and nothing else,
+checked on the file before anything is built, with the signature read back to equal the file; `--hardened` and `--arm64e` change only the
+app. `--container-runner PATH` embeds a built executable instead of building the package (the tests do; they never build
+or run the runner).
+
 `vmr check` and CI never start virtual machines. Real-guest runs are separate and deliberate: the owner, or an agent the owner
 has authorised for the session, runs them by hand against a scratch data directory (never the owner's own library), with
 the resources of the guest capped, only the app's own window captured or driven (never the foreground, never the whole

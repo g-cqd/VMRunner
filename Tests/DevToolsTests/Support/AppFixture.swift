@@ -1,9 +1,12 @@
 import Foundation
 
 /// A package with the layout `vmr build-app` expects: an executable product named VMRunner, `Resources/Info.plist`
-/// and the two entitlement files. It needs no SwiftUI and is never launched.
+/// and the three entitlement files (the app's two and the container runner's). It needs no SwiftUI and is never launched.
+/// The container runner is not built from the fixture: tests hand `build-app` a copy of a system executable (``runner(in:)``).
 enum AppFixture {
     static let defaultEntitlements = entitlements(["com.apple.security.virtualization": "<true/>"])
+
+    static let runnerEntitlements = entitlements(["com.apple.security.virtualization": "<true/>"])
 
     static let hardenedEntitlements = entitlements([
         "com.apple.security.virtualization": "<true/>",
@@ -24,9 +27,17 @@ enum AppFixture {
             """
     }
 
+    /// A copy of a system executable in `directory`, to stand in for the container runner's build.
+    static func runner(in directory: URL) throws -> URL {
+        let runner = directory.appending(path: "runner-fixture")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: runner)
+        return runner
+    }
+
     static func files(
         defaultEntitlements: String = defaultEntitlements,
-        hardenedEntitlements: String = hardenedEntitlements
+        hardenedEntitlements: String = hardenedEntitlements,
+        runnerEntitlements: String = runnerEntitlements
     ) -> [String: String] {
         [
             "Package.swift": """
@@ -55,6 +66,7 @@ enum AppFixture {
             """,
             "Resources/VMRunner.entitlements": defaultEntitlements,
             "Resources/VMRunner.hardened.entitlements": hardenedEntitlements,
+            "Resources/ContainerRunner.entitlements": runnerEntitlements,
         ]
     }
 }

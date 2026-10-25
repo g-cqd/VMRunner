@@ -2,6 +2,10 @@ import Foundation
 
 /// Builds `build/VMRunner.app`, ad-hoc signs it with the hardened runtime and the entitlements it needs, then
 /// verifies the result: signature, effective entitlements, hardened-runtime flag and architecture.
+///
+/// The container runner is built from the package of its own, copied to `Contents/Helpers/ContainerRunner` and signed
+/// there with `Resources/ContainerRunner.entitlements` (virtualization only, whichever profile the app is signed with)
+/// before the app is, so that the app's signature seals it.
 struct AppBundler {
     enum Configuration: String, CaseIterable {
         case debug
@@ -14,6 +18,8 @@ struct AppBundler {
         var hardened = false
         /// Build an arm64e (pointer authentication) executable, in its own scratch path so the default build is untouched.
         var arm64e = false
+        /// A container runner that is built already, copied and signed instead of building the package of its own.
+        var containerRunner: URL?
     }
 
     static let productName = "VMRunner"
@@ -26,13 +32,20 @@ struct AppBundler {
     private var defaultEntitlementsURL: URL { root.appending(path: "Resources/\(Self.productName).entitlements") }
     private var hardenedEntitlementsURL: URL { root.appending(path: "Resources/\(Self.productName).hardened.entitlements") }
     private var entitlementsURL: URL { options.hardened ? hardenedEntitlementsURL : defaultEntitlementsURL }
+    private var runnerURL: URL { appURL.appending(path: "Contents/Helpers/\(ContainerSigner.productName)") }
 
     func run() async throws {
         // Cheap file checks first, so a drifted or over-privileged entitlements file fails before a long build.
         try verifyEntitlementFiles()
         try verifyHardenedSuperset()
+        let signer = ContainerSigner(
+            root: root, binary: options.containerRunner, configuration: options.configuration, report: { Output.out("runner: \($0)") })
+        let runnerEntitlements = try signer.checkedEntitlements()
+        // The runner's package is the long build and the likelier failure, so it goes first.
+        let runner = try await signer.executable()
         let binary = try await compile()
         try assemble(binary: binary)
+        try await signer.install(runner, at: runnerURL, expected: runnerEntitlements)
         try await BuildTools.codesign([
             "--force", "--sign", "-", "--options", "runtime", "--entitlements", entitlementsURL.path, appURL.path,
         ])

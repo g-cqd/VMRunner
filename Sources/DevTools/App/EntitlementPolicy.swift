@@ -16,6 +16,12 @@ enum EntitlementPolicy {
         "com.apple.security.hardened-process.platform-restrictions-string": .string("2"),
     ]
 
+    /// Every key the container runner may carry: virtualization, which it needs to start a virtual machine, and nothing else. It
+    /// is the same set under `--hardened`, which changes only the app's own entitlements.
+    static let runnerAllowed: [String: PlistValue] = [
+        "com.apple.security.virtualization": .bool(true)
+    ]
+
     /// Relaxations that are named so the message says what they do; anything else outside `allowed` is "not allowed".
     /// `get-task-allow` is a debug-build entitlement: allowed there, refused in a release.
     private static let relaxations: [(prefix: String, meaning: String)] = [
@@ -23,11 +29,14 @@ enum EntitlementPolicy {
         ("com.apple.security.temporary-exception.", "is a sandbox exception"),
     ]
 
-    /// What is wrong with a set of entitlements, whichever way it was obtained (a file or a signature).
-    static func problems(in entitlements: Entitlements.Dictionary, isRelease: Bool) -> [String] {
+    /// What is wrong with a set of entitlements, whichever way it was obtained (a file or a signature), against `keys`:
+    /// the app's allowlist unless the caller names another set.
+    static func problems(
+        in entitlements: Entitlements.Dictionary, isRelease: Bool, allowing keys: [String: PlistValue] = allowed
+    ) -> [String] {
         var problems: [String] = []
         for (key, value) in entitlements.sorted(by: { $0.key < $1.key }) {
-            if let permitted = allowed[key] {
+            if let permitted = keys[key] {
                 if value != permitted { problems.append("\(key) is \(value); the policy allows only \(permitted)") }
             } else if key == Entitlements.getTaskAllow {
                 if isRelease { problems.append("get-task-allow is present in a release build") }

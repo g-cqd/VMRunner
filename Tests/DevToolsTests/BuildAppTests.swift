@@ -6,7 +6,8 @@ struct BuildAppTests {
     private func buildApp(_ arguments: [String], files: [String: String] = AppFixture.files()) async throws -> (Invocation, URL?) {
         try await withTemporaryDirectory { directory in
             try write(files, to: directory)
-            let run = try await VMR.vmr(["build-app"] + arguments, in: directory)
+            let runner = try AppFixture.runner(in: directory)
+            let run = try await VMR.vmr(["build-app", "--container-runner", runner.path] + arguments, in: directory)
             let app = directory.appending(path: "build/VMRunner.app")
             // The directory is removed when this closure returns, so everything to check about the bundle happens here.
             if run.status == 0 {
@@ -22,13 +23,14 @@ struct BuildAppTests {
         #expect(verify.status == 0, "\(verify.combined)")
         #expect(FileManager.default.isExecutableFile(atPath: app.appending(path: "Contents/MacOS/VMRunner").path))
         #expect(FileManager.default.fileExists(atPath: app.appending(path: "Contents/Info.plist").path))
+        #expect(FileManager.default.isExecutableFile(atPath: app.appending(path: "Contents/Helpers/ContainerRunner").path))
     }
 
     @Test(.timeLimit(.minutes(8)))
     func aReleaseBuildIsSignedVerifiedAndReported() async throws {
         let (run, app) = try await buildApp([])
         #expect(run.status == 0, "\(run.combined)")
-        #expect(run.output.contains("entitlements OK (com.apple.security.virtualization)"), "\(run.output)")
+        #expect(run.outputLines.contains("entitlements OK (com.apple.security.virtualization)"), "\(run.output)")
         #expect(run.outputLines.contains { $0.hasPrefix("code signature: flags=0x") && $0.contains("runtime") }, "\(run.output)")
         #expect(run.outputLines.contains("architecture:   arm64"))
         #expect(run.output.contains("/build/VMRunner.app\n"))
@@ -53,14 +55,17 @@ struct BuildAppTests {
         #expect(app == nil)
     }
 
-    /// Runs `build-app` over a fixture whose two entitlement files are given, and returns the run and whether anything was built.
+    /// Runs `build-app` over a fixture whose entitlement files are given, and returns the run and whether anything was built.
     private func refusedBeforeBuilding(
         _ arguments: [String] = [],
-        default defaultFile: String,
-        hardened hardenedFile: String
+        default defaultFile: String = AppFixture.defaultEntitlements,
+        hardened hardenedFile: String = AppFixture.hardenedEntitlements,
+        runner runnerFile: String = AppFixture.runnerEntitlements
     ) async throws -> (run: Invocation, built: Bool) {
         try await withTemporaryDirectory { directory in
-            try write(AppFixture.files(defaultEntitlements: defaultFile, hardenedEntitlements: hardenedFile), to: directory)
+            try write(
+                AppFixture.files(defaultEntitlements: defaultFile, hardenedEntitlements: hardenedFile, runnerEntitlements: runnerFile),
+                to: directory)
             let run = try await VMR.vmr(["build-app"] + arguments, in: directory)
             let fileManager = FileManager.default
             let built =
@@ -107,6 +112,72 @@ struct BuildAppTests {
         #expect(
             run.error.contains("VMRunner.hardened.entitlements:5: a double hyphen inside an XML comment"), "\(run.error)")
         #expect(!built)
+    }
+
+    @Test(arguments: [
+        (
+            "com.apple.security.device.audio-input",
+            "com.apple.security.device.audio-input is not in the entitlement allowlist"
+        ),
+        ("com.apple.security.get-task-allow", "get-task-allow is present in a release build"),
+        ("com.apple.security.cs.allow-jit", "com.apple.security.cs.allow-jit relaxes the hardened runtime and is not permitted"),
+    ])
+    func anExtraEntitlementInTheRunnersFileIsRefusedBeforeBuildingEvenWhenTheAppMayCarryIt(key: String, message: String) async throws {
+        let extra = AppFixture.entitlements(["com.apple.security.virtualization": "<true/>", key: "<true/>"])
+        let (run, built) = try await refusedBeforeBuilding(["debug"], runner: extra)
+        #expect(run.status == 1, "\(run.combined)")
+        #expect(run.error.contains("  - ContainerRunner.entitlements: \(message)"), "\(run.error)")
+        #expect(!built, "the policy is checked on the file before anything is built")
+    }
+
+    @Test
+    func aRunnerFileWithoutVirtualizationIsRefusedBeforeBuilding() async throws {
+        let (run, built) = try await refusedBeforeBuilding(runner: AppFixture.entitlements([:]))
+        #expect(run.status == 1, "\(run.combined)")
+        #expect(run.error.contains("ContainerRunner.entitlements must grant com.apple.security.virtualization"), "\(run.error)")
+        #expect(!built)
+    }
+
+    @Test(.timeLimit(.minutes(8)))
+    func theRunnerIsSignedAlongsideItsOwnEntitlementsAndSealedByTheApp() async throws {
+        try await withTemporaryDirectory { directory in
+            try write(AppFixture.files(), to: directory)
+            let source = try AppFixture.runner(in: directory)
+            let run = try await VMR.vmr(["build-app", "--hardened", "--container-runner", source.path], in: directory)
+            #expect(run.status == 0, "\(run.combined)")
+            let app = directory.appending(path: "build/VMRunner.app")
+            let runner = app.appending(path: "Contents/Helpers/ContainerRunner")
+            #expect(run.outputLines.contains("runner: Signed \(runner.path)"), "\(run.output)")
+
+            // The app is hardened; the runner keeps virtualization alone, with the hardened runtime, as signed on its own.
+            let entitlements = try await VMR.run("/usr/bin/codesign", ["-d", "--entitlements", "-", "--xml", runner.path], in: directory)
+            #expect(entitlements.output.contains("com.apple.security.virtualization"), "\(entitlements.combined)")
+            #expect(!entitlements.output.contains("hardened-process"), "\(entitlements.output)")
+            let flags = try await VMR.run("/usr/bin/codesign", ["-dv", "--verbose=4", runner.path], in: directory)
+            #expect((flags.error + flags.output).contains("(adhoc,runtime)"), "\(flags.combined)")
+
+            // The runner was copied: the executable it came from is as it was, and is not the one that was signed.
+            let original = try await VMR.run("/usr/bin/codesign", ["-d", "--entitlements", "-", "--xml", source.path], in: directory)
+            #expect(!original.output.contains("virtualization"), "\(original.output)")
+
+            // The app seals the runner: a runner signed again after the app breaks the app's signature.
+            let resign = try await VMR.run("/usr/bin/codesign", ["--force", "--sign", "-", runner.path], in: directory)
+            #expect(resign.status == 0, "\(resign.combined)")
+            let broken = try await VMR.run("/usr/bin/codesign", ["--verify", "--strict", "--deep", app.path], in: directory)
+            #expect(broken.status != 0, "signing the runner after the app must not leave a valid app: \(broken.combined)")
+        }
+    }
+
+    @Test
+    func aRunnerThatIsNotAnExecutableIsNamedAndNothingIsAssembled() async throws {
+        try await withTemporaryDirectory { directory in
+            try write(AppFixture.files(), to: directory)
+            let missing = directory.appending(path: "absent")
+            let run = try await VMR.vmr(["build-app", "--container-runner", missing.path], in: directory)
+            #expect(run.status == 1, "\(run.combined)")
+            #expect(run.error.contains("\(missing.path) is not an executable"), "\(run.error)")
+            #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "build").path), "no bundle was started")
+        }
     }
 
     @Test(.timeLimit(.minutes(8)))
