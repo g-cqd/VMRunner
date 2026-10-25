@@ -270,11 +270,14 @@ final class VMLibrary {
             let staged = VMBundle(url: staging)
             staged.discardSavedState()
             staged.discardEphemeral()
-            let identifier =
-                copy.guest == .macOS
-                ? VZMacMachineIdentifier().dataRepresentation
-                : VZGenericMachineIdentifier().dataRepresentation
-            try identifier.write(to: staged.machineIdentifier)
+            // A container machine's bundle holds its configuration only: there is no identifier to renew.
+            if copy.workload == .vm {
+                let identifier =
+                    copy.guest == .macOS
+                    ? VZMacMachineIdentifier().dataRepresentation
+                    : VZGenericMachineIdentifier().dataRepresentation
+                try identifier.write(to: staged.machineIdentifier)
+            }
             try copy.encoded().writePrivately(to: staged.config)
             try FileManager.default.moveItem(at: staging, to: destination.url)
         } catch {
@@ -290,7 +293,7 @@ final class VMLibrary {
     /// Starts the setup of a machine. A job that is still in the table, running, failed or unwinding after a cancel, blocks it:
     /// two runs on one bundle would write the same disk.
     func beginSetup(_ id: UUID) {
-        guard let config = machine(id), jobs[id] == nil else { return }
+        guard let config = machine(id), config.workload == .vm, jobs[id] == nil else { return }
         let job = SetupJob()
         jobs[id] = job
         job.task = Task { [weak self, weak job] in
@@ -352,6 +355,10 @@ final class VMLibrary {
     /// Starts a machine, or, when its configuration names host paths the user has not approved, asks first (`interactive`)
     /// or refuses and logs (a launch argument has nobody to ask).
     func startMachine(_ id: UUID, interactive: Bool = true) {
+        if let config = machine(id), config.workload == .container {
+            alertMessage = Self.containerStartRefusal(config.name)
+            return
+        }
         guard let config = machine(id), config.isProvisioned, jobs[id] == nil, controller(for: id).state.canStart else { return }
         let unapproved = unapprovedHostPaths(for: id)
         guard unapproved.isEmpty else {

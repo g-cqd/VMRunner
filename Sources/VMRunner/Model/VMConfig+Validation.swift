@@ -36,6 +36,7 @@ extension VMConfig {
         try validateText()
         try validateHostPaths()
         try validateRules()
+        try validateContainer()
         try Self.require(diskGiB, in: 1...EditorLimits.maxDiskGiB, "diskGiB")
         try Self.require(displayWidth, in: EditorLimits.displayWidth, "displayWidth")
         try Self.require(displayHeight, in: EditorLimits.displayHeight, "displayHeight")
@@ -84,6 +85,49 @@ extension VMConfig {
                 throw Self.corrupted(
                     "networkPolicy.\(list.rawValue)", "must hold rules of at most \(EditorLimits.maxRuleLength) characters")
             }
+        }
+    }
+
+    /// A container machine's spec, within what the container runner accepts. A virtual machine ignores its `container`.
+    private func validateContainer() throws {
+        guard workload == .container else { return }
+        guard let spec = container else { throw Self.corrupted("container", "is required for a container machine") }
+        try Self.requireImage(spec.image)
+        guard spec.command.count <= ContainerLimits.maxCommandElements else {
+            throw Self.corrupted("container.command", "must hold at most \(ContainerLimits.maxCommandElements) elements")
+        }
+        for element in spec.command {
+            guard element.utf8.count <= ContainerLimits.maxCommandElementBytes, !element.utf8.contains(0) else {
+                throw Self.corrupted(
+                    "container.command", "must hold elements of at most \(ContainerLimits.maxCommandElementBytes) bytes without NUL")
+            }
+        }
+        try Self.requireEnvironment(spec.environment)
+        try Self.require(spec.cpus, in: ContainerLimits.cpus, "container.cpus")
+        try Self.require(spec.memoryMiB, in: ContainerLimits.memoryMiB, "container.memoryMiB")
+    }
+
+    private static func requireImage(_ image: String) throws {
+        guard !image.isEmpty, image.utf8.count <= ContainerLimits.maxImageBytes else {
+            throw corrupted("container.image", "must be from 1 to \(ContainerLimits.maxImageBytes) bytes")
+        }
+        guard !image.unicodeScalars.contains(where: { $0.properties.isWhitespace || $0.properties.generalCategory == .control }) else {
+            throw corrupted("container.image", "must not hold whitespace or control characters")
+        }
+    }
+
+    private static func requireEnvironment(_ environment: [ContainerEnvironmentEntry]) throws {
+        guard environment.count <= ContainerLimits.maxEnvironmentEntries else {
+            throw corrupted("container.environment", "must hold at most \(ContainerLimits.maxEnvironmentEntries) entries")
+        }
+        var seen = Set<String>()
+        for entry in environment {
+            guard entry.hasValidName else {
+                throw corrupted(
+                    "container.environment", "must name variables of letters, digits and underscores, not starting with a digit")
+            }
+            guard entry.hasValidValue else { throw corrupted("container.environment", "must hold values without NUL or newline") }
+            guard seen.insert(entry.name).inserted else { throw corrupted("container.environment", "must not name \(entry.name) twice") }
         }
     }
 

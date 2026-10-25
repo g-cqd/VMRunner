@@ -96,6 +96,11 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var id = UUID()
     var name: String
     var guest: GuestOS
+    /// What the machine runs. A container machine has no disk, firmware state or display: only `container` below matters to it,
+    /// and the settings of a virtual machine stay at their defaults.
+    var workload = WorkloadKind.vm
+    /// A container machine's image, command, environment and limits. A virtual machine ignores it.
+    var container: ContainerSpec?
 
     // Lifecycle
     var source: ImageSource?
@@ -231,6 +236,15 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
         }
         return config
     }
+
+    /// A container machine. Its settings are a Linux guest's, it has nothing to set up, and a spec left out is the default one.
+    static func newContainer(name: String, container: ContainerSpec = ContainerSpec()) -> Self {
+        var config = Self.new(name: name, guest: .linux)
+        config.workload = .container
+        config.container = container
+        config.isProvisioned = true
+        return config
+    }
 }
 
 extension VMConfig {
@@ -250,7 +264,9 @@ extension VMConfig {
         guard JSONSerialization.isValidJSONObject(merged) else {
             throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The configuration holds a number out of range"))
         }
-        let config = try JSONDecoder().decode(Self.self, from: JSONSerialization.data(withJSONObject: merged))
+        var config = try JSONDecoder().decode(Self.self, from: JSONSerialization.data(withJSONObject: merged))
+        // A container machine always has a spec: one stored without any key of it runs the default container.
+        if config.workload == .container, config.container == nil { config.container = ContainerSpec() }
         try config.validate()
         return config
     }
