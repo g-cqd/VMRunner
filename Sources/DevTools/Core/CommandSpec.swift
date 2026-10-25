@@ -9,6 +9,8 @@ struct CommandSpec: Sendable {
     /// Variables set on top of the inherited environment, or on top of nothing when `inheritEnvironment` is false.
     var environment: [String: String] = [:]
     var inheritEnvironment = true
+    /// With `.inherit` output: the child reads this process's standard input instead of an empty one.
+    var inheritsInput = false
     /// After this long the process gets SIGTERM, then SIGKILL, and the result reports `timedOut`.
     var timeout: Duration?
 

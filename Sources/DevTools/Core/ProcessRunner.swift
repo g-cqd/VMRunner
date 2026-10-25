@@ -69,16 +69,13 @@ enum ProcessRunner {
         do {
             switch mode {
             case .inherit:
-                let result = try await Subprocess.run(
-                    program,
-                    arguments: arguments,
-                    environment: child,
-                    workingDirectory: directory,
-                    platformOptions: options,
-                    output: .currentStandardOutput,
-                    error: .currentStandardError
-                )
-                return CommandResult(status: status(of: result.terminationStatus), standardOutput: "", standardError: "", timedOut: false)
+                let configuration = Configuration(
+                    executable: program, arguments: arguments, environment: child, workingDirectory: directory, platformOptions: options)
+                let termination =
+                    spec.inheritsInput
+                    ? try await inherit(configuration, input: .currentStandardInput)
+                    : try await inherit(configuration, input: .none)
+                return CommandResult(status: status(of: termination), standardOutput: "", standardError: "", timedOut: false)
             case .stream(let observe):
                 let configuration = Configuration(
                     executable: program, arguments: arguments, environment: child, workingDirectory: directory, platformOptions: options)
@@ -104,6 +101,13 @@ enum ProcessRunner {
         } catch let error as SubprocessError {
             throw ToolError("cannot run \(spec.executable): \(error)")
         }
+    }
+
+    /// Runs the process with its output and error on this process's descriptors and `input` as its standard input.
+    private static func inherit<Input: InputProtocol>(_ configuration: Configuration, input: Input) async throws -> TerminationStatus {
+        let result = try await Subprocess.run(
+            configuration, input: input, output: .currentStandardOutput, error: .currentStandardError)
+        return result.terminationStatus
     }
 
     /// Runs the process and forwards each line of its two streams to this process's matching descriptor and to `observe`.

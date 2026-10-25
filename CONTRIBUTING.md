@@ -288,8 +288,10 @@ The container runner (roadmap 0024) lives in a package of its own, `Packages/Con
 `Package.resolved`: it links the container library of ADR-0017, pinned with `exact:`, and the packages that brings in, none of
 which belongs in the root graph. The root package does not depend on it, and the `packages` key of `.vmr.json` makes
 `vmr check build test` cover it. `swift run vmr container-sign` builds and signs the runner; running it boots a virtual
-machine, so only its owner does, from `docs/research/containers-2026-10.md`. A new package copies the root manifest's
-`// BEGIN shared settings` block verbatim (a test compares them).
+machine, so only its owner does, from `docs/research/containers-2026-10.md`. `swift run vmr container-run --boot` signs it,
+makes a scratch directory and runs it with an image, a command, a size and an environment: a real-guest run under the
+conditions above (an authorised session, at most 2 CPUs and 2048 MiB, a run-time limit), refused without `--boot`. A new
+package copies the root manifest's `// BEGIN shared settings` block verbatim (a test compares them).
 
 ## Continuous integration
 

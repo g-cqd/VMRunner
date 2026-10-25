@@ -19,6 +19,7 @@ struct VMRCommand: AsyncParsableCommand {
             GuestCommand.self,
             ControlCommand.self,
             ContainerSignCommand.self,
+            ContainerRunCommand.self,
             SarifCommand.self,
             HooksCommand.self,
         ]

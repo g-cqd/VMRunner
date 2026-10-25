@@ -13,10 +13,14 @@ struct ContainerSigner {
     /// An executable that is already built; `nil` builds the product first.
     let binary: URL?
     let configuration: AppBundler.Configuration
+    /// Where the two result lines go; `vmr container-run` sends them to standard error, so that standard output stays the runner's.
+    var report: (String) -> Void = { Output.out($0) }
 
     private var entitlementsURL: URL { root.appending(path: "Resources/\(Self.productName).entitlements") }
 
-    func run() async throws {
+    /// Signs the runner and returns it.
+    @discardableResult
+    func run() async throws -> URL {
         let expected = try Entitlements.load(fileAt: entitlementsURL)
         try verifyFile(expected)
         let target = try await executable()
@@ -26,8 +30,9 @@ struct ContainerSigner {
         try await BuildTools.verifySignature(of: target)
         let effective = try await BuildTools.verifyEntitlements(
             of: target, expected: expected, isRelease: true, expectation: entitlementsURL.lastPathComponent)
-        Output.out("entitlements OK (\(effective.keys.sorted().joined(separator: ", ")))")
-        Output.out("Signed \(target.path)")
+        report("entitlements OK (\(effective.keys.sorted().joined(separator: ", ")))")
+        report("Signed \(target.path)")
+        return target
     }
 
     private func verifyFile(_ expected: Entitlements.Dictionary) throws {
