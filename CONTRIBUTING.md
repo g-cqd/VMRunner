@@ -166,6 +166,13 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   another target uses is `package`, and its tests use `@testable import`. The app links it, through the adapter in
   `Sources/VMRunner/Engine/CustomGPU`, and `DependencyPolicyTests` lets the app link it. A declaration that only its tests use
   carries the trailing `// @dw:accept:this referenced-only-by-tests` where the dead-code gate asks.
+- `Sources/PrivateInterfaces` (ADR-0019, ADR-0059) is the only code that finds a method by the name of its class and selector.
+  A capability there has an id, a range of macOS builds, the expected type encoding of each method, a read-back and a kill
+  switch, and every failed check makes it unavailable with a reason; nothing is called after a failed check. It links the
+  Virtualization framework and no other target, a declaration another target uses is `package`, and the app links it.
+  A test in `DevToolsTests` fails when the runtime's lookup functions appear in any other target. Its contract tests need the
+  framework's private selectors and are skipped on a macOS that lacks them; the fail-closed paths are tested with a fake
+  resolver and run everywhere. Add a capability only with a probe on the running macOS build and a decision of its own.
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 

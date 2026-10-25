@@ -4,7 +4,7 @@
   "skipTestsWhenInstrumented": ["DevToolsTests"],
   "coverage": {
     "minimum": 55,
-    "testBundles": ["VMRunnerTests", "NetPolicyTests", "NetStackTests", "GuestSeedTests", "ControlProtocolTests", "AgentBridgeTests", "VirtioGPUTests", "VirtioGPURunnerTests", "VirtioInputTests"],
+    "testBundles": ["VMRunnerTests", "NetPolicyTests", "NetStackTests", "GuestSeedTests", "ControlProtocolTests", "AgentBridgeTests", "VirtioGPUTests", "VirtioGPURunnerTests", "VirtioInputTests", "PrivateInterfacesTests"],
     "ignoreRegex": "Tests/|\\.build|/Views/|VMRunnerApp|VMController|Provisioner|ConfigurationBuilder"
   }
 }

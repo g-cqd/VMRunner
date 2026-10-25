@@ -36,7 +36,7 @@ let package = Package(
         .executableTarget(
             name: "VMRunner",
             dependencies: [
-                "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack", "VirtioGPU", "VirtioInput",
+                "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack", "PrivateInterfaces", "VirtioGPU", "VirtioInput",
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             ],
             path: "Sources/VMRunner", swiftSettings: hardening),
@@ -58,6 +58,15 @@ let package = Package(
         .target(name: "NetStack", dependencies: ["NetPolicy"], path: "Sources/NetStack", swiftSettings: hardening),
         .testTarget(
             name: "NetStackTests", dependencies: ["NetStack", "NetPolicy", "TestKit"], path: "Tests/NetStackTests",
+            swiftSettings: hardening),
+
+        // The only code that looks up an interface the framework does not document (ADR-0019, ADR-0059): a registry of
+        // capabilities, each with a range of macOS builds, a check of the method's type encoding, a read-back and a kill switch,
+        // all failing closed. It links the Virtualization framework and no other target. The app links it; a test keeps the
+        // runtime's lookup functions out of every other target.
+        .target(name: "PrivateInterfaces", path: "Sources/PrivateInterfaces", swiftSettings: hardening),
+        .testTarget(
+            name: "PrivateInterfacesTests", dependencies: ["PrivateInterfaces"], path: "Tests/PrivateInterfacesTests",
             swiftSettings: hardening),
 
         // The pure core of the host-implemented virtio GPU (roadmap 0014, ADR-0058): the wire format, the resource store, the

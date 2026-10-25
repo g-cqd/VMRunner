@@ -153,6 +153,48 @@ struct ModuleBoundaryTests {
         }
     }
 
+    /// The code that looks an interface up by name (ADR-0019, ADR-0059) depends on no target and no package, and no target links
+    /// it but the app and its own tests.
+    @Test
+    func thePrivateInterfacesLibraryDependsOnNothingAndOnlyTheAppLinksIt() throws {
+        let manifest = try Self.manifest()
+        let library = try Self.dependencies(of: "PrivateInterfaces", in: manifest)
+        #expect(library.targets.isEmpty, "PrivateInterfaces depends on no other target: \(library.targets)")
+        #expect(library.products.isEmpty, "PrivateInterfaces depends on no package product: \(library.products)")
+        let declared = try NSRegularExpression(pattern: #"\.(?:target|executableTarget|testTarget)\(\s*name: "([^"]+)""#)
+        let names = declared.matches(in: manifest, range: NSRange(manifest.startIndex..., in: manifest)).compactMap {
+            Range($0.range(at: 1), in: manifest).map { String(manifest[$0]) }
+        }
+        var linkers: Set<String> = []
+        for name in names where try Self.dependencies(of: name, in: manifest).targets.contains("PrivateInterfaces") {
+            linkers.insert(name)
+        }
+        #expect(linkers == ["VMRunner", "PrivateInterfacesTests"], "PrivateInterfaces is linked by \(linkers.sorted())")
+    }
+
+    /// The runtime's lookup functions, which find a method by the name of its class and selector, are used in the capability
+    /// module and its tests and nowhere else.
+    @Test
+    func theRuntimeLookupFunctionsAppearOnlyInThePrivateInterfacesTargetAndItsTests() throws {
+        let lookups = [
+            "NSClassFromString", "NSSelectorFromString", "objc_msgSend", "objc_getClass", "objc_lookUpClass",
+            "class_getInstanceMethod", "class_copyMethodList", "method_getImplementation",
+        ]
+        var scanned = 0
+        for directory in ["Sources", "Tests", "Plugins"] {
+            for file in try Self.swiftFiles(under: directory) {
+                let path = file.path
+                if path.contains("/Sources/PrivateInterfaces/") || path.contains("/Tests/PrivateInterfacesTests/") { continue }
+                if file.lastPathComponent == "ModuleBoundaryTests.swift" { continue }
+                scanned += 1
+                let source = try String(contentsOf: file, encoding: .utf8)
+                let found = lookups.filter { source.contains($0) }
+                #expect(found.isEmpty, "\(directory)/\(file.lastPathComponent) uses \(found)")
+            }
+        }
+        #expect(scanned > 100, "the scan reached the sources and tests: \(scanned) files")
+    }
+
     /// The runner links the library and its own command-line parser, which depends on nothing, and no other target links the
     /// runner's parser but the runner and its tests.
     @Test
