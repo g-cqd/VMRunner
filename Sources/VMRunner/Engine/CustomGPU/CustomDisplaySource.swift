@@ -9,6 +9,9 @@ protocol CustomDisplaySource: AnyObject, Sendable {
     /// The picture and the cursor the guest draws.
     var screen: CustomScreen { get }
 
+    /// What carries the machine's keyboard and pointer from the window to the guest.
+    var input: any GuestInputSurface { get }
+
     /// Asks the guest to resize its display to `width` × `height` pixels. `false` means the device refuses that size and changed
     /// nothing; `true` means the guest is being told, not that it has drawn at the new size (the screen shows that when frames
     /// of the new size arrive).

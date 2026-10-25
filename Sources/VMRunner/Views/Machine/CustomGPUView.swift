@@ -3,8 +3,9 @@ import VirtioGPU
 
 /// Shows the picture the guest draws on a custom GPU, and its cursor. The picture is the contents of the view's layer, scaled to
 /// fit with its aspect ratio over black; the cursor is a layer above it, placed where the guest put it. The view takes the
-/// keyboard when it is in a window, like the framework's own view does, but passes nothing to the guest: input for such a
-/// machine has no path yet, and the view swallows key presses so that the system does not beep at each of them.
+/// keyboard when it is in a window, like the framework's own view does, and passes every key, pointer and scroll event to the
+/// machine's input surface (`CustomGPUView+Input.swift`); without one it swallows them, so that the system does not beep at
+/// each key press.
 @MainActor
 final class CustomGPUView: NSView, ScreenPresenter {
     private let cursorLayer = CALayer()
@@ -13,6 +14,8 @@ final class CustomGPUView: NSView, ScreenPresenter {
     private(set) var pictureSize = CGSize.zero
     private var cursor: CursorState?
     private var cursorGeneration: UInt64?
+    /// Where this view's events go; `nil` until the view is given a surface.
+    private(set) var input: (any GuestInputSurface)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -28,11 +31,10 @@ final class CustomGPUView: NSView, ScreenPresenter {
 
     override var acceptsFirstResponder: Bool { true }
 
-    override func keyDown(with event: NSEvent) {}
-
     override func layout() {
         super.layout()
         placeCursor()
+        placeInput()
     }
 
     /// Draws `screen`, and no longer the one drawn before.
@@ -43,10 +45,21 @@ final class CustomGPUView: NSView, ScreenPresenter {
         screen.attach(self)
     }
 
-    /// Stops drawing: the view is going away.
+    /// Passes this view's events to `input`, and no longer to the surface it had.
+    func use(_ input: any GuestInputSurface) {
+        guard self.input !== input else { return }
+        self.input?.detach(from: self)
+        self.input = input
+        input.attach(to: self)
+        placeInput()
+    }
+
+    /// Stops drawing and passing events: the view is going away.
     func detach() {
         screen?.detach(self)
         screen = nil
+        input?.detach(from: self)
+        input = nil
     }
 
     func present(frame: ScanoutUpdate) {
@@ -54,6 +67,7 @@ final class CustomGPUView: NSView, ScreenPresenter {
         layer?.contents = image
         pictureSize = CGSize(width: Int(frame.width), height: Int(frame.height))
         placeCursor()
+        placeInput()
     }
 
     func present(cursor: CursorState?) {
@@ -79,7 +93,12 @@ final class CustomGPUView: NSView, ScreenPresenter {
             cursorLayer.isHidden = true
             return
         }
-        cursorLayer.frame = CGRect(x: rect.minX, y: bounds.height - rect.maxY, width: rect.width, height: rect.height)
+        cursorLayer.frame = ScreenPlacement.flipped(rect, in: bounds.size)
         cursorLayer.isHidden = false
+    }
+
+    /// Tells the input surface where the picture sits.
+    private func placeInput() {
+        input?.placePicture(ScreenPlacement.pictureRect(picture: pictureSize, in: bounds.size), in: bounds.size)
     }
 }

@@ -52,6 +52,17 @@ struct ScreenPlacementTests {
     }
 
     @Test
+    func aRectangleIsFlippedFromTheTopLeftToTheBottomLeftOfItsView() {
+        let view = CGSize(width: 1000, height: 400)
+        #expect(
+            ScreenPlacement.flipped(CGRect(x: 10, y: 20, width: 100, height: 50), in: view) == CGRect(x: 10, y: 330, width: 100, height: 50)
+        )
+        let picture = ScreenPlacement.pictureRect(picture: display, in: view)
+        #expect(ScreenPlacement.flipped(picture, in: view) == CGRect(x: 180, y: 0, width: 640, height: 400))
+        #expect(ScreenPlacement.flipped(.zero, in: view) == CGRect(x: 0, y: 400, width: 0, height: 0))
+    }
+
+    @Test
     func aCursorWithoutAPictureHasNoRectangle() {
         var hidden = cursor(x: 5, y: 5)
         hidden.picture = nil

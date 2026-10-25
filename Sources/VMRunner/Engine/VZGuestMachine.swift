@@ -44,6 +44,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         self.startOptions = startOptions
         super.init()
         machine.delegate = self
+        customDisplay?.input.use(machine: machine)
     }
 
     var capabilities: WorkloadCapabilities { .virtualMachine }
@@ -123,7 +124,8 @@ struct VZMachineFactory: MachineFactory {
         // The configuration is clamped again here: a managed key that arrived after the library loaded still blocks the seed.
         try await ProvisioningSeed.prepare(for: ManagedPreferences.current.clamp(config), bundle: bundle)
         // The custom GPU is made here, on the main actor, and handed to the machine, which keeps it for as long as it lives.
-        let customGPU = Self.customGPU(for: config, display: display)
+        // The path of its keyboard and pointer is read once, now.
+        let customGPU = Self.customGPU(for: config, display: display, inputPath: CustomGPUInputPath.current())
         let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display, customGPU: customGPU)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend =
@@ -143,8 +145,13 @@ struct VZMachineFactory: MachineFactory {
 
     /// The custom GPU of a machine set to use it, or `nil` for any other machine and on a host that cannot build the device
     /// (the builder then refuses the machine with a message).
-    private static func customGPU(for config: VMConfig, display: (width: Int, height: Int)) -> (any CustomDisplaySource)? {
+    private static func customGPU(
+        for config: VMConfig, display: (width: Int, height: Int), inputPath: CustomGPUInputPath
+    ) -> (any CustomDisplaySource)? {
         guard config.usesCustomGPU, #available(macOS 27.0, *) else { return nil }
+        if inputPath == .virtio {
+            Log.input.notice("CustomGPUInput is virtio, and this build has no such path: the framework's input is used")
+        }
         return CustomGPUSession(display: display)
     }
 

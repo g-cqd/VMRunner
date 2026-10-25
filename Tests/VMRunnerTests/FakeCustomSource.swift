@@ -7,6 +7,8 @@ import Virtualization
 @MainActor
 final class FakeCustomSource: CustomDisplaySource {
     let screen = CustomScreen(displaySize: CGSize(width: 1280, height: 800))
+    let inputSurface = FakeInputSurface()
+    var input: any GuestInputSurface { inputSurface }
     /// Whether the device takes the sizes it is asked for.
     var accepts = true
     /// Every size asked for, in order, including the ones refused.

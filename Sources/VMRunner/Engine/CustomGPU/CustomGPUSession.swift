@@ -9,10 +9,13 @@ import Virtualization
 @MainActor
 final class CustomGPUSession: CustomDisplaySource {
     let screen: CustomScreen
+    let input: any GuestInputSurface
     private let device: CustomGPUDevice
 
-    /// The display starts at `display`, brought within the library's limits (`GPULimits.fittingDisplay`).
-    init(display: (width: Int, height: Int)) {
+    /// The display starts at `display`, brought within the library's limits (`GPULimits.fittingDisplay`). The keyboard and
+    /// pointer go through `input`.
+    init(display: (width: Int, height: Int), input: any GuestInputSurface = FrameworkInputSurface()) {
+        self.input = input
         var limits = GPULimits()
         let size = limits.fittingDisplay(width: UInt32(clamping: display.width), height: UInt32(clamping: display.height))
         (limits.displayWidth, limits.displayHeight) = size

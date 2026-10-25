@@ -31,6 +31,8 @@ struct CustomGPUDisplay: NSViewRepresentable {
 
     private func configure(_ container: CustomGPUContainer, resizer: DisplayResizer) {
         container.gpuView.show(source.screen)
+        source.input.capturesSystemKeys = settings.capturesSystemKeys
+        container.gpuView.use(source.input)
         resizer.configure(
             source: source, scale: settings.scale, enabled: settings.resizer == .app,
             holdFor: settings.firmwareHoldRemaining(at: .now), guestAnswered: guestAnswered)

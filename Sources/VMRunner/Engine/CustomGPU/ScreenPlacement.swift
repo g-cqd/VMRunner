@@ -12,6 +12,12 @@ enum ScreenPlacement {
         return CGRect(x: (view.width - size.width) / 2, y: (view.height - size.height) / 2, width: size.width, height: size.height)
     }
 
+    /// `rect`, which has its origin at the top left of a view of `size`, with its origin at the view's bottom left (the origin of
+    /// a layer and of an `NSView` that is not flipped).
+    static func flipped(_ rect: CGRect, in size: CGSize) -> CGRect {
+        CGRect(x: rect.minX, y: size.height - rect.maxY, width: rect.width, height: rect.height)
+    }
+
     /// The rectangle of the cursor's image: its hot spot sits on the cursor's position, and one guest pixel is as large as one
     /// pixel of the picture. `.zero` when the cursor has no picture or the display is empty.
     static func cursorRect(_ cursor: CursorState, picture: CGSize, in view: CGSize) -> CGRect {

@@ -55,7 +55,17 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   is handed. The image reads the guest's bytes where they are (the bitmap description names where red, green and blue sit
   for each of the eight formats), so making it costs one copy of the bytes (4 MB at 1280 × 800, 33 MB at 4K), not a pass over
   the pixels. Full screen swaps the view; the new one draws the screen from its newest picture, and the device keeps
-  running. The view takes the keyboard but swallows key presses: input has no path yet.
+  running. The view takes the keyboard and passes every key, pointer and scroll event to the machine's input surface
+  (`GuestInputSurface`); without a surface it swallows them.
+- Input, the framework's path: a Linux machine on the custom GPU keeps the USB keyboard and screen-coordinate pointer, and
+  its input surface is a `VZVirtualMachineView` that is never shown and has no graphics device to draw. It sits in the
+  window's container below the picture's view, which stays on top and first responder and forwards each event to it, so it
+  cannot hide the picture; its frame is the rectangle the picture occupies (`ScreenPlacement.pictureRect`), which is what
+  makes a point of the view land on the guest pixel under it when bars surround the picture. The view does not resize the
+  display (`automaticallyReconfiguresDisplay` is off) and takes `capturesSystemKeys` from the machine's setting. A developer
+  default, `CustomGPUInput` (`framework`, the default, or `virtio`; any other value is `framework`), is read once when a
+  machine is prepared; only the framework path exists yet. Whether the framework's view takes events passed to it this
+  way, from a view that is not the first responder, is unknown.
 - Resizing follows the window like the framework's display does for a Linux guest: the same policy (`DisplayFollower`) drives an
   adapter (`CustomGPUResizableDisplay`) over the device. A request sets the size the next display-information answer reports
   and writes the configuration space twice, the display event cleared and then set, so that every write after the first
@@ -127,8 +137,9 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
    status-queue decoder. The framework gives the host no callback for the guest's write of `select` and `subsel`, so the guest
    reads one bitmap for every question the Linux driver asks; each layout is chosen so that the driver's probe, replayed by
    a model in the tests, accepts it, and its side effects (the keyboard also looks like an accelerometer to the guest's device
-   manager, the pointer has no horizontal wheel) are written on the layouts. Not done: the app's adapter and the machine's
-   configuration, and a run against a guest, which is what would confirm the userland behaviour that was read from the sources
-   of the guest's device manager and input library.
+   manager, the pointer has no horizontal wheel) are written on the layouts. The framework's path is built (above). Not
+   done: the app's adapter for the library and the machine's configuration with it, and a run against a guest, which is what
+   would confirm both paths and the userland behaviour that was read from the sources of the guest's device manager and
+   input library.
 4. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
 5. 3D acceleration is not in scope of this work.
