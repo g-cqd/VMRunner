@@ -9,9 +9,11 @@ struct DisplaySection: View {
     @Binding var pixelsPerInch: Int
     @Binding var followsWindow: Bool
     @Binding var pixelsPerPoint: Int
+    @Binding var gpu: GPUChoice
 
     var body: some View {
         Section {
+            if guest == .linux { gpuRows }
             resolutionRows
             if guest == .macOS {
                 ValueStepper(
@@ -40,6 +42,17 @@ struct DisplaySection: View {
         } header: {
             HelpHeader("Display", topic: guest == .linux ? .linuxBootText : .resolution)
         }
+    }
+
+    @ViewBuilder
+    private var gpuRows: some View {
+        Picker("Graphics", selection: $gpu) {
+            ForEach(GPUChoice.allCases) { Text($0.label).tag($0) }
+        }
+        .disabled(!HostCapabilities.customGPU)
+        .managedLock(.allowCustomGPU)
+        .settingHelp(.customGPU)
+        Text(gpu.note()).font(.caption).foregroundStyle(.secondary)
     }
 
     @ViewBuilder

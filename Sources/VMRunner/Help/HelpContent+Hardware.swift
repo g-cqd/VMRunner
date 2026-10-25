@@ -141,10 +141,38 @@ extension HelpCatalog {
             advanced: [
                 "GPU speed in macOS guests has not been benchmarked in this app. Hardware 3D for Linux would need a different "
                     + "virtualization stack, such as QEMU with virglrenderer or libkrun with Venus (Vulkan). They use Hypervisor.framework "
-                    + "directly, so they cannot be switched on here. macOS 27 adds custom virtio devices that could in principle host a "
-                    + "virtio-GPU implementation, but that is a research direction, not a feature."
+                    + "directly, so they cannot be switched on here. macOS 27 adds custom virtio devices; the **Custom GPU** setting "
+                    + "uses one to give a Linux guest a two-dimensional virtio GPU that VMRunner implements itself. That is not 3D "
+                    + "acceleration; see the Custom GPU topic."
             ],
-            related: [.resolution, .guestSystems]
+            related: [.customGPU, .resolution, .guestSystems]
+        ),
+        .customGPU: HelpEntry(
+            area: .display,
+            title: "Custom GPU (Linux)",
+            summary: "An experimental graphics device that VMRunner provides itself for Linux guests. Needs macOS 27.",
+            paragraphs: [
+                "A Linux guest normally uses Apple's graphics device. On macOS 27 or later you can pick **Custom (experimental)** "
+                    + "instead: a virtio GPU that VMRunner implements itself, inside the app. It draws in two dimensions only, so "
+                    + "there is still no 3D acceleration and no OpenGL or Vulkan hardware.",
+                "What you give up:",
+                "• **Suspend and saved state.** The device cannot be saved, so a machine that uses it cannot be suspended, and "
+                    + "choosing it discards any memory the machine had saved.",
+                "• **Display size.** The size is agreed with the guest's own graphics driver, so whether the screen follows the "
+                    + "window depends on that driver.",
+                "• **Keyboard and pointer.** They go through the app's own view of the picture, not the framework's screen view, "
+                    + "so they can behave differently from a machine with Apple's device.",
+                "What it exposes: the guest sends its drawing commands to code inside VMRunner, which reads them itself. A flaw "
+                    + "there could be reached by software in the guest, so \"What this machine can reach\" lists the custom GPU as "
+                    + "a medium exposure. The Isolated and Hardened profiles switch back to Apple's device; Standard and Contained "
+                    + "leave your choice. Your organisation can turn the choice off with `AllowCustomGPU`.",
+            ],
+            advanced: [
+                "The device is a work in progress. It has been tested on the Mac without a running guest; whether a given "
+                    + "distribution's driver finds it and shows a screen has not been verified yet. A configuration that asks for "
+                    + "it on a Mac older than macOS 27 is kept, and the choice is disabled there."
+            ],
+            related: [.graphics, .suspendResume, .exposureSummary, .securityProfiles, .managedSettings]
         ),
         .resolution: HelpEntry(
             area: .display,
@@ -238,7 +266,8 @@ extension HelpCatalog {
                     + "file and run the same command. On Debian and Ubuntu you can instead set `FONTFACE=\"Terminus\"` and "
                     + "`FONTSIZE=\"16x32\"` in `/etc/default/console-setup` and run `sudo setupcon`.",
                 "What cannot be done: the firmware's own screens and GRUB run before the guest has any driver, so nothing here can "
-                    + "accelerate them or change the firmware's font. Linux guests get no 3D acceleration from Apple's framework at all.",
+                    + "accelerate them or change the firmware's font. Linux guests get no 3D acceleration from Apple's framework at all. "
+                    + "The experimental custom GPU draws in two dimensions only, so it adds no 3D acceleration either.",
             ],
             advanced: [
                 "The size the guest started with is recorded in the machine's `config.json` as `lastDisplayWidth` and "
@@ -246,7 +275,7 @@ extension HelpCatalog {
                     + "kernel offers `TER16x32` depends on how it was built. How the framework's firmware picks its screen mode is "
                     + "not documented, so the 1280 pixel start is a measure, not a guarantee."
             ],
-            related: [.resolution, .resizeWithWindow, .graphics]
+            related: [.resolution, .resizeWithWindow, .graphics, .customGPU]
         ),
         .pointingDevice: HelpEntry(
             area: .display,

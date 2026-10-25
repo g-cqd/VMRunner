@@ -71,6 +71,16 @@ enum GPUChoice: String, Codable, CaseIterable, Identifiable, Sendable {
     case custom
 
     var id: Self { self }
+    var label: String { self == .apple ? "Apple" : "Custom (experimental)" }
+
+    /// What the editor says under the choice: why it cannot be changed, or what the current choice means.
+    func note(hostSupports: Bool = HostCapabilities.customGPU, in policy: ManagedPreferences = .current) -> String {
+        if !hostSupports { return "Needs macOS 27 or later." }
+        if policy.isLocked(.allowCustomGPU) { return "Your organisation turned the custom GPU off." }
+        return self == .apple
+            ? "Apple's graphics device. The custom one is experimental."
+            : "Experimental: two dimensions only, and the machine cannot be suspended."
+    }
 }
 
 struct SharedFolder: Codable, Identifiable, Hashable, Sendable {

@@ -242,9 +242,11 @@ extension HelpCatalog {
             paragraphs: [
                 "These are the memory balloon, the random-number generator, the host–guest socket, and the serial console. Each one is "
                     + "another thing the guest talks to, "
-                    + "so each is a (small) part of the attack surface."
+                    + "so each is a (small) part of the attack surface.",
+                "A Linux guest can also be given the experimental custom GPU, a graphics device that VMRunner implements itself; it "
+                    + "has its own topic.",
             ],
-            related: [.memoryBalloon, .entropy, .vsock, .serialConsole]
+            related: [.memoryBalloon, .entropy, .vsock, .serialConsole, .customGPU]
         ),
         .memoryBalloon: HelpEntry(
             area: .security,

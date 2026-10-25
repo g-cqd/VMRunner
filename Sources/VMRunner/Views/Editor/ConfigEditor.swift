@@ -99,6 +99,7 @@ struct ConfigEditor: View {
         DisplaySection(
             guest: config.guest, choice: $config.displayChoice,
             width: $config.displayWidth, height: $config.displayHeight, pixelsPerInch: $config.pixelsPerInch,
-            followsWindow: $config.automaticallyReconfiguresDisplay, pixelsPerPoint: $config.pixelsPerPoint)
+            followsWindow: $config.automaticallyReconfiguresDisplay, pixelsPerPoint: $config.pixelsPerPoint,
+            gpu: $config.gpu)
     }
 }
