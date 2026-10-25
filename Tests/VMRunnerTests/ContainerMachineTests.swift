@@ -227,6 +227,44 @@ struct ContainerLibraryTests {
         #expect(stored.workload == .container && stored.container == spec)
     }
 
+    /// A machine whose runs filled the output file past its limit, so both files exist.
+    private func leaveOutput(in bundle: VMBundle) async {
+        let file = ContainerOutputFile(current: bundle.containerOutput, previous: bundle.previousContainerOutput, limit: 8)
+        for text in ["aaaaaaa\n", "bbbbbbb\n"] {
+            file.append(Array(text.utf8))
+            await file.drained()
+        }
+    }
+
+    @Test func aContainerMachinesOutputFilesGoWithItsBundle() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = makeLibrary(in: directory)
+        let config = VMConfig.newContainer(name: "box", container: spec)
+        try library.add(config)
+        await leaveOutput(in: library.bundle(config.id))
+        #expect(try names(in: library.bundle(config.id)) == ["config.json", "container-output.1.log", "container-output.log"])
+
+        library.delete(config.id)
+
+        #expect(!FileManager.default.fileExists(atPath: library.bundle(config.id).url.path))
+    }
+
+    @Test func duplicatingAContainerMachineDoesNotCopyItsOutput() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = makeLibrary(in: directory)
+        let original = VMConfig.newContainer(name: "box", container: spec)
+        try library.add(original)
+        await leaveOutput(in: library.bundle(original.id))
+
+        try library.duplicate(original.id)
+
+        let copy = try #require(library.machines.first { $0.id != original.id })
+        #expect(try names(in: library.bundle(copy.id)) == ["config.json"])
+        #expect(try names(in: library.bundle(original.id)) == ["config.json", "container-output.1.log", "container-output.log"])
+    }
+
     @Test func aContainerMachineIsNotSetUpAsAVirtualMachine() async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

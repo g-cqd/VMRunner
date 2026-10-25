@@ -303,8 +303,32 @@ struct ContainerMachineRunTests {
         #expect(output == expectedArguments)
         #expect(shown.phases.map(\.name) == ["boot", "run"])
         // None of a virtual machine's start happened: the configuration is as it was and the bundle holds no disk or state.
+        // What it holds besides the configuration and the working folder is the file that keeps the output.
         #expect(machine.library.machine(machine.id) == machine.config)
-        #expect(try machine.names() == ["config.json", "container-scratch"])
+        await shown.file?.drained()
+        #expect(try machine.names() == ["config.json", "container-output.log", "container-scratch"])
+    }
+
+    @Test func aContainerRunLeavesItsFilteredOutputInTheMachinesFolder() async throws {
+        let script = try Script(
+            "echo '\(Script.boot)'\nprintf '{\"event\":\"output\",\"stream\":\"stdout\",\"text\":\"hello\\\\n\"}\\n'\n"
+                + "echo '\(Script.ready)'\nread line || exit 76\n[ \"$line\" = stop ] && exit 75\nexit 1")
+        defer { script.remove() }
+        let machine = try Machine(runner: script)
+        defer { machine.remove() }
+
+        #expect(await machine.library.startAndWait(machine.id) == .done(.running))
+        let workload = try #require(machine.controller.guest as? ContainerWorkload)
+        let file = try #require(workload.workloadLog?.file)
+        let stops = try machine.watchStops()
+        machine.controller.requestStop()
+        _ = try await stops.wait(forAtLeast: 1)
+        await file.drained()
+
+        let kept = try String(contentsOf: machine.bundle.containerOutput, encoding: .utf8)
+        #expect(kept.hasPrefix("[run started ") && kept.hasSuffix("]\nhello\n"))
+        let permissions = try FileManager.default.attributesOfItem(atPath: machine.bundle.containerOutput.path)[.posixPermissions]
+        #expect(permissions as? Int == 0o600)
     }
 
     @Test func aRunnerThatFailsBeforeTheContainerRunsLeavesTheMachineStoppedWithItsMessage() async throws {

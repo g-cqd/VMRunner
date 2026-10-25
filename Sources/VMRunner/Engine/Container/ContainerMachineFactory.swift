@@ -31,7 +31,9 @@ struct ContainerMachineFactory: MachineFactory {
             throw ContainerProcessError(reason: "“\(config.name)” has no container settings.")
         }
         let scratch = bundle.containerScratch
-        let process = ContainerProcess(executable: runner, arguments: ContainerRunnerArguments.make(for: spec, scratch: scratch))
+        let process = ContainerProcess(
+            executable: runner, arguments: ContainerRunnerArguments.make(for: spec, scratch: scratch),
+            log: ContainerLog(file: ContainerOutputFile(bundle: bundle)))
         return PreparedMachine(
             machine: ContainerWorkload(process: process, scratch: scratch), network: nil,
             suspend: .unavailable(reason: "A container can't be suspended."))

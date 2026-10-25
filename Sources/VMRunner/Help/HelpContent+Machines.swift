@@ -229,7 +229,9 @@ extension HelpCatalog {
                     + "machine's folder.",
                 "• **Output.** What the container prints is filtered before it is shown ("
                     + "the log removes control sequences and colour codes, and format characters) and bounded: the oldest output is "
-                    + "dropped, with a note of how much.",
+                    + "dropped, with a note of how much. The same output is also kept in `container-output.log` in the machine's "
+                    + "folder (mode 0600): the most recent output, in the current file and one previous file, each at most 1 MiB, "
+                    + "filtered the same way. Deleting the machine removes them; Duplicate does not copy them.",
                 "• **Stopping.** Stop sends the helper a stop line. If it has not ended after 10 seconds it gets SIGTERM, and "
                     + "after 5 more seconds SIGKILL. Quitting the app stops every running container.",
                 "A container has no pause, suspend, snapshots or disk of its own, and this app's network policy, filtered "
@@ -244,6 +246,9 @@ extension HelpCatalog {
                 "Limits: an image reference up to 255 bytes without whitespace; 1 to 16 CPU cores; 128 to 16384 MiB of memory; "
                     + "up to 64 command words of up to 4096 bytes each; up to 64 environment settings, each name once. The "
                     + "log keeps the most recent 1 MiB of output.",
+                "Each run adds marker lines to `container-output.log`: `[run started <time>]` first, then `[the container exited "
+                    + "with status N]`, `[the container runner finished with status N]` and `[runner error] <message>` as the "
+                    + "helper reports them. The helper's own standard error is not written to the file.",
                 "While a container's helper runs, the app holds a user-initiated activity (not latency-critical, so the Mac "
                     + "still sleeps when it is idle), so that macOS does not slow the app down and delay the stop's time limits.",
                 "An organisation can forbid containers with the managed setting `AllowContainers` set to false: the New "

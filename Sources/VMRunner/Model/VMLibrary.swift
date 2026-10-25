@@ -275,6 +275,7 @@ final class VMLibrary {
             let staged = VMBundle(url: staging)
             staged.discardSavedState()
             staged.discardEphemeral()
+            staged.discardContainerOutput()
             // A container machine's bundle holds its configuration, and later its container-scratch folder: no identifier to renew.
             if copy.workload == .vm {
                 let identifier =

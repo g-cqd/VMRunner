@@ -1,3 +1,4 @@
+import Foundation
 import GuestConsole
 import Observation
 
@@ -77,6 +78,9 @@ struct EscapeSequenceStripper: Sendable {
 /// What a container run has said, for the log view: the container's output (bounded, and passed through the console filter
 /// because the container is untrusted), the runner's phases, the container's and the runner's exit statuses and the errors the
 /// runner reported, and the runner's own diagnostics from its standard error.
+///
+/// With a file, the same displayable text is also kept there, between marker lines that say when the run started and how the
+/// container and the runner ended. The diagnostics are not: they are the runner's, not the container's.
 @MainActor @Observable
 final class ContainerLog {
     static let defaultLimit = 1024 * 1024
@@ -112,8 +116,13 @@ final class ContainerLog {
     @ObservationIgnored private var strippers: [ContainerStream: EscapeSequenceStripper] = [:]
     @ObservationIgnored private var diagnosticsStripper = EscapeSequenceStripper()
 
-    init(limit: Int = ContainerLog.defaultLimit) {
+    /// Where the output is also kept, when it is.
+    let file: ContainerOutputFile?
+
+    init(limit: Int = ContainerLog.defaultLimit, file: ContainerOutputFile? = nil) {
         output = BoundedText(limit: limit)
+        self.file = file
+        note("[run started \(Date().ISO8601Format())]\n")
     }
 
     func apply(_ event: ContainerEvent) {
@@ -124,17 +133,27 @@ final class ContainerLog {
         case .output(let stream, let text):
             var filter = filters[stream] ?? ConsoleOutputFilter()
             var stripper = strippers[stream] ?? EscapeSequenceStripper()
-            output.append(Self.displayable(stripper.pass(filter.pass(Array(text.utf8)[...]))))
+            let shown = Self.displayable(stripper.pass(filter.pass(Array(text.utf8)[...])))
+            output.append(shown)
+            file?.append(shown)
             filters[stream] = filter
             strippers[stream] = stripper
         case .exited(let status):
             containerStatus = status
+            note("[the container exited with status \(status)]\n")
         case .error(let message):
-            guard errors.count < Self.maxErrors else { return }
-            errors.append(String(Self.plain(message).prefix(Self.maxErrorCharacters)))
+            let plain = String(Self.plain(message).prefix(Self.maxErrorCharacters))
+            note("[runner error] \(plain)\n")
+            if errors.count < Self.maxErrors { errors.append(plain) }
         case .finished(let status):
             finishedStatus = status
+            note("[the container runner finished with status \(status)]\n")
         }
+    }
+
+    /// Adds a marker line to the file, when there is one.
+    private func note(_ line: String) {
+        file?.append(Array(line.utf8))
     }
 
     /// What the runner wrote to its standard error.

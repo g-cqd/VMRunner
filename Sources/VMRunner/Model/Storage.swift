@@ -142,6 +142,10 @@ struct VMBundle: Sendable {
     var ephemeralMachineIdentifier: URL { url.appending(path: "MachineIdentifier.ephemeral") }
     /// The folder a container machine's runner works in: the kernel and image cache it downloads.
     var containerScratch: URL { url.appending(path: "container-scratch", directoryHint: .isDirectory) }
+    /// What the container machine's runs printed, filtered as the log pane shows it: the file the next run appends to.
+    var containerOutput: URL { url.appending(path: "container-output.log") }
+    /// What `containerOutput` held before it grew past its limit: one older file is kept.
+    var previousContainerOutput: URL { url.appending(path: "container-output.1.log") }
     var snapshots: URL { url.appending(path: "Snapshots", directoryHint: .isDirectory) }
     /// The folder the host-information share serves to the guest, read-only. No directory hint: the path has no trailing
     /// slash, so a link planted here is removed itself, never followed.
@@ -200,6 +204,12 @@ struct VMBundle: Sendable {
     func discardSavedState() {
         remove(savedState)
         discardStagedSavedState()
+    }
+
+    /// Removes both container output files: a copy of a machine starts with no log of the original's runs.
+    func discardContainerOutput() {
+        remove(containerOutput)
+        remove(previousContainerOutput)
     }
 
     /// Removes the image a suspend was writing, or a crash interrupted. It is never a usable image: only `savedState` is.
