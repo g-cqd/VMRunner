@@ -31,12 +31,14 @@ one run with a beginning and an end, and everything the app needs from it is a c
    machine's scratch folder (in the machine's bundle, private), `--json`, and the image, the processor count, the memory, the
    network (`none` or `loopback`), one `--env NAME=value` per environment entry and one `--command` per command element; there
    is no shell. The runner answers with one JSON object per line on standard output: `phase`, `output` (a chunk of the
-   container's output, at most 16384 bytes), `exited`, `error` and a last `finished` line; diagnostics go to standard error.
+   container's output, at most 16384 bytes), `exited`, `error` and a last `finished` line; diagnostics go to standard error
+   (by reading the code; not run against a guest).
    The runner inherits only the search path, the home folder and the temporary folder.
 3. **A stop is a line, not a signal.** The app writes `stop` to the runner's standard input and closes it; the runner stops the
    container and exits with status 75 if its command had not ended. Closing standard input does the same, so a runner whose app
    died ends too. A runner that is still alive 10 seconds after the request gets SIGTERM, and SIGKILL 5 seconds later; when the
-   app quits it stops every runner first and kills what remains.
+   app quits it stops every runner first and kills what remains (the status logic is tested; stopping a live container has not
+   been run).
 4. **The container's output is untrusted.** It passes through the console filter before the app shows it, and the app keeps at
    most 1 MiB of it, dropping the oldest and saying how much.
 5. **The app does not link the container package or any of its pins.** The root `Package.swift` and `Package.resolved` do not

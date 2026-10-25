@@ -227,8 +227,9 @@ extension HelpCatalog {
                 "• **Working folder.** The folder `container-scratch` in the machine's folder keeps the kernel and the image cache "
                     + "the helper downloads. It is not removed automatically; deleting the machine removes it with the rest of the "
                     + "machine's folder.",
-                "• **Output.** What the container prints is filtered before it is shown (control sequences that could act on "
-                    + "your terminal are removed) and bounded: the oldest output is dropped, with a note of how much.",
+                "• **Output.** What the container prints is filtered before it is shown ("
+                    + "the log removes control sequences and colour codes, and format characters) and bounded: the oldest output is "
+                    + "dropped, with a note of how much.",
                 "• **Stopping.** Stop sends the helper a stop line. If it has not ended after 10 seconds it gets SIGTERM, and "
                     + "after 5 more seconds SIGKILL. Quitting the app stops every running container.",
                 "A container has no pause, suspend, snapshots or disk of its own, and this app's network policy, filtered "
