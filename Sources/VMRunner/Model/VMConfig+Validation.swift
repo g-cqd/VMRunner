@@ -98,9 +98,13 @@ extension VMConfig {
     /// A Windows machine has none of the Linux-only features: a stored value that turns one on is refused, as a value out of
     /// range is. Nested virtualization is allowed: the generic platform offers it to Windows as to Linux. Shared folders and
     /// the clipboard setting are not refused: the first is guest-neutral, and the standard security profile sets the second on
-    /// every guest, where nothing but a Linux machine acts on it.
+    /// every guest, where nothing but a Linux machine acts on it. Its installation media is a file on this Mac: the app never
+    /// downloads Windows, so a remote or catalog source is refused.
     private func validateGuest() throws {
         guard guest == .windows else { return }
+        if let source {
+            guard case .local = source else { throw Self.corrupted("source", "must be a local file for a Windows machine") }
+        }
         let linuxOnly: [(key: String, isOn: Bool)] = [
             ("gpu", gpu != .apple), ("rosetta", rosetta), ("serialConsole", serialConsole), ("secureBoot", secureBoot),
             ("provisioningSpecPath", !provisioningSpecPath.isEmpty),

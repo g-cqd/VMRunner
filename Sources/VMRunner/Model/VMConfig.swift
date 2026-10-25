@@ -6,7 +6,7 @@ enum GuestOS: String, Codable, CaseIterable, Identifiable, Sendable {
     case macOS, linux, windows
 
     /// The guests the New Machine sheet offers. A guest is listed here only once the sheet can set it up.
-    static let newMachineChoices: [Self] = [.macOS, .linux]
+    static let newMachineChoices: [Self] = [.macOS, .linux, .windows]
 
     var id: Self { self }
     var label: String {

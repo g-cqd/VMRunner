@@ -135,11 +135,6 @@ struct WindowsGuestTests {
         #expect(GuestOS.allCases.map(\.symbol) == ["apple.logo", "terminal", "pc"])
     }
 
-    @Test func theNewMachineSheetDoesNotOfferWindows() {
-        #expect(GuestOS.newMachineChoices == [.macOS, .linux])
-        #expect(GuestOS.allCases.contains(.windows))
-    }
-
     @Test func linuxAndWindowsShareTheGenericPlatformAndMacOSHasItsOwn() {
         #expect(GuestOS.allCases.filter(\.usesGenericPlatform) == [.linux, .windows])
     }
@@ -246,7 +241,7 @@ struct WindowsGuestModelTests {
         #expect(settings(.windows, started: nil).firmwareHoldRemaining(at: start) == .zero)
     }
 
-    @Test func theNewMachineModelCannotCreateAWindowsMachineAndNamesItLikeTheOthers() throws {
+    @Test func theNewMachineModelNamesAWindowsMachineLikeTheOthersAndNeedsAnInstallerForIt() throws {
         let scratch = try ScratchDefaults()
         defer { scratch.cleanUp() }
         let model = NewMachineModel(defaults: scratch.defaults)

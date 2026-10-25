@@ -6,6 +6,8 @@ struct NewMachineSheet: View {
     @Environment(VMLibrary.self) private var library
     @Environment(\.dismiss) private var dismiss
     @State private var model = NewMachineModel()
+    /// The creation in progress: a Windows installer is hashed first, which Cancel and closing the sheet stop.
+    @State private var creating: Task<Void, Never>?
 
     var body: some View {
         Form {
@@ -29,7 +31,11 @@ struct NewMachineSheet: View {
                 }
             }
             if model.workload == .vm {
-                MediaSection(model: model)
+                if model.config.guest == .windows {
+                    WindowsMediaSection(model: model)
+                } else {
+                    MediaSection(model: model)
+                }
                 ResourcesSection(
                     guest: model.config.guest, cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB,
                     diskGiB: $model.config.diskGiB)
@@ -38,6 +44,7 @@ struct NewMachineSheet: View {
                     container: $model.container, commandLine: $model.commandLine, environmentText: $model.environmentText,
                     problem: model.containerProblem)
             }
+            if model.workload == .vm, model.config.guest == .windows { WindowsRequirementsSection() }
             if let error = model.creationError { Text(error).foregroundStyle(.red) }
         }
         .formStyle(.grouped)
@@ -45,15 +52,18 @@ struct NewMachineSheet: View {
         .safeAreaInset(edge: .bottom) { footer }
         .onChange(of: model.config.guest) { _, guest in model.guestChanged(to: guest) }
         .onChange(of: model.workload) { _, workload in model.workloadChanged(to: workload) }
+        .onDisappear { creating?.cancel() }
     }
 
     private var footer: some View {
         HStack {
             Spacer()
             Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
-            Button("Create") { if model.create(in: library) { dismiss() } }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!model.canCreate)
+            Button("Create") {
+                creating = Task { if await model.createAfterVerifying(in: library) { dismiss() } }
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(!model.canCreate)
         }
         .padding()
     }

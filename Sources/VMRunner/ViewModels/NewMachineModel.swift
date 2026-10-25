@@ -32,6 +32,12 @@ final class NewMachineModel {
     var deviceIdentifier: String
     var selectedBuild: String?
     var localPath: String?
+    /// A Windows machine's driver disc: an ISO attached as a second, read-only USB drive. Optional.
+    var driverDiscPath: String?
+    /// The SHA-256 the person expects the Windows installer to have, as typed. Empty: the installer is not checked.
+    var expectedSHA256 = ""
+    /// True while the installer is being hashed before a Windows machine is made.
+    private(set) var isVerifying = false
     private(set) var firmwares: [IPSWFirmware] = []
     private(set) var isLoadingFirmwares = false
     private(set) var loadError: String?
@@ -50,7 +56,7 @@ final class NewMachineModel {
 
     var canCreate: Bool {
         let name = config.name.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty, name.count <= EditorLimits.maxTextLength else { return false }
+        guard !name.isEmpty, name.count <= EditorLimits.maxTextLength, !isVerifying else { return false }
         if workload == .container { return containerProblem == nil }
         switch config.guest {
         case .macOS:
@@ -63,8 +69,8 @@ final class NewMachineModel {
             if case .file = linuxSource { return hasStorableLocalPath }
             return true
         case .windows:
-            // The sheet does not offer a Windows machine: nothing here can make one.
-            return false
+            return hasStorableLocalPath && InstallerDigest.problem(in: expectedSHA256) == nil
+                && (driverDiscPath.map(Self.canStore) ?? true)
         }
     }
 
@@ -92,7 +98,9 @@ final class NewMachineModel {
             case .file: machine.source = localPath.map(ImageSource.local)
             }
         case .windows:
-            break
+            // A Windows machine installs from a file on this Mac; the sheet has no other source to offer.
+            machine.source = localPath.map(ImageSource.local)
+            machine.driverDiscPath = driverDiscPath
         }
         return machine
     }
@@ -126,13 +134,30 @@ final class NewMachineModel {
         creationError = nil
     }
 
+    /// Takes the file the user picked as a Windows machine's driver disc, unless a configuration could not store its location or
+    /// it lies inside the Machines folder, where the app keeps its own files.
+    func chooseDriverDisc(_ url: URL) {
+        guard url.isFileURL, Self.canStore(localPath: url.path), !AppPaths.isInside(url, AppPaths.machines) else {
+            creationError = "That file's location can't be used. Pick a file on this Mac, outside the Machines folder."
+            return
+        }
+        driverDiscPath = url.path
+        creationError = nil
+    }
+
     /// Switching guest resets the resources to that guest's defaults but keeps a name the user typed.
     func guestChanged(to guest: GuestOS) {
         let name = config.name
         let id = config.id
         config = .new(name: GuestOS.allCases.map(\.label).contains(name) ? guest.label : name, guest: guest)
         config.id = id
+        clearMedia()
+    }
+
+    private func clearMedia() {
         localPath = nil
+        driverDiscPath = nil
+        expectedSHA256 = ""
     }
 
     /// Switching to a container renames a placeholder name; switching back to a virtual machine restores that guest's defaults,
@@ -146,7 +171,7 @@ final class NewMachineModel {
             let id = config.id
             config = .new(name: name == WorkloadKind.container.label ? config.guest.label : name, guest: config.guest)
             config.id = id
-            localPath = nil
+            clearMedia()
         }
         creationError = nil
     }
@@ -164,8 +189,36 @@ final class NewMachineModel {
         }
     }
 
-    /// Adds the machine to the library and, for a virtual machine, starts its setup. Returns false and sets `creationError` on failure.
+    /// Adds the machine to the library and, for a virtual machine, starts its setup. Returns false and sets `creationError` on
+    /// failure. A Windows machine whose installer has an expected SHA-256 is made by `createAfterVerifying(in:)` only: this
+    /// refuses it, so no path makes one without the check.
     func create(in library: VMLibrary) -> Bool {
+        if workload == .vm, config.guest == .windows, !expectedSHA256.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            creationError = "The installer's SHA-256 has not been checked yet."
+            return false
+        }
+        return add(to: library)
+    }
+
+    /// What the Create button calls. A Windows machine's installer is hashed first, away from the main actor, when an expected
+    /// SHA-256 was typed; the machine is made only if it matches. Cancelling the task stops the hashing and makes nothing.
+    func createAfterVerifying(in library: VMLibrary) async -> Bool {
+        guard workload == .vm, config.guest == .windows else { return create(in: library) }
+        isVerifying = true
+        defer { isVerifying = false }
+        do {
+            if let localPath { try await InstallerDigest.verify(URL(filePath: localPath), against: expectedSHA256) }
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            return false
+        } catch {
+            creationError = VMConfig.reason(for: error)
+            return false
+        }
+        return add(to: library)
+    }
+
+    private func add(to library: VMLibrary) -> Bool {
         do {
             if workload == .container {
                 // A container machine has nothing to install: it is ready as soon as it is added.
@@ -173,6 +226,7 @@ final class NewMachineModel {
                 return true
             }
             let machine = makeConfig()
+            if machine.guest == .windows { try machine.validate() }
             try library.add(machine)
             library.beginSetup(machine.id)
             return true
