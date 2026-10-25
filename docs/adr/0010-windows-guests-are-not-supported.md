@@ -1,8 +1,12 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-21
+superseded-by: ADR-0059
 ---
 # 0010 — Windows guests are not supported
+
+> **Superseded by ADR-0059** ([Windows on ARM is supported, with its one private interface behind a fail-closed module](0059-windows-on-arm-is-supported-with-its-one-private-interface-behind-a-fail-closed-module.md)).
+> Windows on ARM is now supported as experimental, behind a private capability that fails closed. The text below is kept as it was.
 
 ## Context
 

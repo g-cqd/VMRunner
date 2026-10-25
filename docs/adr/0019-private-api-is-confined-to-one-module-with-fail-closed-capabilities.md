@@ -36,3 +36,8 @@ virtualization classes) are listed in `docs/research/private-apis-2026-10.md`.
 
 Whether Windows support is revisited (ADR-0010 stands), and which capabilities ship first. The spike starts with the PMU
 setter and the sandbox-apply call.
+
+(Update 2026-10-25: [ADR-0059](0059-windows-on-arm-is-supported-with-its-one-private-interface-behind-a-fail-closed-module.md)
+supersedes ADR-0010, so "ADR-0010 stands" above no longer holds, and starts the module with the PMU capability alone. It
+differs from item 3: the module calls the Objective-C runtime itself and imports no interop package. The Seatbelt capability
+is not part of that start.)
