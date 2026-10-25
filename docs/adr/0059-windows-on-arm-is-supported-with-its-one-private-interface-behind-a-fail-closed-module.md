@@ -33,8 +33,8 @@ switch and what no public API gives.
    name. This starts the module ADR-0019 decided; it differs from that ADR in one point: the module calls the Objective-C
    runtime itself and imports no interop package, because one capability needs a few lines, not a dependency (ADR-0001).
 3. **Policy.** The capability is forced off in the Hardened and Isolated postures, can be turned off by a managed preference,
-   and is listed in the exposure summary and the help as using an interface the framework does not document. A kill switch
-   in the app's settings turns it off for the user.
+   and is listed in the exposure summary and the help as using an interface the framework does not document. A developer
+   default, DisablePrivateInterfaces, turns it off for the user; it is not a setting in the app.
 4. **A Windows machine does not start without the capability.** If it is unavailable or off (posture, managed key, kill
    switch, OS build, or a failed validation), the start fails with a message that names the capability and the reason. One
    developer default, `WindowsStartsWithoutPMU` (bool, default false, in the app's defaults domain, read once at each
@@ -58,7 +58,7 @@ switch and what no public API gives.
 9. **Limits, stated plainly.** No suspend or saved state for Windows (nothing verified it with a private option set). No
    custom GPU for Windows: no signed ARM64 3D driver exists, and a custom virtio device is documented for Linux guests only;
    the display is the framework's. No audio by default. No shared-folder or guest-agent promise. Nested virtualization is
-   reported to hang and is not offered.
+   offered where the host supports it (default off); it is reported to hang with Windows and is untested here.
 10. **Distribution.** Developer ID, notarized. A build that carries a private interface is not eligible for the Mac App
     Store (guideline 2.5.1: public APIs only), and stays so while this capability is in the app.
 
@@ -68,8 +68,8 @@ The root package gains `PrivateInterfaces` and its tests; the app links it and n
 lookups out of every other target. A contract test records, per OS build, the selectors it found and their encodings, and
 skips where the selector is absent; the fail-closed paths are tested with a fake resolver, so they run everywhere. A new
 macOS build outside the registered range turns the capability off until it is probed and the range is widened on purpose.
-The Windows kind reaches the picker, the builder and the help in later changes, each on its own; until the builder exists
-a Windows machine cannot be started.
+The Windows kind reaches the picker, the builder and the help in later changes, each on its own; the builder exists in the
+app, and no Windows installer has been run.
 
 The release process notes the App Store ineligibility. The selectors the study saw next to the PMU switch
 (fine-grained traps emulation, the virtualization host extension, a guest type, a firmware image URL on the EFI boot loader)

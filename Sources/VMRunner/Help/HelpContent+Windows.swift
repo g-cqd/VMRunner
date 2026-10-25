@@ -3,14 +3,14 @@ extension HelpCatalog {
         .windowsMachines: HelpEntry(
             area: .start,
             title: "Windows guests (experimental)",
-            summary: "Windows 11 on ARM runs as an experimental guest, from an installer and a licence you supply.",
+            summary: "Windows 11 on ARM is an experimental guest, from your installer and licence. It has not been verified to boot.",
             paragraphs: [
-                "Windows 11 on ARM can run in a virtual machine here as an **experimental** guest. You bring the installer: "
+                "You can try Windows 11 on ARM as an experimental guest. You bring the installer: "
                     + "VMRunner never downloads Windows. Pick **Windows** in the New Machine sheet and choose an ARM64 installer ISO "
                     + "from your Mac.",
                 "• **Installer**: a local ISO. If you type its SHA-256 in *Expected SHA-256*, VMRunner reads the file before it "
                     + "makes the machine and stops if the digest differs or is not 64 hexadecimal digits. Leave it empty to skip "
-                    + "the check.",
+                    + "the check. The SHA-256, when you type one, is checked once, at creation.",
                 "• **Driver disc** (optional): another ISO, attached as a second read-only USB drive. You can add, change or "
                     + "remove it later in the machine's settings.",
                 "• **Defaults**: 4 processors and 8 GiB of memory (less on a small Mac), a 64 GiB sparse NVMe disk, NAT "

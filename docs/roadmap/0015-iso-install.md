@@ -28,6 +28,8 @@ the help has a topic for it. No Windows installer has been run (item 4).
    installation, Insider Preview builds expire, a driver disc is needed for the virtio network device.
 4. A run against a real Windows installer, by the owner: whether the machine boots with the framework's own display, how far
    Setup gets, and what a first boot shows. Not run. Nothing in this item may alter the installer or what Windows Setup checks.
+   The .app display resizer, the uncapped 1920 x 1200 display, the Linux share tag and the generic machine identifier are
+   accepted defaults that are unverified on a real Windows guest.
 
 ## Not in scope
 

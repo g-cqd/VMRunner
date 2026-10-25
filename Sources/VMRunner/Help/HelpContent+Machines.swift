@@ -3,7 +3,7 @@ extension HelpCatalog {
         .overview: HelpEntry(
             area: .start,
             title: "What VMRunner does",
-            summary: "Runs macOS, Linux and, experimentally, Windows virtual machines on your Mac.",
+            summary: "Runs macOS and Linux virtual machines, and offers Windows as an untested experiment.",
             paragraphs: [
                 "A virtual machine (VM) is a second computer running inside a window on your Mac. VMRunner lets you create one, install "
                     + "an operating system into it, and run it.",

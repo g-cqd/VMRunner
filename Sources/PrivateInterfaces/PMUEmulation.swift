@@ -1,7 +1,7 @@
 package import Virtualization
 
-/// Performance-monitoring emulation for a guest: the generic platform configuration's switch, which Windows on ARM needs to
-/// boot and the framework does not document. Every use goes through the capability's checks (`CapabilityEntry.status`) and
+/// Performance-monitoring emulation for a guest: the generic platform configuration's switch, which Windows on ARM is reported to
+/// need and the framework does not document. Every use goes through the capability's checks (`CapabilityEntry.status`) and
 /// fails closed: when a check fails nothing is called and the status says why.
 package enum PMUEmulation {
     private static let className = "VZGenericPlatformConfiguration"
