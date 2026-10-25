@@ -35,10 +35,13 @@ public enum MCPTool: String, CaseIterable, Sendable {
 
     private var summary: String {
         switch self {
-        case .list: "Lists the VMRunner machines whose agent access is on, with their id, name, guest and state."
+        case .list:
+            "Lists the VMRunner machines whose agent access is on, with their id, name, guest, state and workload (vm or container)."
         case .state: "Reads one machine's state."
         case .start: "Starts a machine and answers once it runs or the start failed."
-        case .stop: "Asks a machine's guest to shut down and answers at once; with force, cuts the power and answers once it is stopped."
+        case .stop:
+            "Asks a machine's guest to shut down and answers at once; "
+                + "with force, cuts the power (kills a container) and answers once it is stopped."
         }
     }
 

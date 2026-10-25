@@ -34,7 +34,8 @@ struct LibraryControlMachines: ControlMachines {
         library.machines.map { config in
             ControlMachine(
                 id: config.id, name: config.name, guest: config.guest.rawValue,
-                state: ControlState(library.controller(for: config.id).state), agentAccess: config.agentAccess)
+                state: ControlState(library.controller(for: config.id).state), agentAccess: config.agentAccess,
+                workload: config.workload.rawValue)
         }
     }
 

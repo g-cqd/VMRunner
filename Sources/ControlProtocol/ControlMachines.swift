@@ -9,18 +9,34 @@ public enum ControlState: String, Codable, CaseIterable, Sendable {
 public struct ControlMachine: Codable, Equatable, Sendable {
     public let id: UUID
     public let name: String
-    /// `macOS` or `linux`.
+    /// `macOS` or `linux`. A container machine reports `linux`: the container runs a Linux userland, and `guest` has only
+    /// ever named an operating system, so a client that switches on it keeps working. Tell a container from a virtual
+    /// machine by `workload`.
     public let guest: String
     public let state: ControlState
     /// Only machines whose agent access is on are listed or acted on.
     public let agentAccess: Bool
+    /// What the machine runs: `vm` (a virtual machine) or `container`. A member added later than the others: an answer
+    /// without it (from a service that predates containers) reads as `vm`, and a client that does not know it ignores it.
+    public let workload: String
 
-    public init(id: UUID, name: String, guest: String, state: ControlState, agentAccess: Bool) {
+    public init(id: UUID, name: String, guest: String, state: ControlState, agentAccess: Bool, workload: String = "vm") {
         self.id = id
         self.name = name
         self.guest = guest
         self.state = state
         self.agentAccess = agentAccess
+        self.workload = workload
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        guest = try values.decode(String.self, forKey: .guest)
+        state = try values.decode(ControlState.self, forKey: .state)
+        agentAccess = try values.decode(Bool.self, forKey: .agentAccess)
+        workload = try values.decodeIfPresent(String.self, forKey: .workload) ?? "vm"
     }
 }
 

@@ -38,7 +38,9 @@ extension HelpCatalog {
                     + "0600 in a folder only you can enter. The protocol is JSON-RPC 2.0, one request per line: `machines.list`, "
                     + "`machines.state`, `machines.start` and `machines.stop`, each with `token` in its `params`, and `machine` "
                     + "(the machine's id) for the last three. `machines.stop` asks the guest to shut down; with `force` set to "
-                    + "true it cuts the power. Batches are refused.",
+                    + "true it cuts the power. A container machine is listed with `workload` set to `container` (a virtual machine "
+                    + "has `vm`) and its `guest` is `linux`; `machines.stop` asks the container to stop, and with `force` kills it. "
+                    + "Batches are refused.",
                 "Limits: a request is at most 64 KiB; 4 clients at a time; a client is disconnected after 10 seconds without a "
                     + "request; an answer that would take over 2 minutes says it timed out, and what it started goes on.",
                 #"From a terminal: `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"machines.list","params":{"token":"…"}}' "#
