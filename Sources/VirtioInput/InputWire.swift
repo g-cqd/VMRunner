@@ -9,15 +9,15 @@ package enum InputWire {
     package static let pciSubclassID: UInt8 = 0x80
     /// The event queue (device to driver) and the status queue (driver to device).
     package static let queueCount: UInt16 = 2
-    package static let eventQueue: UInt16 = 0  // @dw:accept:this referenced-only-by-tests -- the app links it later
-    package static let statusQueue: UInt16 = 1  // @dw:accept:this referenced-only-by-tests -- the app links it later
+    package static let eventQueue: UInt16 = 0
+    package static let statusQueue: UInt16 = 1
     /// `VIRTIO_F_VERSION_1` is feature bit 32: bit 0 of the upper 32-bit half of the feature set. The Linux driver refuses a device
     /// without it.
     package static let versionOneFeatureSubset1: UInt32 = 1
     /// One event on either queue: type, code and value.
     package static let eventSize = 8
     /// `struct virtio_input_config`: select, subsel, size and five reserved bytes, then a union of 128 bytes.
-    package static let configSize = 136  // @dw:accept:this referenced-only-by-tests -- the app links it later
+    package static let configSize = 136  // @dw:accept:this referenced-only-by-tests -- the tests pin the size of the layouts
 }
 
 /// The event types the library produces. The codes are those of the Linux input subsystem, which the guest's driver passes on
@@ -39,7 +39,7 @@ package enum InputCode {
 }
 
 /// The buttons of the pointer, by their `BTN_*` code.
-package enum PointerButton: UInt16, CaseIterable, Sendable {  // @dw:accept:this referenced-only-by-tests -- the app links it later
+package enum PointerButton: UInt16, CaseIterable, Sendable {
     case left = 0x110
     case right = 0x111
     case middle = 0x112

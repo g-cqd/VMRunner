@@ -10,15 +10,9 @@ extension CustomGPUDevice {
     /// makes the machine holds it for as long as the machine lives. It touches none of the device's state, so it may be called
     /// off the main actor, with the rest of the machine's configuration.
     nonisolated func makeConfiguration() -> VZCustomVirtioDeviceConfiguration {
-        let configuration = VZCustomVirtioDeviceConfiguration()
-        configuration.supportsSaveRestore = false
-        configuration.deviceID = GPUWire.deviceID
-        configuration.virtioQueueCount = GPUWire.queueCount
-        (configuration.pciClassID, configuration.pciSubclassID) = (GPUWire.pciClassID, GPUWire.pciSubclassID)
-        configuration.mandatoryFeatures.subset1 = GPUWire.versionOneFeatureSubset1
         let space = GPUConfigSpace(eventsRead: 0, eventsClear: 0, scanoutCount: 1, capsetCount: 0)
-        configuration.deviceSpecificConfiguration = VZVirtioDeviceSpecificConfiguration(configurationData: Data(space.bytes))
-        configuration.provider = VZCustomVirtioDeviceDelegateProvider(deviceQueue: .main, delegate: self)
-        return configuration
+        return VZCustomVirtioDeviceConfiguration(
+            deviceID: GPUWire.deviceID, pciClass: (GPUWire.pciClassID, GPUWire.pciSubclassID), queueCount: GPUWire.queueCount,
+            versionOneSubset: GPUWire.versionOneFeatureSubset1, space: space.bytes, delegate: self)
     }
 }

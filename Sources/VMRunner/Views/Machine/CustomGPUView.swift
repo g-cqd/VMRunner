@@ -16,6 +16,9 @@ final class CustomGPUView: NSView, ScreenPresenter {
     private var cursorGeneration: UInt64?
     /// Where this view's events go; `nil` until the view is given a surface.
     private(set) var input: (any GuestInputSurface)?
+    /// Told when the view's window stops being the key window, which takes the keyboard from the guest without the view
+    /// resigning as first responder.
+    private var windowObserver: (any NSObjectProtocol)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -35,6 +38,17 @@ final class CustomGPUView: NSView, ScreenPresenter {
         super.layout()
         placeCursor()
         placeInput()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        stopWatchingWindow()
+        // AppKit declares `window` unowned(unsafe); it is alive for the duration of this callback and not kept.
+        guard let window = unsafe self.window else { return }
+        let center = NotificationCenter.default
+        windowObserver = center.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.input?.focusLost() }
+        }
     }
 
     /// Draws `screen`, and no longer the one drawn before.
@@ -60,6 +74,12 @@ final class CustomGPUView: NSView, ScreenPresenter {
         screen = nil
         input?.detach(from: self)
         input = nil
+        stopWatchingWindow()
+    }
+
+    private func stopWatchingWindow() {
+        if let windowObserver { NotificationCenter.default.removeObserver(windowObserver) }
+        windowObserver = nil
     }
 
     func present(frame: ScanoutUpdate) {

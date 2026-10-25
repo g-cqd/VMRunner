@@ -48,7 +48,7 @@ anyone outside this repository).
 7. **A second pure library may join.** A virtio input device (keyboard and pointer for a machine with this GPU) would be a
    second library target, `VirtioInput`, under the same rules: pure, importing nothing, `package` access, its adapter in the
    app. It is not decided or started here. (Update 2026-10-25: the library exists as `Sources/VirtioInput`, under these rules,
-   and no target links it yet.)
+   and the app links it: its adapter is in `Sources/VMRunner/Engine/CustomGPU`, next to the GPU's.)
 8. **The layering is checked.** Tests read the manifest and the sources: the library depends on no target, no package and
    imports no framework; the command-line parser imports no user-interface or virtualization framework; the app does not link
    the runner or its parser; the manifest's remaining nested package (the container runner) is still unknown to the root

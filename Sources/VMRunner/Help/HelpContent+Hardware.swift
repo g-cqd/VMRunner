@@ -171,12 +171,16 @@ extension HelpCatalog {
                 "The device is a work in progress. It has been tested on the Mac without a running guest; whether a given "
                     + "distribution's driver finds it and shows a screen has not been verified yet. A configuration that asks for "
                     + "it on a Mac older than macOS 27 is kept, and the choice is disabled there.",
-                "Keyboard and pointer: the machine has Apple's USB keyboard and pointer, and the app passes the window's events "
-                    + "to the framework's own screen view, kept behind the picture where it draws nothing. A developer can choose "
-                    + "another path with the hidden default `CustomGPUInput` in the app's defaults domain (`defaults write` with "
-                    + "the app's bundle identifier, the key and `framework`, the default, or `virtio`). It is read when a machine "
-                    + "starts. This build has no `virtio` path yet and uses the framework's for that value too, as it does for any "
-                    + "other. It is not a setting in the app.",
+                "Keyboard and pointer have two paths, so that a run against a real guest can compare them, and that run "
+                    + "decides which one stays. `framework` (the default): the machine has Apple's USB keyboard and pointer, and "
+                    + "the app passes the window's events to the framework's own screen view, kept behind the picture where it "
+                    + "draws nothing. `virtio`: the machine has no USB keyboard or pointer, and the app implements two virtio "
+                    + "input devices, a keyboard and an absolute pointer, which the guest finds by their virtio identity; keys "
+                    + "held when the window loses the keyboard are released, and there is no horizontal scroll. A developer "
+                    + "chooses with a hidden default, `CustomGPUInput`, in the app's defaults domain (`defaults write` with the "
+                    + "app's bundle identifier, the key and the value `framework` or `virtio`; any other value means "
+                    + "`framework`). It is read when a machine starts and is not a setting in the app. Neither path has been "
+                    + "tried against a guest.",
             ],
             related: [.graphics, .suspendResume, .exposureSummary, .securityProfiles, .managedSettings]
         ),

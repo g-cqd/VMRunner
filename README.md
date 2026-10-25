@@ -163,7 +163,7 @@ Sources/ControlProtocol   the control service's protocol: JSON-RPC, tokens, conn
 Sources/AgentBridge   the MCP server over stdio: four tools, each a call of the control service (links ControlProtocol and GuestConsole; not the app)
 Sources/VirtioGPU   the pure core of the host-implemented virtio GPU: wire format, resource store, device state (imports nothing; the app links it; ADR-0058)
 Sources/VirtioGPURunner   boots one Linux guest on that GPU to measure it; the owner runs it, the app neither links nor bundles it (command line in VirtioGPURunnerCore)
-Sources/VirtioInput   the pure core of the host-implemented virtio keyboard and pointer: event wire format, the two fixed configuration layouts, the Mac-to-Linux key table, a bounded event queue (imports nothing; no target links it yet; ADR-0058)
+Sources/VirtioInput   the pure core of the host-implemented virtio keyboard and pointer: event wire format, the two fixed configuration layouts, the Mac-to-Linux key table, a bounded event queue (imports nothing; the app links it; ADR-0058)
 Sources/VMRunner
   Model/    VMConfig (Codable settings), Security (profiles, exposure summary), APFS (clone, snapshots),
             Storage (bundle layout, sparse disks), VMLibrary (machines, setup jobs)

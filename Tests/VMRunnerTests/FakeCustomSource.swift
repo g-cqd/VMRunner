@@ -23,4 +23,7 @@ final class FakeCustomSource: CustomDisplaySource {
     nonisolated func makeConfiguration() -> VZCustomVirtioDeviceConfiguration {
         VZCustomVirtioDeviceConfiguration()
     }
+
+    @available(macOS 27.0, *)
+    nonisolated func makeInputConfigurations() -> [VZCustomVirtioDeviceConfiguration] { [] }
 }

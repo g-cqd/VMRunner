@@ -4,7 +4,7 @@
 /// (`KEY_102ND`), the modifiers, the function keys up to F20, the keypad, the navigation keys, the volume keys, the help key
 /// (`KEY_INSERT`) and the context menu key (`KEY_COMPOSE`). The JIS keys (`kVK_JIS_*`) and every code that is not a key are
 /// unmapped.
-package enum VirtioKeyMap {  // @dw:accept:this referenced-only-by-tests -- the app links it later
+package enum VirtioKeyMap {
     /// The Linux key for a Mac virtual key code, or `nil` for a code the table does not map.
     package static func linuxKey(forMacKeyCode code: UInt16) -> UInt16? {
         table[code]

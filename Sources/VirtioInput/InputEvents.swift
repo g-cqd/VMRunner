@@ -8,7 +8,7 @@ package enum KeyAction: Int32, Sendable {
 
 /// The events of one input from the host, each list a whole frame: it ends with `EV_SYN` / `SYN_REPORT`, which the guest's input
 /// core waits for before it delivers anything. Queue a list whole (`InputEventQueue.enqueue`) so a full queue drops it whole.
-package enum InputEvents {  // @dw:accept:this referenced-only-by-tests -- the app links it later
+package enum InputEvents {
     /// A key pressed, released or repeated; `linuxKey` is a `KEY_*` code (`VirtioKeyMap`).
     package static func key(_ linuxKey: UInt16, _ action: KeyAction) -> [InputEvent] {
         [InputEvent(type: InputEventType.key, code: linuxKey, value: action.rawValue), .report]

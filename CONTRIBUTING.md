@@ -163,9 +163,9 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
   `DevToolsTests` checks the manifest, the imports and the build arguments).
 - `Sources/VirtioInput` (the pure core of the host-implemented virtio keyboard and pointer, roadmap 0014, ADR-0058 item 7) is
   a library target under the same rules as `VirtioGPU`: it imports nothing at all and depends on no target, a declaration
-  another target uses is `package`, and its tests use `@testable import`. No target links it yet; the app's adapter will, and
-  adds it to the libraries `DependencyPolicyTests` lets the app link. Its declarations that only its tests use carry the
-  trailing `// @dw:accept:this referenced-only-by-tests` where the dead-code gate asks.
+  another target uses is `package`, and its tests use `@testable import`. The app links it, through the adapter in
+  `Sources/VMRunner/Engine/CustomGPU`, and `DependencyPolicyTests` lets the app link it. A declaration that only its tests use
+  carries the trailing `// @dw:accept:this referenced-only-by-tests` where the dead-code gate asks.
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 

@@ -21,6 +21,12 @@ extension CustomGPUView {
     override func rightMouseDragged(with event: NSEvent) { input?.mouseDragged(event, button: .right) }
     override func otherMouseDragged(with event: NSEvent) { input?.mouseDragged(event, button: .other) }
 
+    /// The keyboard is taken from the guest: whatever it holds down must come up, the window would not see it do so.
+    override func resignFirstResponder() -> Bool {
+        input?.focusLost()
+        return super.resignFirstResponder()
+    }
+
     /// Mouse movement without a button reaches a view only through a tracking area of its own.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

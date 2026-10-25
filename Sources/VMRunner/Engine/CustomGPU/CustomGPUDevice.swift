@@ -37,7 +37,7 @@ final class CustomGPUDevice: NSObject, @preconcurrency VZCustomVirtioDeviceConfi
     private let sinks: Sinks
     private var state: GPUDeviceState
     private var device: VZCustomVirtioDevice?
-    private var logged: Set<Trouble> = []
+    private var troubles = TroubleLog<Trouble>(Log.display)
     /// The queues with a later turn already scheduled, so a busy guest does not pile up tasks.
     private var resuming: Set<UInt16> = []
 
@@ -130,7 +130,6 @@ final class CustomGPUDevice: NSObject, @preconcurrency VZCustomVirtioDeviceConfi
     }
 
     private func report(_ trouble: Trouble, _ message: String) {
-        guard logged.insert(trouble).inserted else { return }
-        Log.display.notice("\(message, privacy: .public)")
+        troubles.notice(trouble, message)
     }
 }

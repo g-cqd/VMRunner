@@ -21,4 +21,9 @@ protocol CustomDisplaySource: AnyObject, Sendable {
     /// configuration; the framework calls the device back on the main queue.
     @available(macOS 27.0, *)
     nonisolated func makeConfiguration() -> VZCustomVirtioDeviceConfiguration
+
+    /// The devices of the input path, which follow the GPU in the machine's `customVirtioDevices`. Empty when the framework's
+    /// USB keyboard and pointer carry the input.
+    @available(macOS 27.0, *)
+    nonisolated func makeInputConfigurations() -> [VZCustomVirtioDeviceConfiguration]
 }

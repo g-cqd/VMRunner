@@ -32,4 +32,8 @@ final class CustomGPUSession: CustomDisplaySource {
     nonisolated func makeConfiguration() -> VZCustomVirtioDeviceConfiguration {
         device.makeConfiguration()
     }
+
+    nonisolated func makeInputConfigurations() -> [VZCustomVirtioDeviceConfiguration] {
+        input.makeConfigurations()
+    }
 }

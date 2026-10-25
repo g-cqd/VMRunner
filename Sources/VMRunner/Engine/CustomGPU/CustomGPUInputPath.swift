@@ -21,4 +21,14 @@ enum CustomGPUInputPath: String, Sendable {
     static func current(in defaults: UserDefaults = PreferencesDomain.defaults) -> Self {
         Self(storedValue: defaults.string(forKey: defaultsKey))
     }
+
+    /// The surface of this path for a machine, made on the main actor with the rest of the machine's custom GPU.
+    @available(macOS 27.0, *)
+    @MainActor
+    func makeSurface() -> any GuestInputSurface {
+        switch self {
+        case .framework: FrameworkInputSurface()
+        case .virtio: VirtioInputSurface()
+        }
+    }
 }

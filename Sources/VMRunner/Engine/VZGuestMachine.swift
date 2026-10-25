@@ -149,10 +149,7 @@ struct VZMachineFactory: MachineFactory {
         for config: VMConfig, display: (width: Int, height: Int), inputPath: CustomGPUInputPath
     ) -> (any CustomDisplaySource)? {
         guard config.usesCustomGPU, #available(macOS 27.0, *) else { return nil }
-        if inputPath == .virtio {
-            Log.input.notice("CustomGPUInput is virtio, and this build has no such path: the framework's input is used")
-        }
-        return CustomGPUSession(display: display)
+        return CustomGPUSession(display: display, input: inputPath.makeSurface())
     }
 
     private static func suspendSupport(

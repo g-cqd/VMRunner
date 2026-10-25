@@ -36,12 +36,13 @@ let package = Package(
         .executableTarget(
             name: "VMRunner",
             dependencies: [
-                "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack", "VirtioGPU",
+                "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack", "VirtioGPU", "VirtioInput",
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             ],
             path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(
-            name: "VMRunnerTests", dependencies: ["VMRunner", "ControlProtocol", "NetPolicy", "NetStack", "VirtioGPU", "TestKit"],
+            name: "VMRunnerTests",
+            dependencies: ["VMRunner", "ControlProtocol", "NetPolicy", "NetStack", "VirtioGPU", "VirtioInput", "TestKit"],
             path: "Tests/VMRunnerTests",
             swiftSettings: hardening),
 
@@ -67,7 +68,7 @@ let package = Package(
 
         // The pure core of the host-implemented virtio input device (roadmap 0014, ADR-0058): the wire format, the layouts of its
         // configuration space, the macOS-to-Linux key table, the event encoder, a bounded event queue and the status-queue
-        // decoder. It imports no framework at all and nothing links it yet: the app's adapter will, through `package` access.
+        // decoder. It imports no framework at all; the app's adapter links it, through `package` access.
         .target(name: "VirtioInput", path: "Sources/VirtioInput", swiftSettings: hardening),
         .testTarget(name: "VirtioInputTests", dependencies: ["VirtioInput"], path: "Tests/VirtioInputTests", swiftSettings: hardening),
 

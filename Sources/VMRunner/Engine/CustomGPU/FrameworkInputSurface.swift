@@ -33,6 +33,13 @@ final class FrameworkInputSurface: GuestInputSurface {
         view.virtualMachine = machine
     }
 
+    /// The framework's USB keyboard and pointer need no device of the app's.
+    @available(macOS 27.0, *)
+    nonisolated func makeConfigurations() -> [VZCustomVirtioDeviceConfiguration] { [] }
+
+    /// The framework's view keeps its own idea of what is held; nothing is known of how it learns the window lost the keyboard.
+    func focusLost() {}
+
     func attach(to host: CustomGPUView) {
         self.host = host
         view.removeFromSuperview()

@@ -64,8 +64,23 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   makes a point of the view land on the guest pixel under it when bars surround the picture. The view does not resize the
   display (`automaticallyReconfiguresDisplay` is off) and takes `capturesSystemKeys` from the machine's setting. A developer
   default, `CustomGPUInput` (`framework`, the default, or `virtio`; any other value is `framework`), is read once when a
-  machine is prepared; only the framework path exists yet. Whether the framework's view takes events passed to it this
-  way, from a view that is not the first responder, is unknown.
+  machine is prepared, and names the path. Whether the framework's view takes events passed to it this way, from a view
+  that is not the first responder, is unknown.
+- Input, the virtio path: the app links `Sources/VirtioInput` and implements two custom virtio devices with it (ID 18, PCI
+  class 9 subclass 0x80, an event and a status queue, version 1, the 136 bytes of the library's keyboard and tablet layouts,
+  no save and restore), added to the machine's custom devices after the GPU; the machine then has **no** USB keyboard or
+  pointer, so that the guest sees only virtio input and the two paths compare cleanly. The device keeps the buffers the
+  guest posts on the event queue, without giving them back, and gives each back exactly once with one event in it (the
+  library's queue pairs them, drops whole frames when full and gives back, unwritten, a buffer over its limit of 1024); the
+  status queue is read once per element and decoded. A reset or a stop forgets the buffers held and gives none back, because
+  the guest's queue is reset with the device and the framework raises an exception when an element is returned to a queue
+  that no longer has it. The window's events are translated by the surface: keys through the library's table (a key it does
+  not map is ignored, the guest repeats a held key itself), modifiers by the change of the flags and the key that changed,
+  the pointer as a position over the rectangle the picture occupies (a point on the bars lands on the picture's edge), the
+  left, right and middle buttons, and a vertical wheel only (16 points of a trackpad make a notch, a guess). When the window
+  stops being key or the view stops being first responder, every key and button held is released. The shared parts of the
+  two adapters are one configuration builder and the queue element wrappers; the host tests drive the queue rules with fake
+  elements, the translation with fake events and the builder with the configuration the framework is handed, never a machine.
 - Resizing follows the window like the framework's display does for a Linux guest: the same policy (`DisplayFollower`) drives an
   adapter (`CustomGPUResizableDisplay`) over the device. A request sets the size the next display-information answer reports
   and writes the configuration space twice, the display event cleared and then set, so that every write after the first
@@ -131,15 +146,15 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 2. Resizing, against a guest: that the clear-then-set writes make a second and later resize re-trigger the display-information
    request (one update was measured above, 0 ms later), and what the Linux driver does with a new size (whether it keeps the
    console, how long it takes, whether it asks for a size above what one resource holds).
-3. A keyboard and a pointer for such a machine: the pure library exists (`Sources/VirtioInput`, linked by no target yet):
-   the event format, two fixed layouts of the configuration space (keyboard and absolute pointer), the Mac-to-Linux key table,
-   an event encoder, a bounded event queue that pairs events with the guest's buffers and drops whole frames when full, and the
-   status-queue decoder. The framework gives the host no callback for the guest's write of `select` and `subsel`, so the guest
-   reads one bitmap for every question the Linux driver asks; each layout is chosen so that the driver's probe, replayed by
-   a model in the tests, accepts it, and its side effects (the keyboard also looks like an accelerometer to the guest's device
-   manager, the pointer has no horizontal wheel) are written on the layouts. The framework's path is built (above). Not
-   done: the app's adapter for the library and the machine's configuration with it, and a run against a guest, which is what
-   would confirm both paths and the userland behaviour that was read from the sources of the guest's device manager and
-   input library.
-4. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
-5. 3D acceleration is not in scope of this work.
+3. The input path: both exist (above) and neither has run against a guest. The real-guest run decides which one stays, by
+   comparing them: whether the guest's driver binds the two virtio input devices, how it classifies them (the static
+   configuration is a workaround for the missing callback for the guest's write of `select` and `subsel`: the guest reads one
+   bitmap for every question the Linux driver asks, each layout is chosen so that a model of the driver's probe accepts it, and
+   the side effects, such as the keyboard also looking like an accelerometer to the guest's device manager, were read from the
+   sources of the guest's device manager and input library, never run), whether the framework's view takes events passed to it
+   from another view, the latency of each, the system keyboard shortcuts (the framework's capture setting has no effect on the
+   virtio path), the scroll steps, and whether a key stays stuck after the window loses the keyboard.
+4. The guest's cursor image and its alpha: the cursor layer draws the guest's image with its alpha, tested with generated
+   images only; a real guest's cursor has not been seen.
+5. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
+6. 3D acceleration is not in scope of this work.

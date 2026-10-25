@@ -16,6 +16,10 @@ final class FakeInputSurface: GuestInputSurface {
     var capturesSystemKeys = false
 
     func use(machine: VZVirtualMachine) { calls.append("use") }
+    func focusLost() { calls.append("focusLost") }
+
+    @available(macOS 27.0, *)
+    nonisolated func makeConfigurations() -> [VZCustomVirtioDeviceConfiguration] { [] }
     func attach(to view: CustomGPUView) { calls.append("attach") }
     func detach(from view: CustomGPUView) { calls.append("detach") }
 
@@ -57,8 +61,31 @@ enum SampleEvents {
                 clickCount: 1, pressure: 1))
     }
 
-    static func scroll() throws -> NSEvent {
-        let cgEvent = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: 1, wheel2: 0, wheel3: 0)
+    static func key(
+        _ type: NSEvent.EventType, keyCode: UInt16 = 0, flags: NSEvent.ModifierFlags = [], isRepeat: Bool = false
+    ) throws -> NSEvent {
+        try #require(
+            NSEvent.keyEvent(
+                with: type, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: "a",
+                charactersIgnoringModifiers: "a", isARepeat: isRepeat, keyCode: keyCode))
+    }
+
+    static func mouse(_ type: NSEvent.EventType, at location: CGPoint = .zero) throws -> NSEvent {
+        try #require(
+            NSEvent.mouseEvent(
+                with: type, location: location, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0,
+                clickCount: 1, pressure: 1))
+    }
+
+    /// A press or release of the mouse button `number` (2 is the third button), as the system makes it.
+    static func button(_ type: CGEventType, number: UInt32) throws -> NSEvent {
+        let button = try #require(CGMouseButton(rawValue: number))
+        let event = try #require(CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: .zero, mouseButton: button))
+        return try #require(NSEvent(cgEvent: event))
+    }
+
+    static func scroll(_ units: CGScrollEventUnit = .line, by amount: Int32 = 1) throws -> NSEvent {
+        let cgEvent = CGEvent(scrollWheelEvent2Source: nil, units: units, wheelCount: 1, wheel1: amount, wheel2: 0, wheel3: 0)
         return try #require(cgEvent.flatMap { NSEvent(cgEvent: $0) })
     }
 }

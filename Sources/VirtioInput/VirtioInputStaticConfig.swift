@@ -30,7 +30,7 @@ package struct VirtioInputStaticConfig: Equatable, Sendable {
     /// - property bits 0 to 31, among them `INPUT_PROP_ACCELEROMETER`: the device manager tags the device as an
     ///   accelerometer as well as a keyboard, and the input library then ignores its axes and keeps the keyboard;
     /// - the ids `0xFFFF` everywhere, and a name of 16 bytes that are not text.
-    package static let keyboard: Self = {  // @dw:accept:this referenced-only-by-tests -- the app links it later
+    package static let keyboard: Self = {
         Self(bits: [0] + VirtioKeyMap.linuxKeys.map(Int.init))
     }()
 
@@ -46,7 +46,7 @@ package struct VirtioInputStaticConfig: Equatable, Sendable {
     /// - the keys `KEY_ESC`, `KEY_7` and `KEY_C`, from bits 1, 8 and 46 (46 is the maximum's top bit), and absolute axes 0, 1, 8
     ///   and 46 with the same range and no fuzz, flat or resolution;
     /// - the ids bus `0x0103`, vendor 0, product `0x4000`, version 0, and a name of two bytes that are not text.
-    package static let tablet: Self = {  // @dw:accept:this referenced-only-by-tests -- the app links it later
+    package static let tablet: Self = {
         let axes = [Int(InputCode.absX), Int(InputCode.absY), Int(InputCode.relWheel)]
         let buttons = PointerButton.allCases.map { Int($0.rawValue) }
         // The maximum is the second 32-bit word of the union, which is bits 32 to 63 of every bitmap.
@@ -56,7 +56,7 @@ package struct VirtioInputStaticConfig: Equatable, Sendable {
 
     /// The range of `ABS_X` and `ABS_Y` of `tablet`, read back from its bytes: the guest's pointer position is a point of this
     /// range, from the top left corner of its display to the bottom right one.
-    package static let tabletRange: ClosedRange<Int32> = {  // @dw:accept:this referenced-only-by-tests -- the app links it later
+    package static let tabletRange: ClosedRange<Int32> = {
         let low = Int32(bitPattern: tablet.word(at: 0))
         let high = Int32(bitPattern: tablet.word(at: 4))
         return low...max(low, high)

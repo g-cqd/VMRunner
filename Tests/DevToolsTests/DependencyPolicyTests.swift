@@ -41,10 +41,10 @@ struct DependencyPolicyTests {
     /// Library targets of this repository the app links besides the packages, none of them outside code: the network policy and
     /// the user-mode stack (ADR-0047), the console, which imports Foundation and the system's C library only (ADR-0052), and
     /// the control service's protocol, which links the console (ADR-0056), the provisioning library, system frameworks only
-    /// (ADR-0012, roadmap 0016), and the virtio GPU's pure core, which imports nothing (ADR-0058). A new one is a decision of its
-    /// own.
+    /// (ADR-0012, roadmap 0016), and the virtio GPU's and the virtio input device's pure cores, which import nothing (ADR-0058).
+    /// A new one is a decision of its own.
     private static let repositoryLibraries: Set<String> = [
-        "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack", "VirtioGPU",
+        "ControlProtocol", "GuestConsole", "GuestSeed", "NetPolicy", "NetStack", "VirtioGPU", "VirtioInput",
     ]
 
     @Test
