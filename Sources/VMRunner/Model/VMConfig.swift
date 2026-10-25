@@ -172,6 +172,9 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     /// The installer image the machine boots with attached as a read-only USB drive: Linux and Windows guests only, and only
     /// while attached. The guest can read the whole file, so this is a host channel like a shared folder.
     var attachedInstallerPath: String? { guest.usesGenericPlatform && installerAttached ? installerISO : nil }
+    /// A Windows machine's driver disc: an image the user chose, attached read-only as a second USB drive beside the installer
+    /// (Windows has no built-in driver for the virtio network device). Windows only; a file outside the Machines folder.
+    var driverDiscPath: String?
 
     // Display
     var displayWidth = 1920

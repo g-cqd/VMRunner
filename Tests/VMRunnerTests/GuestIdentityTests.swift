@@ -35,7 +35,7 @@ struct GuestIdentityTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let bundle = VMBundle(url: directory)
         try Data("disk".utf8).write(to: bundle.disk)
-        try Data("nvram".utf8).write(to: bundle.efiVariables)
+        try writeEFIVariableStore(at: bundle.efiVariables)
         try Data("own".utf8).write(to: bundle.machineIdentifier)
 
         try bundle.prepareEphemeral(guest: .linux)

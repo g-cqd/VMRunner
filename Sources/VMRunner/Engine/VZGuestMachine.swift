@@ -129,7 +129,10 @@ struct VZMachineFactory: MachineFactory {
         // The custom GPU is made here, on the main actor, and handed to the machine, which keeps it for as long as it lives.
         // The path of its keyboard and pointer is read once, now.
         let customGPU = Self.customGPU(for: config, display: display, inputPath: CustomGPUInputPath.current())
-        let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display, customGPU: customGPU)
+        // A Windows machine's private interface is decided now, once, the way the custom GPU's input path is.
+        let windows = config.guest == .windows ? WindowsStartSettings.current(for: config) : nil
+        let built = try await ConfigurationBuilder.buildInBackground(
+            config, bundle: bundle, display: display, customGPU: customGPU, windows: windows)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend =
             (config.guestSuspendReason ?? config.customGPUSuspendReason()).map { SuspendSupport.unavailable(reason: $0) }

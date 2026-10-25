@@ -134,6 +134,7 @@ extension VMConfig {
         config.sharedFolders = []
         config.extraDisks = []
         config.installerAttached = false
+        config.driverDiscPath = nil
         config.hostInfo = HostInfoSharing()
         config.secureBoot = secureBootAvailability(hostSupports: hostSupportsSecureBoot) == .available
         guard profile == .hardened else { return config }
@@ -193,12 +194,12 @@ extension VMConfig {
             readOnlyShares: sharedFolders.filter(\.readOnly).count,
             writableDisks: extraDisks.filter { !$0.readOnly }.count,
             readOnlyDisks: extraDisks.filter(\.readOnly).count,
-            installer: attachedInstallerPath != nil,
+            installer: attachedInstallerPath != nil || attachedDriverDiscPath != nil,
             clipboard: linux && sharesClipboard,
             microphone: audioInput,
             speakers: audioOutput,
             rosetta: linux && rosetta,
-            nested: linux && nestedVirtualization,
+            nested: guest.usesGenericPlatform && nestedVirtualization,
             vsock: socketDevice,
             serialConsole: linux && serialConsole,
             agentAccess: agentAccess,
@@ -256,6 +257,9 @@ extension VMConfig {
         if let installer = attachedInstallerPath {
             items.append(Exposure(level: .medium, text: "The guest can read the installer image \(installer) (attached read-only)."))
         }
+        if let disc = attachedDriverDiscPath {
+            items.append(Exposure(level: .medium, text: "The guest can read the driver disc \(disc) (attached read-only)."))
+        }
         if let spec = activeProvisioningSpecPath {
             // The guest reads the whole seed and runs its steps as root: the spec's text and its scripts reach it.
             items.append(
@@ -274,7 +278,7 @@ extension VMConfig {
         if guest == .linux, rosetta {
             items.append(Exposure(level: .low, text: "Rosetta share: exposes a host translation runtime to the guest."))
         }
-        if guest == .linux, nestedVirtualization {
+        if guest.usesGenericPlatform, nestedVirtualization {
             items.append(Exposure(level: .medium, text: "Nested virtualization: the guest can run its own hypervisor."))
         }
         if socketDevice { items.append(Exposure(level: .low, text: "vsock: a host–guest socket channel is present.")) }

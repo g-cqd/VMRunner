@@ -24,8 +24,9 @@ enum SetupError: LocalizedError {
     case rosettaUnavailable
     /// The serial console's socket could not be set up; `reason` completes "because ...".
     case consoleUnavailable(reason: String)
-    /// The configuration builder has no way to build a machine of this guest.
-    case unsupportedGuest(GuestOS)
+    /// The guest cannot start without a private interface that is off or unavailable; `capability` is what the interface is
+    /// called and `reason` completes "unavailable: ...".
+    case requiredCapabilityUnavailable(guest: GuestOS, capability: String, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -65,8 +66,8 @@ enum SetupError: LocalizedError {
             "Rosetta for Linux isn't installed. Install it from the VM's settings."
         case .consoleUnavailable(let reason):
             "The serial console can't be set up, because \(reason). Turn it off in the machine's settings to start without it."
-        case .unsupportedGuest(let guest):
-            "This version of VMRunner can't start \(guest.label) machines."
+        case .requiredCapabilityUnavailable(let guest, let capability, let reason):
+            "\(guest.label) needs the \(capability), which is unavailable: \(reason)."
         }
     }
 }

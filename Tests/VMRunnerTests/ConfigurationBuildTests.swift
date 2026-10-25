@@ -11,7 +11,7 @@ struct ConfigurationBuildTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let bundle = VMBundle(url: directory)
         try Data(count: 1 << 20).write(to: bundle.disk)
-        try Data("nvram".utf8).write(to: bundle.efiVariables)
+        try writeEFIVariableStore(at: bundle.efiVariables)
         let config = VMConfig.new(name: "x", guest: .linux)
 
         let direct: String

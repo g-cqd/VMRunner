@@ -70,6 +70,12 @@ extension VMConfig {
             }
         }
         if let installerISO { try Self.requirePath(installerISO, "installerISO") }
+        if let driverDiscPath {
+            try Self.requirePath(driverDiscPath, "driverDiscPath")
+            if AppPaths.isInside(URL(filePath: driverDiscPath), AppPaths.machines) {
+                throw Self.corrupted("driverDiscPath", "must not name a file inside the Machines folder")
+            }
+        }
         if !provisioningSpecPath.isEmpty { try Self.requirePath(provisioningSpecPath, "provisioningSpecPath") }
         if case .local(let path) = source { try Self.requirePath(path, "source") }
     }
@@ -90,13 +96,14 @@ extension VMConfig {
     }
 
     /// A Windows machine has none of the Linux-only features: a stored value that turns one on is refused, as a value out of
-    /// range is. Shared folders and the clipboard setting are not refused: the first is guest-neutral, and the standard security
-    /// profile sets the second on every guest, where nothing but a Linux machine acts on it.
+    /// range is. Nested virtualization is allowed: the generic platform offers it to Windows as to Linux. Shared folders and
+    /// the clipboard setting are not refused: the first is guest-neutral, and the standard security profile sets the second on
+    /// every guest, where nothing but a Linux machine acts on it.
     private func validateGuest() throws {
         guard guest == .windows else { return }
         let linuxOnly: [(key: String, isOn: Bool)] = [
-            ("gpu", gpu != .apple), ("rosetta", rosetta), ("nestedVirtualization", nestedVirtualization),
-            ("serialConsole", serialConsole), ("secureBoot", secureBoot), ("provisioningSpecPath", !provisioningSpecPath.isEmpty),
+            ("gpu", gpu != .apple), ("rosetta", rosetta), ("serialConsole", serialConsole), ("secureBoot", secureBoot),
+            ("provisioningSpecPath", !provisioningSpecPath.isEmpty),
         ]
         if let refused = linuxOnly.first(where: \.isOn) { throw Self.corrupted(refused.key, "is not available for a Windows machine") }
     }

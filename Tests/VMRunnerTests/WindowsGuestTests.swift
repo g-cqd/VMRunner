@@ -100,7 +100,6 @@ struct WindowsGuestTests {
         let features: [(key: String, turnOn: (inout VMConfig) -> Void)] = [
             ("gpu", { $0.gpu = .custom }),
             ("rosetta", { $0.rosetta = true }),
-            ("nestedVirtualization", { $0.nestedVirtualization = true }),
             ("serialConsole", { $0.serialConsole = true }),
             ("secureBoot", { $0.secureBoot = true }),
             ("provisioningSpecPath", { $0.provisioningSpecPath = "/tmp/spec.json" }),
@@ -186,18 +185,6 @@ struct WindowsGuestTests {
         var mac = VMConfig.new(name: "m", guest: .macOS)
         mac.diskInterface = .nvme
         #expect(!mac.usesNVMeMainDisk)
-    }
-
-    @Test func theBuilderRefusesAWindowsMachineWithAnErrorThatNamesTheGuest() throws {
-        let directory = try scratchDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        do {
-            _ = try ConfigurationBuilder.build(windows(), bundle: VMBundle(url: directory))
-            Issue.record("a Windows machine was built")
-        } catch SetupError.unsupportedGuest(let guest) {
-            #expect(guest == .windows)
-            #expect(SetupError.unsupportedGuest(guest).errorDescription == "This version of VMRunner can't start Windows machines.")
-        }
     }
 
     @Test func aWindowsMachinesStorageIsAnNVMeDiskThenItsInstallerOnUSB() throws {

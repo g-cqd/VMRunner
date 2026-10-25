@@ -26,9 +26,10 @@ enum ConfigurationBuilder {
     /// is sent back to the caller.
     @concurrent
     static func buildInBackground(
-        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil,
+        windows: WindowsStartSettings? = nil
     ) async throws -> sending Built {
-        try build(config, bundle: bundle, display: display, customGPU: customGPU)
+        try build(config, bundle: bundle, display: display, customGPU: customGPU, windows: windows)
     }
 
     /// A validated configuration, and the user-mode network stack its NIC talks to when the machine is `.filtered`.
@@ -45,8 +46,22 @@ enum ConfigurationBuilder {
     }
 
     /// `customGPU` is the machine's custom GPU, made by the caller on the main actor; a Linux machine set to use it needs it.
+    /// `windows` is what a Windows start decided about its private interface, read by the caller once for the start; a Windows
+    /// machine built without it reads this Mac's own settings.
     static func build(
-        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil,
+        windows: WindowsStartSettings? = nil
+    ) throws -> Built {
+        let built = try assemble(config, bundle: bundle, display: display, customGPU: customGPU, windows: windows)
+        try built.configuration.validate()
+        return built
+    }
+
+    /// Everything `build` does before the framework validates the configuration. Validation needs the process to hold the
+    /// virtualization entitlement, which a test run does not, so a test reads the devices from here.
+    static func assemble(
+        _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int)? = nil, customGPU: (any CustomDisplaySource)? = nil,
+        windows: WindowsStartSettings? = nil
     ) throws -> Built {
         let display = display ?? (config.displayWidth, config.displayHeight)
         let vz = VZVirtualMachineConfiguration()
@@ -56,7 +71,7 @@ enum ConfigurationBuilder {
         switch config.guest {
         case .macOS: try configureMac(vz, config, bundle, display)
         case .linux: try configureLinux(vz, config, bundle, display, customGPU)
-        case .windows: throw SetupError.unsupportedGuest(config.guest)
+        case .windows: try configureWindows(vz, config, bundle, display, settings: windows ?? .current(for: config))
         }
 
         vz.storageDevices += try storage(for: config, bundle: bundle)
@@ -70,7 +85,6 @@ enum ConfigurationBuilder {
         let console = try serialConsole(for: config, bundle: bundle)
         if let console { vz.serialPorts = [console.port] }
 
-        try vz.validate()
         return Built(configuration: vz, networkStack: network.stack, consoleBridge: console?.bridge)
     }
 
@@ -142,25 +156,8 @@ enum ConfigurationBuilder {
         _ vz: VZVirtualMachineConfiguration, _ config: VMConfig, _ bundle: VMBundle, _ display: (width: Int, height: Int),
         _ customGPU: (any CustomDisplaySource)?
     ) throws {
-        let platform = VZGenericPlatformConfiguration()
-        if let data = try? Data(contentsOf: bundle.activeMachineIdentifier(ephemeral: config.ephemeral)),
-            let identifier = VZGenericMachineIdentifier(dataRepresentation: data)
-        {
-            platform.machineIdentifier = identifier
-        }
-        if config.nestedVirtualization {
-            guard VZGenericPlatformConfiguration.isNestedVirtualizationSupported else {
-                throw SetupError.unsupportedHost("Nested virtualization needs an M3 or newer chip.")
-            }
-            platform.isNestedVirtualizationEnabled = true
-        }
-        vz.platform = platform
-
-        let variableStore = VZEFIVariableStore(url: bundle.activeEFIVariables(ephemeral: config.ephemeral))
-        try applySecureBoot(config.secureBoot, to: variableStore)
-        let boot = VZEFIBootLoader()
-        boot.variableStore = variableStore
-        vz.bootLoader = boot
+        vz.platform = try genericPlatform(for: config, bundle: bundle)
+        vz.bootLoader = try efiBootLoader(for: config, bundle: bundle, secureBoot: config.secureBoot)
 
         try configureLinuxScreen(vz, config, display, customGPU: customGPU)
 
@@ -173,22 +170,6 @@ enum ConfigurationBuilder {
             let console = VZVirtioConsoleDeviceConfiguration()
             console.ports[0] = port
             vz.consoleDevices = [console]
-        }
-    }
-
-    /// Enrolls the Apple platform key and Microsoft's UEFI keys (so Microsoft-signed distro shims, like
-    /// CentOS's, still boot) and turns enforcement on or off to match the setting.
-    private static func applySecureBoot(_ wanted: Bool, to store: VZEFIVariableStore) throws {
-        guard #available(macOS 27.0, *) else {
-            if wanted { throw SetupError.unsupportedHost("Secure Boot needs macOS 27 or later on the host.") }
-            return
-        }
-        let enabled = (try? store.isSecureBootEnabled) ?? false
-        if wanted, !enabled {
-            try store.enrollDefaultSecureBootSignatures()
-            try store.enableSecureBootUsingDefaultPlatformKey()
-        } else if !wanted, enabled {
-            try store.disableSecureBoot()
         }
     }
 
@@ -220,6 +201,7 @@ enum ConfigurationBuilder {
             let readOnly = try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)
             devices.append(VZUSBMassStorageDeviceConfiguration(attachment: readOnly))
         }
+        if let driverDisc = try driverDisc(for: config) { devices.append(driverDisc) }
         if config.activeProvisioningSpecPath != nil {
             // Written by `ProvisioningSeed.prepare` for this start; never the installer's slot, which is empty while a spec is active.
             // A virtio disk, not USB: a real guest run found cloud-init reading the seed from a read-only virtio disk, and a USB

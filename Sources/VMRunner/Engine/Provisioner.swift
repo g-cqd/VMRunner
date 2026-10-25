@@ -7,9 +7,8 @@ enum Provisioner {
     @MainActor
     static func run(config: VMConfig, library: any MachineStore, job: SetupJob) async throws {
         switch config.guest {
-        case .linux: try await provisionLinux(config, library, job)
+        case .linux, .windows: try await provisionInstallerMachine(config, library, job)
         case .macOS: try await provisionMac(config, library, job)
-        case .windows: throw SetupError.unsupportedGuest(config.guest)
         }
     }
 
@@ -26,10 +25,12 @@ enum Provisioner {
         }
     }
 
-    // MARK: Linux
+    // MARK: Linux and Windows
 
+    /// A machine that installs by booting an installer image: its folder and disk, the image it boots, and the firmware
+    /// variables and machine identifier of the generic platform. A Windows machine is made the same way.
     @MainActor
-    private static func provisionLinux(_ config: VMConfig, _ library: any MachineStore, _ job: SetupJob) async throws {
+    private static func provisionInstallerMachine(_ config: VMConfig, _ library: any MachineStore, _ job: SetupJob) async throws {
         var config = config
         config.recordCatalogImageCapabilities()
         let bundle = library.bundle(config.id)

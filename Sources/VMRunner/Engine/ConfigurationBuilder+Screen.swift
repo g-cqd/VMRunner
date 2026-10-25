@@ -1,7 +1,7 @@
 import Virtualization
 
 extension ConfigurationBuilder {
-    /// A Linux guest's screen and the keyboard and pointer that go with it. The framework's graphics device is the default; a
+    /// A Linux or Windows guest's screen and the keyboard and pointer that go with it. The framework's graphics device is the default; a
     /// machine set to the custom GPU gets that device instead, as a custom virtio device, and no framework graphics device at
     /// all. The USB keyboard and pointer stay, except on the custom GPU's virtio input path, whose two input devices follow the
     /// GPU in the custom devices and replace them (the guest then sees only virtio input). A host older than macOS 27 cannot

@@ -114,7 +114,7 @@ final class ControllerRig {
         try library.add(config)
         let bundle = library.bundle(config.id)
         try Data("disk".utf8).write(to: bundle.disk)
-        try Data("nvram".utf8).write(to: bundle.efiVariables)
+        try writeEFIVariableStore(at: bundle.efiVariables)
         _ = library.controller(for: id)
     }
 
