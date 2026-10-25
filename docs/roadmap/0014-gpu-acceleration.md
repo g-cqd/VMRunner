@@ -43,7 +43,7 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   budget, another is scheduled on the main actor, because the guest does not notify again for the rest of a batch and the
   framework offers no look at the queue without taking an element (the library's `serveTurn`, tested with a fake queue).
 - The builder: a Linux machine set to the custom GPU gets that device as its one custom virtio device and no framework
-  graphics device; the USB keyboard and pointer stay. The machine's factory makes the device on the main actor
+  graphics device; the USB keyboard and pointer stay on the framework path. The machine's factory makes the device on the main actor
   (`CustomGPUSession`: the device and the `CustomScreen` it draws on, seen by the rest of the app only as a
   `CustomDisplaySource`) and the machine object holds it, because the framework holds the device it makes weakly. Its
   display starts at the size the start chose, scaled down to the library's limits. A host older than macOS 27 refuses the
