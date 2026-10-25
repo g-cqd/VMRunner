@@ -288,6 +288,26 @@ struct AllowContainersTests {
         #expect(controller.errorMessage == ManagedPreferences.containersDeniedMessage)
         #expect(controller.state == .stopped && controller.guest == nil)
     }
+
+    @Test func aDeniedLibraryRefusesToAddAContainerAndKeepsAStoredSpecOnUpdate() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let stored = VMConfig.newContainer(name: "box", container: ContainerSpec(image: "a/b:1"))
+        try VMLibrary(machinesDirectory: directory, saveDelay: .seconds(3600), managed: forced(["AllowContainers": true])).add(stored)
+
+        let denied = VMLibrary(machinesDirectory: directory, saveDelay: .seconds(3600), managed: forced(["AllowContainers": false]))
+        denied.load()
+        #expect(denied.machines.map(\.id) == [stored.id], "a stored container machine still loads and stays listed")
+        #expect(throws: LibraryError.self) { try denied.add(VMConfig.newContainer(name: "new")) }
+        #expect(denied.machines.count == 1)
+
+        var changed = stored
+        changed.name = "renamed"
+        changed.container?.image = "other:9"
+        denied.update(changed)
+        #expect(denied.machines.first?.name == "renamed")
+        #expect(denied.machines.first?.container?.image == "a/b:1", "the container's settings stay as they were stored")
+    }
 }
 
 /// The words a machine is called in alerts and tooltips.

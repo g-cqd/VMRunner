@@ -71,8 +71,14 @@ private final class CountingReader: Pausable {
 }
 
 @MainActor
-@Suite(.timeLimit(.minutes(1)))
+@Suite(.serialized, .timeLimit(.minutes(1)))
 struct ContainerProcessTests {
+    /// How many descriptors this process has open, counted by the entries of `/dev/fd` (the listing's own descriptor is counted
+    /// the same way before and after, so it cancels out).
+    private func openDescriptorCount() -> Int {
+        (try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd").count) ?? -1
+    }
+
     private func make(
         _ runner: FakeRunner, arguments: [String] = [], clock: any Clock<Duration> = TestClock(),
         registry: ContainerProcesses = ContainerProcesses(), environment: [String: String] = ["PATH": "/usr/bin:/bin"]
@@ -104,7 +110,7 @@ struct ContainerProcessTests {
         #expect(process.isRunning == false)
         let log = process.log
         #expect(log.phases == [.init(name: "pull", seconds: 1.5)])
-        #expect(log.output.text == "hello \u{1B}[31mred\u{1B}[0m\noops\n")
+        #expect(log.output.text == "hello red\noops\n")
         #expect(log.containerStatus == 3)
         #expect(log.finishedStatus == 1)
         #expect(log.ignoredLines == 2)
@@ -288,6 +294,7 @@ struct ContainerProcessTests {
     }
 
     @Test func noDescriptorSurvivesARunWhateverEndsIt() async throws {
+        let descriptorsBefore = openDescriptorCount()
         let finishing = try FakeRunner.printing([#"{"event":"finished","status":0}"#])
         let stopping = try FakeRunner(FakeRunner.waitsForStop)
         let killed = try FakeRunner(FakeRunner.sleeps)
@@ -314,6 +321,7 @@ struct ContainerProcessTests {
         _ = await third.waitForExit()
         #expect(registry.liveCount == 0)
         for process in [first, second, third] { #expect(process.openDescriptorCount == 0) }
+        #expect(openDescriptorCount() == descriptorsBefore, "the process's own descriptors, as the system counts them, are all closed")
     }
 
     @Test func quittingStopsARunnerThatHonoursItAndKillsOneThatDoesNot() async throws {
@@ -434,7 +442,9 @@ struct OutputBacklogTests {
         backlog.close()
         #expect(first.resumed == 1 && second.resumed == 1)
         backlog.queued(OutputBacklog.pauseAbove, from: first)
-        backlog.applied(OutputBacklog.pauseAbove * 3)
+        // What was queued before the close (pauseAbove + 2) and after it (pauseAbove) is applied, exactly.
+        backlog.applied(OutputBacklog.pauseAbove * 2 + 2)
+        #expect(backlog.queuedBytes == 0, "the queued count never goes negative")
         #expect(first.paused == 1 && second.paused == 1)
         #expect(first.resumed == 1 && second.resumed == 1)
     }

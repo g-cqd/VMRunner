@@ -127,6 +127,9 @@ extension VMConfig {
                     "container.environment", "must name variables of letters, digits and underscores, not starting with a digit")
             }
             guard entry.hasValidValue else { throw corrupted("container.environment", "must hold values without NUL or newline") }
+            guard entry.value.utf8.count <= ContainerLimits.maxEnvironmentValueBytes else {
+                throw corrupted("container.environment", "must hold values of at most \(ContainerLimits.maxEnvironmentValueBytes) bytes")
+            }
             guard seen.insert(entry.name).inserted else { throw corrupted("container.environment", "must not name \(entry.name) twice") }
         }
     }

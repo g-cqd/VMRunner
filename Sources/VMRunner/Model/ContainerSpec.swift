@@ -22,6 +22,7 @@ enum ContainerLimits {
     static let maxCommandElements = 64
     static let maxCommandElementBytes = 4096
     static let maxEnvironmentEntries = 64
+    static let maxEnvironmentValueBytes = 4096
     static let cpus = 1...16
     static let memoryMiB = 128...16384
 }

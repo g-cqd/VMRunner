@@ -195,6 +195,7 @@ final class VMLibrary {
 
     func add(_ proposed: VMConfig) throws {
         let config = managed.clamp(proposed)
+        if config.workload == .container, managed.isLocked(.allowContainers) { throw LibraryError.containersNotAllowed }
         try bundle(config.id).create()
         try persist(config)
         // The user made this machine in the New Machine sheet, including a local installer image they picked there.
@@ -205,9 +206,11 @@ final class VMLibrary {
     }
 
     func update(_ proposed: VMConfig) {
-        let config = managed.clamp(proposed)
+        var config = managed.clamp(proposed)
         guard let index = machines.firstIndex(where: { $0.id == config.id }) else { return }
         let previous = machines[index]
+        // While the organisation forbids containers, a container's settings are not edited: they stay as they were stored.
+        if managed.isLocked(.allowContainers), config.workload == .container { config.container = previous.container }
         // A memory image that cannot be restored into the changed machine is dropped (`restoresSavedState(of:)`), so the next
         // start is a cold boot rather than a failed restore. Turning suspend off or disposable on promises that no memory image
         // is kept (the exposure summary says so), so the image already on disk goes too.
@@ -270,7 +273,7 @@ final class VMLibrary {
             let staged = VMBundle(url: staging)
             staged.discardSavedState()
             staged.discardEphemeral()
-            // A container machine's bundle holds its configuration only: there is no identifier to renew.
+            // A container machine's bundle holds its configuration, and later its container-scratch folder: no identifier to renew.
             if copy.workload == .vm {
                 let identifier =
                     copy.guest == .macOS
@@ -417,10 +420,12 @@ extension VMLibrary {
 /// Why the library refused to do something to a machine.
 enum LibraryError: LocalizedError {
     case machineInUse
+    case containersNotAllowed
 
     var errorDescription: String? {
         switch self {
         case .machineInUse: "Stop the machine first: a running machine's disk is changing."
+        case .containersNotAllowed: ManagedPreferences.containersDeniedMessage
         }
     }
 }

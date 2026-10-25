@@ -128,6 +128,14 @@ struct RunnerOptionsTests {
     }
 
     @Test
+    func theEnvironmentValueLimitIsInclusive() throws {
+        let limit = RunnerArguments.maximumEnvironmentValueBytes
+        #expect(limit == 4096)
+        #expect(try parsed(["--env", "A=" + String(repeating: "v", count: limit)]).environment.count == 1)
+        #expect(failure(["--env", "A=" + String(repeating: "v", count: limit + 1)]) == .invalidEnvironment(name: "A"))
+    }
+
+    @Test
     func anEnvironmentEntryReplacesTheImagesOwnOfTheSameName() throws {
         let arguments = try parsed(["--env", "PATH=/opt/bin", "--env", "NEW=1"])
         let base = ["HOME=/root", "PATH=/usr/bin", "PATHX=keep"]

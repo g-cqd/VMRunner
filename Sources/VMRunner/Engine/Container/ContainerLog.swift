@@ -30,6 +30,50 @@ struct BoundedText: Equatable, Sendable {
     }
 }
 
+/// Removes every escape sequence that is left after the console filter, colour and cursor controls included: the log is plain
+/// text and shows none of them. A sequence cut between two calls is removed whole, because the state is kept from one call to
+/// the next (one stripper per output stream, as the console filter has).
+struct EscapeSequenceStripper: Sendable {
+    private enum State: Sendable { case text, escape, csi }
+    private var state = State.text
+
+    mutating func pass(_ bytes: [UInt8]) -> [UInt8] {
+        let escape = UInt8(ascii: "\u{1B}")
+        let open = UInt8(ascii: "[")
+        var kept: [UInt8] = []
+        kept.reserveCapacity(bytes.count)
+        for byte in bytes {
+            // A line feed or a tab is text whatever state the sequence was in.
+            if byte == UInt8(ascii: "\n") || byte == UInt8(ascii: "\t") {
+                state = .text
+                kept.append(byte)
+                continue
+            }
+            switch state {
+            case .text:
+                if byte == escape { state = .escape } else { kept.append(byte) }
+            case .escape:
+                // A control sequence (`ESC [`) runs to its final byte; any other two-byte escape ends with the byte after ESC.
+                if byte == open {
+                    state = .csi
+                } else if byte != escape {
+                    state = .text
+                }
+            case .csi:
+                if byte == escape {
+                    state = .escape
+                } else if byte >= 0x40 && byte <= 0x7E {
+                    state = .text
+                } else if byte < 0x20 || byte > 0x3F {
+                    state = .text
+                }
+            // Parameter and intermediate bytes (0x20 to 0x3F) are dropped inside the sequence.
+            }
+        }
+        return kept
+    }
+}
+
 /// What a container run has said, for the log view: the container's output (bounded, and passed through the console filter
 /// because the container is untrusted), the runner's phases, the container's and the runner's exit statuses and the errors the
 /// runner reported, and the runner's own diagnostics from its standard error.
@@ -65,6 +109,8 @@ final class ContainerLog {
 
     @ObservationIgnored private var filters: [ContainerStream: ConsoleOutputFilter] = [:]
     @ObservationIgnored private var diagnosticsFilter = ConsoleOutputFilter()
+    @ObservationIgnored private var strippers: [ContainerStream: EscapeSequenceStripper] = [:]
+    @ObservationIgnored private var diagnosticsStripper = EscapeSequenceStripper()
 
     init(limit: Int = ContainerLog.defaultLimit) {
         output = BoundedText(limit: limit)
@@ -77,8 +123,10 @@ final class ContainerLog {
             phases.append(Phase(name: String(Self.plain(name).prefix(Self.maxPhaseNameCharacters)), seconds: seconds))
         case .output(let stream, let text):
             var filter = filters[stream] ?? ConsoleOutputFilter()
-            output.append(filter.pass(Array(text.utf8)[...]))
+            var stripper = strippers[stream] ?? EscapeSequenceStripper()
+            output.append(Self.displayable(stripper.pass(filter.pass(Array(text.utf8)[...]))))
             filters[stream] = filter
+            strippers[stream] = stripper
         case .exited(let status):
             containerStatus = status
         case .error(let message):
@@ -91,7 +139,7 @@ final class ContainerLog {
 
     /// What the runner wrote to its standard error.
     func appendDiagnostics(_ bytes: [UInt8]) {
-        diagnostics.append(diagnosticsFilter.pass(bytes[...]))
+        diagnostics.append(Self.displayable(diagnosticsStripper.pass(diagnosticsFilter.pass(bytes[...]))))
     }
 
     func noteIgnoredLine() { ignoredLines += 1 }
@@ -101,7 +149,22 @@ final class ContainerLog {
     /// A runner's text with everything the console filter removes taken out.
     private static func plain(_ text: String) -> String {
         var filter = ConsoleOutputFilter()
-        let bytes = filter.pass(Array(text.utf8)[...])
+        var stripper = EscapeSequenceStripper()
+        let bytes = displayable(stripper.pass(filter.pass(Array(text.utf8)[...])))
         return String(decoding: bytes, as: UTF8.self)  // swiftlint:disable:this optional_data_string_conversion
+    }
+
+    /// What is left of filtered bytes that a text view may show: every format and control character except a line feed and a
+    /// tab is dropped. The console filter does not remove them all, so a carriage return, a backspace, a bell, the bidirectional
+    /// overrides and the zero-width characters are removed here.
+    static func displayable(_ bytes: [UInt8]) -> [UInt8] {
+        var kept = ""
+        for scalar in String(decoding: bytes, as: UTF8.self).unicodeScalars {  // swiftlint:disable:this optional_data_string_conversion
+            let category = scalar.properties.generalCategory
+            if scalar == "\n" || scalar == "\t" || (category != .format && category != .control) {
+                kept.unicodeScalars.append(scalar)
+            }
+        }
+        return Array(kept.utf8)
     }
 }

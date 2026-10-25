@@ -189,7 +189,7 @@ struct ContainerLogTests {
         log.apply(.output(stream: .stdout, text: "a\u{1B}[?10"))
         log.apply(.output(stream: .stderr, text: "X"))
         log.apply(.output(stream: .stdout, text: "49hb"))
-        #expect(log.output.text == "hi \u{1B}[31mred\u{1B}[0maXb")
+        #expect(log.output.text == "hi redaXb")
     }
 
     @Test func phasesStatusesAndErrorsAreRecorded() {
@@ -231,5 +231,49 @@ struct ContainerLogTests {
         log.appendDiagnostics([UInt8](repeating: 0x41, count: ContainerLog.diagnosticsLimit + 10))
         #expect(log.diagnostics.text.utf8.count == ContainerLog.diagnosticsLimit - ContainerLog.diagnosticsLimit / 4)
         #expect(log.diagnostics.droppedBytes == 18 + ContainerLog.diagnosticsLimit / 4)
+    }
+
+    @Test func escapeSequencesAndLoneEscapesLeaveNoResidue() {
+        let log = ContainerLog()
+        log.apply(.output(stream: .stdout, text: "a\u{1B}[31mb\u{1B}]0;t\u{7}c\u{1B}"))
+        #expect(log.output.text == "abc")
+        #expect(!log.output.text.contains("\u{1B}"))
+    }
+
+    @Test func formatCharactersAreRemovedWhileOrdinaryTextPasses() {
+        let log = ContainerLog()
+        log.apply(.output(stream: .stdout, text: "x\u{202E}y\u{200B}z\u{2066}"))
+        #expect(log.output.text == "xyz")
+        log.apply(.output(stream: .stdout, text: "héllo 世界 ✓\n\tend"))
+        #expect(log.output.text == "xyzhéllo 世界 ✓\n\tend")
+    }
+
+    @Test func carriageReturnsAreRemovedFromOutputAndDiagnostics() {
+        let log = ContainerLog()
+        log.apply(.output(stream: .stdout, text: "a\rb\n"))
+        #expect(log.output.text == "ab\n")
+        log.appendDiagnostics(Array("c\r\nd\u{8}".utf8))
+        #expect(log.diagnostics.text == "c\nd")
+    }
+
+    @Test(
+        arguments: [
+            ("\u{1B}[31mred\u{1B}[0m", "red"),
+            ("a\u{1B}[2;3Hb", "ab"),
+            ("x\u{1B}[2Ky", "xy"),
+            ("\u{1B}[?25lz\u{1B}[?25h", "z"),
+            ("p\u{1B}[1;4mq\n\tr", "pq\n\tr"),
+        ] as [(String, String)])
+    func escapeSequencesOfEveryKindAreRemoved(text: String, expected: String) {
+        let log = ContainerLog()
+        log.apply(.output(stream: .stdout, text: text))
+        #expect(log.output.text == expected)
+    }
+
+    @Test func aSequenceSplitBetweenEventsIsRemovedWhole() {
+        let log = ContainerLog()
+        log.apply(.output(stream: .stdout, text: "a\u{1B}[3"))
+        log.apply(.output(stream: .stdout, text: "1mb"))
+        #expect(log.output.text == "ab")
     }
 }

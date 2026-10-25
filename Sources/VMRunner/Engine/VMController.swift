@@ -444,7 +444,8 @@ extension VMController {
 extension VMController {
     private func adopt(_ prepared: PreparedMachine, run token: UInt64) {
         guest = prepared.machine
-        latency.hold(for: ObjectIdentifier(self))
+        // Keeping input responsive is for a machine with a screen; a workload without one holds nothing.
+        if prepared.machine.capabilities.contains(.display) { latency.hold(for: ObjectIdentifier(self)) }
         suspendSupport =
             prepared.machine.capabilities.contains(.suspend)
             ? prepared.suspend : .unavailable(reason: "This kind of machine can't be suspended.")

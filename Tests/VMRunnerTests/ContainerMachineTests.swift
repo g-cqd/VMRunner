@@ -58,6 +58,13 @@ struct ContainerConfigTests {
         #expect(config.container?.cpus == 2 && config.container?.memoryMiB == 512)
     }
 
+    @Test func anEnvironmentValueAtTheByteLimitIsAcceptedAndOneMoreIsRefused() throws {
+        let limit = ContainerLimits.maxEnvironmentValueBytes
+        try VMConfig.newContainer(name: "box", container: env("A", String(repeating: "v", count: limit))).validate()
+        let problem = try refusal(of: env("A", String(repeating: "v", count: limit + 1)))
+        #expect(problem.contains("container.environment"), "\(problem)")
+    }
+
     @Test func anUnknownWorkloadIsRefused() {
         #expect(throws: (any Error).self) { try decode(#"{"workload":"jail"}"#) }
     }

@@ -42,7 +42,7 @@ public enum RunnerArgumentError: Error, Equatable, Sendable, CustomStringConvert
                 + "\(RunnerArguments.memoryRange.upperBound))"
         case .invalidEnvironment(let name):
             "invalid --env '\(name)' (NAME=value; NAME is letters, digits and underscores and does not start with a digit; "
-                + "the value has no NUL or newline)"
+                + "the value has no NUL or newline and is at most \(RunnerArguments.maximumEnvironmentValueBytes) bytes)"
         case .tooManyEnvironmentVariables: "at most \(RunnerArguments.maximumEnvironmentVariables) --env entries are allowed"
         case .duplicateEnvironment(let name): "--env '\(name)' is given more than once"
         }
@@ -69,6 +69,7 @@ public struct RunnerArguments: Equatable, Sendable {
     static let maximumCommandArguments = 64
     static let maximumCommandArgumentBytes = 4096
     static let maximumEnvironmentVariables = 64
+    static let maximumEnvironmentValueBytes = 4096
 
     public static let usage = """
         usage: ContainerRunner <scratch-directory> [--network none|loopback] [--image <reference>] [--command <argument>]...
@@ -199,7 +200,9 @@ public struct RunnerArguments: Equatable, Sendable {
     private static func appendEnvironment(_ entry: String, to environment: inout [String]) throws(RunnerArgumentError) {
         let key = name(of: entry)
         let value = entry.dropFirst(key.count + 1)
-        let wellFormed = entry.utf8.count > key.utf8.count && isName(key) && !value.utf8.contains(0) && !value.utf8.contains(10)
+        let wellFormed =
+            entry.utf8.count > key.utf8.count && isName(key) && !value.utf8.contains(0) && !value.utf8.contains(10)
+            && value.utf8.count <= maximumEnvironmentValueBytes
         guard wellFormed else { throw .invalidEnvironment(name: String(key.prefix(64))) }
         guard environment.count < maximumEnvironmentVariables else { throw .tooManyEnvironmentVariables }
         guard !environment.contains(where: { name(of: $0) == key }) else { throw .duplicateEnvironment(name: String(key)) }

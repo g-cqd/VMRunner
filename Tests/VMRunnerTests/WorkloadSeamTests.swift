@@ -84,6 +84,25 @@ struct WorkloadControlsTests {
         rig.expectReleased()
     }
 
+    @Test func aWorkloadWithAScreenHoldsTheLatencyActivityWhileItRunsAndOneWithoutDoesNot() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        await rig.start()
+        #expect(rig.activity.isHeld, "a machine with a screen keeps input responsive")
+        guest.powerOff()
+        rig.expectReleased()
+
+        let logOnly = try ControllerRig()
+        defer { logOnly.cleanUp() }
+        let headless = logOnly.factory.add()
+        headless.capabilities = []
+        await logOnly.start()
+        #expect(!logOnly.activity.isHeld, "a workload without a screen holds nothing")
+        headless.powerOff()
+        logOnly.expectReleased()
+    }
+
     @Test func nothingIsOfferedBeforeAMachineExists() throws {
         let rig = try ControllerRig()
         defer { rig.cleanUp() }
