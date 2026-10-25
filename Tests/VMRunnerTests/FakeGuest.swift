@@ -33,6 +33,8 @@ final class FakeGuest: GuestMachine {
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
     /// A fake has no kill switch.
     var networkCutoff: NetworkCutoff? { nil }
+    /// A fake has no output unless a test gives it a log.
+    var workloadLog: ContainerLog?
 
     private var gates: [GuestCall: AsyncGate] = [:]
     private var failures: [GuestCall: String] = [:]

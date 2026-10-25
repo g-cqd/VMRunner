@@ -14,7 +14,7 @@ struct BoundedText: Equatable, Sendable {
     }
 
     /// The text, led by a line that says how much of the start was dropped.
-    var markedText: String {  // @dw:accept:this referenced-only-by-tests -- the log view shows it
+    var markedText: String {
         droppedBytes > 0 ? "[dropped \(droppedBytes) bytes]\n" + text : text
     }
 

@@ -46,7 +46,7 @@ final class MachineModel {
     /// What a running machine shows: the framework's screen, or the log of a workload that has no screen.
     enum RunningDisplay {
         case virtualMachine(VZVirtualMachine, DisplaySettings)
-        case workloadLog
+        case workloadLog(ContainerLog)
     }
 
     enum Phase {
@@ -98,9 +98,12 @@ final class MachineModel {
             )
             return .virtualMachine(machine, settings)
         }
-        return controller.guest != nil && !controller.capabilities.contains(.display) ? .workloadLog : nil
+        guard !controller.capabilities.contains(.display), let log = controller.guest?.workloadLog else { return nil }
+        return .workloadLog(log)
     }
 
+    /// Whether the machine runs a container, which has no pause or suspend to offer.
+    var isContainer: Bool { config?.workload == .container }
     var guestSymbol: String { config?.guest.symbol ?? "questionmark" }
     var showsControls: Bool { library.jobs[id] == nil && config?.isProvisioned == true }
     /// The machine's one state. Everything below that says what is offered is a reading of it.

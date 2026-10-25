@@ -7,7 +7,7 @@ struct ContainerExit: Equatable, Sendable {
     let signaled: Bool
 
     /// What `waitForExit()` returns for a process that was never started: no runner ran, so there is no status.
-    static let notStarted = Self(status: -1, signaled: false)  // @dw:accept:this referenced-only-by-tests -- waitForExit returns it
+    static let notStarted = Self(status: -1, signaled: false)
 }
 
 /// Why a runner did not start.
@@ -198,7 +198,7 @@ final class ContainerProcess {
 
     /// Returns the exit, waiting for the run to end when it has not. A process that was never started has no run to wait for: it
     /// returns ``ContainerExit/notStarted`` at once.
-    func waitForExit() async -> ContainerExit {  // @dw:accept:this referenced-only-by-tests -- the machine start awaits the end with it
+    func waitForExit() async -> ContainerExit {
         if let exit { return exit }
         guard handle != nil else { return .notStarted }
         return await withCheckedContinuation { waiters.append($0) }

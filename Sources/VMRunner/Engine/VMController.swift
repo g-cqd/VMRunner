@@ -68,6 +68,7 @@ final class VMController {
     func start(_ config: VMConfig, bundle: VMBundle, library: any MachineStore, windowSize: CGSize? = nil) async {
         guard state.canStart else { return }
         errorMessage = nil
+        guard config.workload == .vm else { return await startWithoutGuestSetup(config, bundle: bundle, library: library) }
         var config = config
         // Without a stored MAC, Virtualization picks a random one per boot, which makes saved state unrestorable; a disposable
         // machine with a fresh identity gets a new one at each start (`needsNewMACAddress`).
@@ -206,7 +207,7 @@ final class VMController {
     private func prepare(run token: UInt64) async -> MachineEvent? {
         guard let attempt = launch else { return .startFailed("The machine has nothing to start.") }
         do {
-            if attempt.config.ephemeral && !attempt.disposableCopyMade {
+            if attempt.config.workload == .vm && attempt.config.ephemeral && !attempt.disposableCopyMade {
                 try attempt.bundle.prepareEphemeral(guest: attempt.config.guest, identity: attempt.config.makeFreshMachineIdentity())
                 launch?.disposableCopyMade = true
             }
@@ -234,17 +235,6 @@ final class VMController {
             Log.machine.error("Start failed (\(error.logKind, privacy: .public)): \(error.localizedDescription, privacy: .private)")
             return .startFailed(error.localizedDescription)
         }
-    }
-
-    /// Provisioning is only consumed by a boot that keeps its result: a disposable clone or a recovery boot
-    /// would discard the account that was just created.
-    private func recordFirstBoot(of config: VMConfig, storedMACAddress: String?, in library: any MachineStore) {
-        guard !config.hasBooted, !config.ephemeral, !config.bootIntoRecovery else { return }
-        var updated = config
-        updated.hasBooted = true
-        updated.provisioning.password = ""
-        // Putting the stored address back is an invariant guard: ephemeral starts never reach this today.
-        library.update(updated.persistable(storedMACAddress: storedMACAddress))
     }
 
     private func armRuntimeLimit(run token: UInt64) {
@@ -417,6 +407,36 @@ extension VMController {
     var capabilities: WorkloadCapabilities { guest?.capabilities ?? [] }
     /// Whether Pause can be used now: the state allows it and this run's workload can pause.
     var canPause: Bool { state.canPause && capabilities.contains(.pause) }
+}
+
+// MARK: The first boot of a virtual machine
+
+extension VMController {
+    /// Provisioning is only consumed by a boot that keeps its result: a disposable clone or a recovery boot
+    /// would discard the account that was just created.
+    private func recordFirstBoot(of config: VMConfig, storedMACAddress: String?, in library: any MachineStore) {
+        guard config.workload == .vm, !config.hasBooted, !config.ephemeral, !config.bootIntoRecovery else { return }
+        var updated = config
+        updated.hasBooted = true
+        updated.provisioning.password = ""
+        // Putting the stored address back is an invariant guard: ephemeral starts never reach this today.
+        library.update(updated.persistable(storedMACAddress: storedMACAddress))
+    }
+}
+
+// MARK: Starting a machine that is not a virtual machine
+
+extension VMController {
+    /// Starts a workload that has no display, MAC address, disposable disk or saved state: none of the setup `start` does for a
+    /// virtual machine applies, so the launch carries nothing of it.
+    private func startWithoutGuestSetup(_ config: VMConfig, bundle: VMBundle, library: any MachineStore) async {
+        let noDisplay = StartDisplay.Decision(
+            width: 0, height: 0, source: .configuredSizeWithoutWindow, cap: .notApplicable, rememberedSizeIgnored: false)
+        launch = MachineLaunch(
+            config: config, bundle: bundle, library: library, display: noDisplay, windowSize: nil, suspendAllowed: false,
+            storedMACAddress: nil)
+        await drive(.startRequested, run: run)
+    }
 }
 
 // MARK: Adopting a prepared machine

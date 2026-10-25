@@ -65,6 +65,8 @@ struct WorkloadControlsTests {
         defer { rig.cleanUp() }
         let guest = rig.factory.add()
         guest.capabilities = []
+        let shown = ContainerLog()
+        guest.workloadLog = shown
         await rig.start()
         #expect(rig.controller.state == .running)
         #expect(!rig.controller.canPause)
@@ -73,10 +75,11 @@ struct WorkloadControlsTests {
         let model = rig.library.model(for: rig.id)
         #expect(!model.canPause && !model.canSuspend)
         #expect(model.networkActivity == nil)
-        guard case .running(.workloadLog) = model.phase else {
+        guard case .running(.workloadLog(let log)) = model.phase else {
             Issue.record("expected the log pane, got \(String(describing: model.phase))")
             return
         }
+        #expect(log === shown)
         guest.powerOff()
         rig.expectReleased()
     }
@@ -120,12 +123,13 @@ struct WorkloadRoutingTests {
         #expect(containers.bootedConfigs.map(\.workload) == [.container])
     }
 
-    @Test func aBuildWithoutContainersRefusesEveryContainerStart() async throws {
+    @Test func aBuildWithoutTheRunnerRefusesEveryContainerStart() async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let machines = FakeFactory()
-        let router = RoutingMachineFactory(virtualMachines: machines)
-        await #expect(throws: UnavailableContainerFactory.Unavailable()) {
+        let router = RoutingMachineFactory(
+            virtualMachines: machines, containers: ContainerMachineFactory(runner: directory.appending(path: "absent")))
+        await #expect(throws: ContainerProcessError(reason: ContainerMachineFactory.missingRunnerMessage)) {
             _ = try await router.prepare(
                 VMConfig.newContainer(name: "box"), bundle: VMBundle(url: directory), display: display, suspendAllowed: true)
         }
@@ -139,11 +143,13 @@ struct WorkloadRoutingTests {
         let config = VMConfig.newContainer(name: "box")
         try library.add(config)
         let machines = FakeFactory()
-        let controller = VMController(factory: RoutingMachineFactory(virtualMachines: machines))
+        let router = RoutingMachineFactory(
+            virtualMachines: machines, containers: ContainerMachineFactory(runner: directory.appending(path: "absent")))
+        let controller = VMController(factory: router)
 
         await controller.start(config, bundle: library.bundle(config.id), library: library)
 
-        #expect(controller.errorMessage == "Containers are not available in this build.")
+        #expect(controller.errorMessage == ContainerMachineFactory.missingRunnerMessage)
         #expect(controller.state == .stopped)
         #expect(controller.guest == nil)
         #expect(machines.preparations == 0)

@@ -38,6 +38,8 @@ protocol Workload: AnyObject {
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)? { get set }
     /// The kill switch of this run, when the workload has one, for the toolbar.
     var networkCutoff: NetworkCutoff? { get }
+    /// What the workload says while it runs, for the interface to show where a workload has no screen; `nil` when it has none.
+    var workloadLog: ContainerLog? { get }
 
     func start() async throws
     /// Presses the guest's power button.
@@ -53,6 +55,7 @@ protocol Workload: AnyObject {
 }
 
 extension Workload {
+    var workloadLog: ContainerLog? { nil }
     func restoreState(from url: URL) async throws { throw WorkloadUnsupportedError(operation: "restoring saved state") }
     func saveState(to url: URL) async throws { throw WorkloadUnsupportedError(operation: "suspending") }
     func pause() async throws { throw WorkloadUnsupportedError(operation: "pausing") }

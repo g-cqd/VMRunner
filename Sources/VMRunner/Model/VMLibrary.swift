@@ -355,10 +355,6 @@ final class VMLibrary {
     /// Starts a machine, or, when its configuration names host paths the user has not approved, asks first (`interactive`)
     /// or refuses and logs (a launch argument has nobody to ask).
     func startMachine(_ id: UUID, interactive: Bool = true) {
-        if let config = machine(id), config.workload == .container {
-            alertMessage = Self.containerStartRefusal(config.name)
-            return
-        }
         guard let config = machine(id), config.isProvisioned, jobs[id] == nil, controller(for: id).state.canStart else { return }
         let unapproved = unapprovedHostPaths(for: id)
         guard unapproved.isEmpty else {

@@ -33,7 +33,7 @@ enum ContainerRunnerArguments {
 
 /// The folder a runner works in: it holds the kernel and the image cache it downloads, so it outlives a run and nothing here
 /// removes it.
-enum ContainerScratch {  // @dw:accept:this referenced-only-by-tests -- the machine start prepares the folder with it
+enum ContainerScratch {
     struct Refusal: LocalizedError, Equatable {
         let path: String
         var errorDescription: String? { "The container's working folder \(path) is not a folder of its own (a link or a file)." }

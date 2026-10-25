@@ -220,21 +220,13 @@ struct ContainerLibraryTests {
         #expect(stored.workload == .container && stored.container == spec)
     }
 
-    @Test func aContainerMachineIsNotStartedOrSetUpAsAVirtualMachine() async throws {
+    @Test func aContainerMachineIsNotSetUpAsAVirtualMachine() async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let library = makeLibrary(in: directory)
         let config = VMConfig.newContainer(name: "box", container: spec)
         try library.add(config)
 
-        let result = await library.startAndWait(config.id)
-        guard case .refused(let reason) = result else {
-            Issue.record("expected a refusal, got \(result)")
-            return
-        }
-        #expect(reason.contains("container"))
-        library.startMachine(config.id)
-        #expect(library.alertMessage?.contains("container") == true)
         library.beginSetup(config.id)
         #expect(library.jobs[config.id] == nil)
         #expect(try names(in: library.bundle(config.id)) == ["config.json"])

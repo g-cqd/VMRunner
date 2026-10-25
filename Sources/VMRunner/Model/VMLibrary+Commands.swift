@@ -16,7 +16,6 @@ extension VMLibrary {
     /// failed. Host paths the user has not approved refuse the start, as for a launch argument: nobody is there to ask.
     func startAndWait(_ id: UUID) async -> MachineCommandResult {
         guard let config = machine(id) else { return .refused("There is no such machine.") }
-        guard config.workload == .vm else { return .refused(Self.containerStartRefusal(config.name)) }
         guard config.isProvisioned else { return .refused("“\(config.name)” is not set up yet.") }
         guard jobs[id] == nil else { return .refused("“\(config.name)” is being set up.") }
         let controller = controller(for: id)
@@ -26,11 +25,6 @@ extension VMLibrary {
         }
         await controller.start(config, bundle: bundle(id), library: self, windowSize: displayHint)
         return Self.result(of: controller) { $0 == .running }
-    }
-
-    /// Why a container machine is not started as a virtual machine. Nothing starts a container yet; whatever does replaces this.
-    static func containerStartRefusal(_ name: String) -> String {
-        "“\(name)” is a container machine, and containers cannot be started yet."
     }
 
     /// Suspends a machine and returns once its memory is saved and it has stopped, or the suspend was refused or failed.

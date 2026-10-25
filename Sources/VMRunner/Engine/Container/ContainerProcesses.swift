@@ -80,9 +80,7 @@ final class ContainerProcesses: Sendable {
     /// Asks every live runner to stop, waits up to `timeout` for them to end, then kills the ones still running and waits up
     /// to `killWait` for the system to report it. Blocks the calling thread for at most `timeout + killWait`, and does not need
     /// the main actor, so the app can call it from `applicationWillTerminate`.
-    func terminateAll(  // @dw:accept:this referenced-only-by-tests -- called at app quit
-        timeout: Duration = .seconds(5), killWait: Duration = .seconds(1)
-    ) {
+    func terminateAll(timeout: Duration = .seconds(5), killWait: Duration = .seconds(1)) {
         let handles = live.withLock { Array($0.values) }
         for handle in handles { handle.requestStop() }
         Self.wait(until: handles, within: timeout)

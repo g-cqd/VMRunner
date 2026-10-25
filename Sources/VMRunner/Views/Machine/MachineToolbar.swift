@@ -24,12 +24,14 @@ struct MachineToolbar: ToolbarContent {
 
     @ViewBuilder
     private var runningControls: some View {
-        if state.showsResume {
-            Button("Resume", systemImage: "play.fill", action: model.resume)
-                .disabled(!state.canResume)
-        } else {
-            Button("Pause", systemImage: "pause.fill", action: model.pause)
-                .disabled(!model.canPause)
+        if !model.isContainer {
+            if state.showsResume {
+                Button("Resume", systemImage: "play.fill", action: model.resume)
+                    .disabled(!state.canResume)
+            } else {
+                Button("Pause", systemImage: "pause.fill", action: model.pause)
+                    .disabled(!model.canPause)
+            }
         }
         if let status = state.statusText {
             Text(status).foregroundStyle(.secondary)
@@ -48,9 +50,11 @@ struct MachineToolbar: ToolbarContent {
                 .help(cutoff.text)
         }
         if let activity = model.networkActivity { NetworkActivityButton(activity: activity) }
-        Button("Suspend", systemImage: "moon.zzz.fill", action: model.suspend)
-            .disabled(!model.canSuspend)
-            .help(model.suspendHelp)
+        if !model.isContainer {
+            Button("Suspend", systemImage: "moon.zzz.fill", action: model.suspend)
+                .disabled(!model.canSuspend)
+                .help(model.suspendHelp)
+        }
         Button("Shut Down", systemImage: "power", action: model.shutDown)
             .disabled(!state.canShutDown)
             .help(state == .paused ? "Resume the machine first, or use Force Stop" : "Ask the guest to shut down")

@@ -79,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             InputLatencyMonitor.current?.finish()
             ControlService.shared.stopAtQuit()
             VMLibrary.shared.flushPendingWrites()
+            // Container runners get their stop line first, and are killed if they do not end soon; the controllers then let go.
+            ContainerProcesses.shared.terminateAll()
             // Let go of what the running machines hold (their network stacks, a half-written suspend image) before the
             // sweep removes the disposable copies of every machine.
             VMLibrary.shared.prepareToQuit()

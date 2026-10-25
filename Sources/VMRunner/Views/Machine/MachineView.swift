@@ -50,8 +50,8 @@ private struct MachinePane: View {
         case .running(.virtualMachine(let machine, let settings)):
             VMDisplay(machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered)
                 .overlay { MachineStatusOverlay(model: model) }
-        case .running(.workloadLog):
-            ContentUnavailableView("Running", systemImage: "text.alignleft", description: Text("The output will appear here."))
+        case .running(.workloadLog(let log)):
+            ContainerLogView(log: log)
                 .overlay { MachineStatusOverlay(model: model) }
         case .editing:
             if let config = model.configBinding {

@@ -140,6 +140,8 @@ struct VMBundle: Sendable {
     var ephemeralEFIVariables: URL { url.appending(path: "EFIVariables.ephemeral.fd") }
     /// The machine identifier of one disposable start, when the machine takes a fresh identity at each start.
     var ephemeralMachineIdentifier: URL { url.appending(path: "MachineIdentifier.ephemeral") }
+    /// The folder a container machine's runner works in: the kernel and image cache it downloads.
+    var containerScratch: URL { url.appending(path: "container-scratch", directoryHint: .isDirectory) }
     var snapshots: URL { url.appending(path: "Snapshots", directoryHint: .isDirectory) }
     /// The folder the host-information share serves to the guest, read-only. No directory hint: the path has no trailing
     /// slash, so a link planted here is removed itself, never followed.
