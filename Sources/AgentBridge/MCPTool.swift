@@ -4,6 +4,7 @@ public import ControlProtocol
 public enum MCPTool: String, CaseIterable, Sendable {
     case list = "machines_list"
     case state = "machines_state"
+    case log = "machines_log"
     case start = "machines_start"
     case stop = "machines_stop"
 
@@ -14,6 +15,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
         case .state: .state
         case .start: .start
         case .stop: .stop
+        case .log: .log
         }
     }
 
@@ -30,6 +32,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
         case .state: "Read a machine's state"
         case .start: "Start a machine"
         case .stop: "Stop a machine"
+        case .log: "Read a container's log"
         }
     }
 
@@ -42,6 +45,9 @@ public enum MCPTool: String, CaseIterable, Sendable {
         case .stop:
             "Asks a machine's guest to shut down and answers at once; "
                 + "with force, cuts the power (kills a container) and answers once it is stopped."
+        case .log:
+            "Reads the end of a container machine's output log, at most 64 KiB, as JSON with the text and whether there was more. "
+                + "A virtual machine has no such log."
         }
     }
 
@@ -49,7 +55,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
         let machine: [String: Any] = ["type": "string", "description": "The machine's id, as machines_list gives it."]
         switch self {
         case .list: return [:]
-        case .state, .start: return ["machine": machine]
+        case .state, .start, .log: return ["machine": machine]
         case .stop:
             let force: [String: Any] = [
                 "type": "boolean", "description": "Cut the power at once instead of asking the guest to shut down.",
@@ -60,7 +66,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
 
     private var annotations: [String: Any] {
         switch self {
-        case .list, .state: ["readOnlyHint": true, "openWorldHint": false]
+        case .list, .state, .log: ["readOnlyHint": true, "openWorldHint": false]
         case .start: ["readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false]
         case .stop: ["readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false]
         }

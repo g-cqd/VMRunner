@@ -130,8 +130,9 @@ public enum MCPServer {
             "protocolVersion": protocolVersions.contains(requested) ? requested : protocolVersions[0],
             "capabilities": ["tools": ["listChanged": false]],
             "serverInfo": ["name": "vmrunner-control", "title": "VMRunner control", "version": "1.0.0"],
-            "instructions": "Lists, reads, starts and stops VMRunner machines through the app's local control service. Only "
-                + "machines whose agent access is on are visible, and the token decides which tools may act.",
+            "instructions": "Lists, reads, starts and stops VMRunner machines, and reads a container's output log, through the "
+                + "app's local control service. Only machines whose agent access is on are visible, and the token decides which "
+                + "tools may act.",
         ]
     }
 

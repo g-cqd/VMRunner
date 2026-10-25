@@ -3,7 +3,7 @@ public import Foundation
 
 /// What a token allows. Each method needs one capability; later steps add screenshots, input and exec.
 public enum ControlCapability: String, Codable, CaseIterable, Hashable, Sendable {
-    case list, state, start, stop
+    case list, state, start, stop, log
 
     /// How Settings names it.
     public var label: String {
@@ -12,6 +12,7 @@ public enum ControlCapability: String, Codable, CaseIterable, Hashable, Sendable
         case .state: "Read state"
         case .start: "Start"
         case .stop: "Stop"
+        case .log: "Read a container's log"
         }
     }
 }

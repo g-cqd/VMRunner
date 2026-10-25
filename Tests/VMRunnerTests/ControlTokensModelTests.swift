@@ -33,6 +33,21 @@ struct ControlTokensModelTests {
     }
 
     @Test
+    func theLogCapabilityCanBeTickedAndShowsItsLabel() throws {
+        let folder = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = try ControlTokenStore(file: folder.appending(path: "tokens.json"))
+        let model = ControlTokensModel(store: { store })
+        model.draftName = "reader"
+        model.setCapability(.log, true)
+        model.create()
+
+        let token = try #require(model.tokens.first)
+        #expect(token.capabilities.contains(.log))
+        #expect(ControlTokensModel.summary(of: token) == "List machines, Read state, Read a container's log")
+    }
+
+    @Test
     func revokingRemovesTheTokenAndItsSecretFails() throws {
         let folder = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }

@@ -55,9 +55,12 @@ struct MCPServerTests {
     }
 
     @Test
-    func theToolsAreTheFourControlMethodsWithStrictSchemas() throws {
+    func theToolsAreTheFiveControlMethodsWithStrictSchemas() throws {
         let tools = try #require(try result(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)["tools"] as? [[String: Any]])
-        #expect(tools.compactMap { $0["name"] as? String } == ["machines_list", "machines_state", "machines_start", "machines_stop"])
+        #expect(
+            tools.compactMap { $0["name"] as? String } == [
+                "machines_list", "machines_state", "machines_log", "machines_start", "machines_stop",
+            ])
         for tool in tools {
             let schema = try #require(tool["inputSchema"] as? [String: Any])
             #expect(schema["type"] as? String == "object")
@@ -68,6 +71,19 @@ struct MCPServerTests {
         #expect(stop["required"] as? [String] == ["machine"])
         #expect((tools.first?["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true)
         #expect((tools.last?["annotations"] as? [String: Any])?["destructiveHint"] as? Bool == true)
+    }
+
+    @Test
+    func theLogToolReadsAndChangesNothing() throws {
+        let tools = try #require(try result(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)["tools"] as? [[String: Any]])
+        let log = try #require(tools.first { $0["name"] as? String == "machines_log" })
+        let annotations = try #require(log["annotations"] as? [String: Any])
+        #expect(annotations["readOnlyHint"] as? Bool == true && annotations["openWorldHint"] as? Bool == false)
+        let schema = try #require(log["inputSchema"] as? [String: Any])
+        #expect(schema["required"] as? [String] == ["machine"] && schema["additionalProperties"] as? Bool == false)
+        let properties = try #require(schema["properties"] as? [String: Any])
+        #expect(Array(properties.keys) == ["machine"])
+        #expect(MCPTool.log.method == .log)
     }
 
     @Test

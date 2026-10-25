@@ -15,6 +15,7 @@ struct MCPStdioTests {
         func machines() async -> [ControlMachine] { [open, closed] }
         func start(_ id: UUID) async -> ControlOutcome { .done(.running) }
         func stop(_ id: UUID, force: Bool) async -> ControlOutcome { .done(force ? .stopped : .shuttingDown) }
+        func log(_ id: UUID) async -> ControlLogOutcome { .text("the end of the log\n", truncated: true) }
     }
 
     private let machines = TwoMachines()
@@ -84,6 +85,21 @@ struct MCPStdioTests {
         #expect(machines["machines"] == [self.machines.open], "only the machine with agent access")
         #expect(try toolOutcome(answers[3]) == (#"{"id":"\#(open)","state":"running"}"#, false))
         #expect(try toolOutcome(answers[4]) == (#"{"id":"\#(open)","state":"stopped"}"#, false))
+    }
+
+    @Test
+    func theLogToolAnswersTheServicesTextAndNeedsTheLogCapability() async throws {
+        let open = machines.open.id.uuidString
+        let (status, answers) = try await session(
+            [call(1, "machines_log", #"{"machine":"\#(open)"}"#)], capabilities: [.log])
+        #expect(status == 0)
+        let outcome = try toolOutcome(answers[0])
+        #expect(!outcome.isError)
+        let log = try JSONDecoder().decode(ControlLog.self, from: Data(outcome.text.utf8))
+        #expect(log == ControlLog(id: machines.open.id, text: "the end of the log\n", truncated: true))
+
+        let (_, refused) = try await session([call(1, "machines_log", #"{"machine":"\#(open)"}"#)], capabilities: [.state])
+        #expect(try toolOutcome(refused[0]) == ("error -32001: Not permitted", true))
     }
 
     @Test

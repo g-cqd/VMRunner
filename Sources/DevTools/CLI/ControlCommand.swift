@@ -20,7 +20,7 @@ struct ControlCommand: AsyncParsableCommand {
             an answer this client cannot read; 77 not permitted (the token lacks the capability, the token file is open to \
             other users, or another user serves the socket).
             """,
-        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self, MCP.self]
+        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self, Log.self, MCP.self]
     )
 
     /// `--socket` and `--token-file`, shared by every subcommand.
@@ -129,7 +129,8 @@ struct ControlCommand: AsyncParsableCommand {
                 let invocation = try ControlInvocation(target: target)
                 let id = try invocation.machineID(machine, json: json)
                 let data = try invocation.result(method, params: params.merging(["machine": .string(id)]) { $1 }, json: json)
-                Output.out(json ? ControlInvocation.text(data) : try describe(data))
+                let text = json ? ControlInvocation.text(data) : try describe(data)
+                if !text.isEmpty { Output.out(text) }
                 return 0
             }
         }
@@ -188,6 +189,42 @@ struct ControlCommand: AsyncParsableCommand {
         }
     }
 
+    struct Log: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Print the end of a container machine's output log.",
+            discussion: """
+                Needs a token with the log capability; naming the machine by its name also needs the list capability. Only a \
+                container machine keeps a log: a virtual machine is refused (exit 1). The service answers with the last 64 KiB \
+                at most; --bytes asks for fewer. When the log held more than what is printed, a first line says \
+                [earlier output not shown].
+                """
+        )
+
+        @OptionGroup var options: MachineOptions
+
+        @Option(name: .long, help: ArgumentHelp("How many bytes of the end of the log to print (1 to 65536).", valueName: "n"))
+        var bytes = ControlLog.maxBytes
+
+        func validate() throws {
+            guard (1...ControlLog.maxBytes).contains(bytes) else {
+                throw ValidationError("--bytes must be between 1 and \(ControlLog.maxBytes)")
+            }
+            guard !options.json || bytes == ControlLog.maxBytes else {
+                throw ValidationError("--bytes does not apply to --json, which prints the service's answer")
+            }
+        }
+
+        func run() async throws {
+            try await options.call(.log) { data in
+                let log = try ControlInvocation.decode(ControlLog.self, from: data)
+                let end = ControlLog.end(of: log.text, bytes: bytes)
+                let notice = log.truncated || end.cut ? "[earlier output not shown]\n" : ""
+                // The text ends with its own newline, and printing adds one.
+                return notice + (end.text.hasSuffix("\n") ? String(end.text.dropLast()) : end.text)
+            }
+        }
+    }
+
     struct MCP: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "mcp",
@@ -195,8 +232,8 @@ struct ControlCommand: AsyncParsableCommand {
             discussion: """
                 Give an agent's MCP configuration the built vmr binary with the arguments `control mcp`, and the token in \
                 VMR_CONTROL_TOKEN (or --token-file). It speaks the Model Context Protocol (2025-11-25, and 2025-06-18) as one \
-                JSON-RPC message per line and offers four tools, machines_list, machines_state, machines_start and \
-                machines_stop: each one call of the control service with the token, so the service's checks decide what the \
+                JSON-RPC message per line and offers five tools, machines_list, machines_state, machines_start, machines_stop \
+                and machines_log: each one call of the control service with the token, so the service's checks decide what the \
                 agent may do. Only answers are written to standard output; it ends with its input. The service may be off \
                 when it starts: a tool call then answers that the service could not be used.
                 """

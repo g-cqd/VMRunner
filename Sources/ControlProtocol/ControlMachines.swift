@@ -47,11 +47,48 @@ public enum ControlOutcome: Equatable, Sendable {
     case refused(String)
 }
 
+/// What reading a container's log came to.
+public enum ControlLogOutcome: Equatable, Sendable {
+    /// The end of the log, and whether the log held more than it.
+    case text(String, truncated: Bool)
+    /// Not read, with a sentence that says why.
+    case refused(String)
+}
+
+/// The answer of `machines.log`: the end of a container's output log, at most ``maxBytes`` of it.
+public struct ControlLog: Codable, Equatable, Sendable {
+    /// The most bytes of text an answer holds.
+    public static let maxBytes = 65_536
+
+    public let id: UUID
+    public let text: String
+    /// Whether the log held more than `text`.
+    public let truncated: Bool
+
+    public init(id: UUID, text: String, truncated: Bool) {
+        self.id = id
+        self.text = text
+        self.truncated = truncated
+    }
+
+    /// The last `limit` bytes of `text`, cut forward to the start of a character, and whether anything was cut. The service,
+    /// the app and `vmr control log` all keep the end of a log with it.
+    public static func end(of text: String, bytes limit: Int) -> (text: String, cut: Bool) {
+        let bytes = text.utf8
+        guard limit >= 0, bytes.count > limit else { return (text, false) }
+        var start = bytes.index(bytes.endIndex, offsetBy: -limit)
+        while start < bytes.endIndex, bytes[start] & 0xC0 == 0x80 { start = bytes.index(after: start) }
+        return (String(Substring(bytes[start...])), true)
+    }
+}
+
 /// The machines the service acts on: the app's library, or a fake in tests.
 public protocol ControlMachines: Sendable {
     func machines() async -> [ControlMachine]
     func start(_ id: UUID) async -> ControlOutcome
     func stop(_ id: UUID, force: Bool) async -> ControlOutcome
+    /// The end of a container machine's output log. A machine that is not a container has none.
+    func log(_ id: UUID) async -> ControlLogOutcome
 }
 
 /// The methods of the control service, each needing one capability.
@@ -60,6 +97,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case state = "machines.state"
     case start = "machines.start"
     case stop = "machines.stop"
+    case log = "machines.log"
 
     public var capability: ControlCapability {
         switch self {
@@ -67,6 +105,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .state: .state
         case .start: .start
         case .stop: .stop
+        case .log: .log
         }
     }
 
@@ -74,7 +113,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     var parameters: Set<String> {
         switch self {
         case .list: ["token"]
-        case .state, .start: ["token", "machine"]
+        case .state, .start, .log: ["token", "machine"]
         case .stop: ["token", "machine", "force"]
         }
     }

@@ -283,6 +283,7 @@ chmod 600 token.txt                          # a token made in Settings; a file 
 swift run vmr control status --token-file token.txt
 swift run vmr control list --token-file token.txt [--json]
 swift run vmr control state|start|stop MACHINE --token-file token.txt [--force] [--json]   # MACHINE: an id, or a name
+swift run vmr control log MACHINE --token-file token.txt [--bytes N] [--json]   # the end of a container's output log, at most 64 KiB
 VMR_CONTROL_TOKEN="$(cat token.txt)" .build/debug/vmr control mcp   # MCP over stdin and stdout, for an agent's settings
 ```
 

@@ -138,6 +138,43 @@ struct ContainerControlTests {
         #expect(await rig.adapter.stop(rig.id, force: true) == .refused("“box” is not running."))
     }
 
+    /// Puts `text` in the container's output file, as its runs would have.
+    private func leaveOutput(_ rig: ControlRig, _ text: String) async {
+        let file = ContainerOutputFile(bundle: rig.library.bundle(rig.id))
+        file.append(Array(text.utf8))
+        await file.drained()
+    }
+
+    @Test func theLogOfAContainerIsTheEndOfItsOutputFile() async throws {
+        let rig = try ControlRig(script: ControlRig.waitsForStop)
+        defer { rig.remove() }
+        #expect(await rig.adapter.log(rig.id) == .text("", truncated: false), "a container that never ran has no log yet")
+
+        await leaveOutput(rig, "hello\n")
+        #expect(await rig.adapter.log(rig.id) == .text("hello\n", truncated: false))
+        await leaveOutput(rig, String(repeating: "x", count: ControlLog.maxBytes))
+        #expect(await rig.adapter.log(rig.id) == .text(String(repeating: "x", count: ControlLog.maxBytes), truncated: true))
+    }
+
+    @Test func aContainerWithAgentAccessOffHasNoLogToAnAgent() async throws {
+        let rig = try ControlRig(script: ControlRig.waitsForStop, agentAccess: false)
+        defer { rig.remove() }
+        await leaveOutput(rig, "secret\n")
+
+        #expect(await rig.adapter.log(rig.id) == .refused("Agent access is off for this machine."))
+    }
+
+    @Test func whileTheOrganisationKeepsTheServiceOffTheLogIsClosedToo() async throws {
+        let rig = try ControlRig(script: ControlRig.waitsForStop)
+        defer { rig.remove() }
+        await leaveOutput(rig, "secret\n")
+        let closed = LibraryControlMachines(
+            library: rig.library,
+            policy: { ManagedPreferences(forcedValue: { $0 == ManagedKey.allowControlService.rawValue ? false as Any : nil }) })
+
+        #expect(await closed.log(rig.id) == .refused("Your organisation does not allow the control service."))
+    }
+
     @Test func aVirtualMachinesEntryIsAsItWasPlusItsWorkload() async throws {
         let rig = try ControllerRig()
         defer { rig.cleanUp() }

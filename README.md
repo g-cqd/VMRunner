@@ -160,7 +160,7 @@ Sources/NetPolicy   the network policy: rules, host and IP parsing, the gate tha
 Sources/NetStack    the user-mode network stack behind Filtered networking (links NetPolicy; no Virtualization, no app type)
 Sources/GuestSeed   the provisioning spec, its compiler to a cloud-init seed and the seed's ISO 9660 image (the app builds a machine's seed with it)
 Sources/ControlProtocol   the control service's protocol: JSON-RPC, tokens, connection, listener and client (links GuestConsole; public API, ADR-0056)
-Sources/AgentBridge   the MCP server over stdio: four tools, each a call of the control service (links ControlProtocol and GuestConsole; not the app)
+Sources/AgentBridge   the MCP server over stdio: five tools, each a call of the control service (links ControlProtocol and GuestConsole; not the app)
 Sources/VirtioGPU   the pure core of the host-implemented virtio GPU: wire format, resource store, device state (imports nothing; the app links it; ADR-0058)
 Sources/VirtioGPURunner   boots one Linux guest on that GPU to measure it; the owner runs it, the app neither links nor bundles it (command line in VirtioGPURunnerCore)
 Sources/VirtioInput   the pure core of the host-implemented virtio keyboard and pointer: event wire format, the two fixed configuration layouts, the Mac-to-Linux key table, a bounded event queue (imports nothing; the app links it; ADR-0058)
@@ -193,7 +193,7 @@ swift run vmr sandbox run --engine seatbelt|app-sandbox|none --descriptor d.json
 swift run vmr guest fetch alpine-netboot --directory /tmp/g   # a signed Alpine netboot image in a scratch directory
 swift run vmr guest start|exec|console|stop ...   # a small Linux guest behind a console socket; start boots a VM, owner-authorised runs only
 swift run vmr guest start --net filtered --policy p.json; vmr guest policy|flows SOCKET ...   # the filtered network on a real guest
-swift run vmr control status|list|state|start|stop ... --token-file F   # call a running app's control service (CONTRIBUTING)
+swift run vmr control status|list|state|start|stop|log ... --token-file F   # call a running app's control service (CONTRIBUTING)
 .build/debug/vmr control mcp                 # the control service as an MCP server over stdio; token in VMR_CONTROL_TOKEN
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files

@@ -62,5 +62,13 @@ final class MemoryMachines: ControlMachines {
         return .done(force ? .stopped : .shuttingDown)
     }
 
+    /// The same two lines for every machine.
+    static let logText = "line one\nline two\n"
+
+    func log(_ id: UUID) async -> ControlLogOutcome {
+        record("log \(id.uuidString)")
+        return .text(Self.logText, truncated: false)
+    }
+
     private func record(_ request: String) { state.withLock { $0.requests.append(request) } }
 }

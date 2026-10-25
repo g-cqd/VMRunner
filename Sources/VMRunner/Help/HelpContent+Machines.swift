@@ -236,7 +236,8 @@ extension HelpCatalog {
                     + "after 5 more seconds SIGKILL. Quitting the app stops every running container.",
                 "A container has no pause, suspend, snapshots or disk of its own, and this app's network policy, filtered "
                     + "network, shared folders and security profiles do not apply to it. **Allow agent access** works as for a "
-                    + "virtual machine: a script with a control token can start and stop it.",
+                    + "virtual machine: a script with a control token can start and stop it, and with the log capability read the last "
+                    + "64 KiB of its output.",
             ],
             advanced: [
                 "The app starts `ContainerRunner <scratch> --json --image <reference> --cpus <n> --memory <MiB> --network "

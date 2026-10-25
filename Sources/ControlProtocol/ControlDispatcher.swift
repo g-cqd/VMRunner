@@ -64,7 +64,19 @@ public struct ControlDispatcher: Sendable {
         switch call.method {
         case .start: return Self.outcome(await machines.start(machineID), of: machineID, id: id)
         case .stop: return Self.outcome(await machines.stop(machineID, force: call.force), of: machineID, id: id)
+        case .log: return Self.logAnswer(await machines.log(machineID), of: machineID, id: id)
         case .list, .state: return Self.result(machine, id: id)
+        }
+    }
+
+    /// The log's end, cut again to ``ControlLog/maxBytes`` whatever the adapter returned, or why it was not read.
+    private static func logAnswer(_ outcome: ControlLogOutcome, of machine: UUID, id: RPCID) -> RPCResponse {
+        switch outcome {
+        case .text(let text, let truncated):
+            let end = ControlLog.end(of: text, bytes: ControlLog.maxBytes)
+            return result(ControlLog(id: machine, text: end.text, truncated: truncated || end.cut), id: id)
+        case .refused(let reason):
+            return RPCResponse(id: id, error: .refused.with(reason))
         }
     }
 

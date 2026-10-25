@@ -12,6 +12,7 @@ struct StaticMachines: ControlMachines {
     func machines() async -> [ControlMachine] { list }
     func start(_ id: UUID) async -> ControlOutcome { .refused("not in this test") }
     func stop(_ id: UUID, force: Bool) async -> ControlOutcome { .refused("not in this test") }
+    func log(_ id: UUID) async -> ControlLogOutcome { .refused("not in this test") }
 }
 
 /// The library as the control service sees it, with fake machines in a scratch folder.
@@ -100,6 +101,17 @@ struct LibraryControlMachinesTests {
         #expect(await adapter.start(rig.id) == .refused("Your organisation does not allow the control service."))
         #expect(await adapter.stop(rig.id, force: true) == .refused("Your organisation does not allow the control service."))
         #expect(rig.factory.preparations == 0, "nothing was started after the profile arrived")
+    }
+
+    @Test
+    func aVirtualMachineHasNoOutputLogToRead() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        open(rig)
+        let adapter = LibraryControlMachines(library: rig.library)
+        #expect(
+            await adapter.log(rig.id)
+                == .refused("This machine is not a container; only a container machine keeps an output log."))
     }
 
     @Test

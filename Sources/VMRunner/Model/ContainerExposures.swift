@@ -21,8 +21,19 @@ extension VMConfig {
                 text: "This app's network policy, filtered network, shared folders and security profiles do not apply to a "
                     + "container."),
         ]
-        if agentAccess { items.append(agentAccessExposure) }
+        if agentAccess {
+            items.append(agentAccessExposure)
+            items.append(containerOutputExposure)
+        }
         return items
+    }
+
+    /// The control service can read the container's output to anyone who holds a token with the log capability.
+    private var containerOutputExposure: Exposure {
+        Exposure(
+            level: .low,
+            text: "Container output: a script or AI agent whose control token has the log capability can read the last 64 KiB of "
+                + "what this container printed while the control service is on.")
     }
 
     private var containerNetworkExposure: Exposure {
