@@ -121,6 +121,14 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 2. Resizing, against a guest: that the clear-then-set writes make a second and later resize re-trigger the display-information
    request (one update was measured above, 0 ms later), and what the Linux driver does with a new size (whether it keeps the
    console, how long it takes, whether it asks for a size above what one resource holds).
-3. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
+3. A keyboard and a pointer for such a machine: the pure library exists (`Sources/VirtioInput`, linked by no target yet):
+   the event format, two fixed layouts of the configuration space (keyboard and absolute pointer), the Mac-to-Linux key table,
+   an event encoder, a bounded event queue that pairs events with the guest's buffers and drops whole frames when full, and the
+   status-queue decoder. The framework gives the host no callback for the guest's write of `select` and `subsel`, so the guest
+   reads one bitmap for every question the Linux driver asks; each layout is chosen so that the driver's probe, replayed by
+   a model in the tests, accepts it, and its side effects (the keyboard also looks like an accelerometer to the guest's device
+   manager, the pointer has no horizontal wheel) are written on the layouts. Not done: the app's adapter and the machine's
+   configuration, and a run against a guest, which is what would confirm the userland behaviour that was read from the sources
+   of the guest's device manager and input library.
 4. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
 5. 3D acceleration is not in scope of this work.

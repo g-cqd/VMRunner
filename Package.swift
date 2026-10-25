@@ -65,6 +65,12 @@ let package = Package(
         .target(name: "VirtioGPU", path: "Sources/VirtioGPU", swiftSettings: hardening),
         .testTarget(name: "VirtioGPUTests", dependencies: ["VirtioGPU"], path: "Tests/VirtioGPUTests", swiftSettings: hardening),
 
+        // The pure core of the host-implemented virtio input device (roadmap 0014, ADR-0058): the wire format, the layouts of its
+        // configuration space, the macOS-to-Linux key table, the event encoder, a bounded event queue and the status-queue
+        // decoder. It imports no framework at all and nothing links it yet: the app's adapter will, through `package` access.
+        .target(name: "VirtioInput", path: "Sources/VirtioInput", swiftSettings: hardening),
+        .testTarget(name: "VirtioInputTests", dependencies: ["VirtioInput"], path: "Tests/VirtioInputTests", swiftSettings: hardening),
+
         // The runner's command line (ADR-0042: the testable logic of an executable is `<Executable>Core`), and nothing else.
         .target(name: "VirtioGPURunnerCore", path: "Sources/VirtioGPURunnerCore", swiftSettings: hardening),
         .testTarget(

@@ -140,6 +140,19 @@ struct ModuleBoundaryTests {
         }
     }
 
+    /// The pure core of the host-implemented input device (roadmap 0014, ADR-0058 item 7) is held to the same rule as the GPU's:
+    /// no target, no package, no import.
+    @Test
+    func theVirtioInputLibraryDependsOnNothingAndImportsNothing() throws {
+        let library = try Self.dependencies(of: "VirtioInput", in: try Self.manifest())
+        #expect(library.targets.isEmpty, "VirtioInput depends on no other target: \(library.targets)")
+        #expect(library.products.isEmpty, "VirtioInput depends on no package product: \(library.products)")
+        for file in try Self.swiftFiles(under: "Sources/VirtioInput") {
+            let imported = Self.importedModules(in: try String(contentsOf: file, encoding: .utf8))
+            #expect(imported.isEmpty, "\(file.lastPathComponent) imports \(imported.sorted())")
+        }
+    }
+
     /// The runner links the library and its own command-line parser, which depends on nothing, and no other target links the
     /// runner's parser but the runner and its tests.
     @Test
@@ -175,7 +188,7 @@ struct ModuleBoundaryTests {
 
     @Test(arguments: [
         "Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol", "Sources/AgentBridge",
-        "Sources/VirtioGPU", "Sources/VirtioGPURunnerCore",
+        "Sources/VirtioGPU", "Sources/VirtioGPURunnerCore", "Sources/VirtioInput",
     ])
     func noSourceOfTheLibraryTargetsImportsAUserInterfaceOrVirtualizationFramework(directory: String) throws {
         let files = try Self.swiftFiles(under: directory)
