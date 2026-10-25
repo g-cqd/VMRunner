@@ -183,7 +183,9 @@ struct WindowsEditorTests {
         let forbidden = ["bypass", "LabConfig", "autounattend", "unattend", "BypassTPM", "registry"]
         var texts = [WindowsRequirements.sharingNote, WindowsRequirements.networkDriver]
         texts += [WindowsRequirements.profileNote(for: windows().applying(.isolated)) ?? ""]
-        texts += HelpTopic.allCases.filter { text(of: $0).contains("Windows") }.map { text(of: $0) + $0.summary + $0.title }
+        // The Windows entry and the private-interfaces entry are always checked, whatever words they happen to contain.
+        let topics = Set(HelpTopic.allCases.filter { text(of: $0).contains("Windows") }).union([.windowsMachines, .privateInterfaces])
+        texts += topics.map { text(of: $0) + $0.summary + $0.title }
         #expect(texts.count > 4)
         for text in texts {
             for word in forbidden {

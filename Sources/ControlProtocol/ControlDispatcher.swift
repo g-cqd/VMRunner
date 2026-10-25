@@ -72,6 +72,8 @@ public struct ControlDispatcher: Sendable {
 
     private static func screenshot(_ outcome: ControlScreenshotOutcome, id: RPCID) -> RPCResponse {
         switch outcome {
+        case .done(let shot) where shot.data.count > ControlScreenshot.maximumBytes:
+            RPCResponse(id: id, error: .refused.with("The screenshot is too large."))
         case .done(let shot): result(shot, id: id)
         case .refused(let reason): RPCResponse(id: id, error: .refused.with(reason))
         }

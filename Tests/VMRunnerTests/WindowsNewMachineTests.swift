@@ -249,6 +249,62 @@ struct WindowsNewMachineTests {
         library.selectedController?.errorMessage = nil
     }
 
+    @Test func aChangeToTheInstallerTheDigestOrTheGuestDuringTheCheckMakesNoMachine() async throws {
+        let message = "The installer or its checksum changed while it was being checked. Try again."
+        let changes: [@MainActor (NewMachineModel) -> Void] = [
+            { $0.localPath = "/Users/me/Other.iso" },
+            { $0.expectedSHA256 = String(repeating: "b", count: 64) },
+            { $0.config.guest = .linux },
+        ]
+        for change in changes {
+            let directory = try scratchDirectory()
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let library = VMLibrary(machinesDirectory: directory.appending(path: "Machines"))
+            let scratch = try ScratchDefaults()
+            defer { scratch.cleanUp() }
+            let model = makeModel(scratch)
+            model.localPath = "/Users/me/Win11_arm64.iso"
+            model.expectedSHA256 = String(repeating: "a", count: 64)
+            model.verifyInstaller = { [weak model] _, _ in
+                guard let model else { return false }
+                #expect(model.isVerifying)
+                change(model)
+                return true
+            }
+
+            #expect(!(await model.createAfterVerifying(in: library)))
+
+            #expect(library.machines.isEmpty)
+            #expect(model.creationError == message)
+            #expect(!model.isVerifying)
+        }
+    }
+
+    @Test func aCheckThatChangesNothingMakesTheMachineFromTheCheckedChoices() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = VMLibrary(machinesDirectory: directory.appending(path: "Machines"))
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let model = makeModel(scratch)
+        let digest = String(repeating: "a", count: 64)
+        model.localPath = "/Users/me/Win11_arm64.iso"
+        model.expectedSHA256 = digest
+        let checked = Checked()
+        model.verifyInstaller = { file, text in
+            checked.record((file.path, text))
+            return true
+        }
+
+        #expect(await model.createAfterVerifying(in: library))
+
+        #expect(checked.values.map(\.0) == ["/Users/me/Win11_arm64.iso"] && checked.values.map(\.1) == [digest])
+        let machine = try #require(library.machines.first)
+        #expect(machine.source == .local("/Users/me/Win11_arm64.iso"))
+        #expect(model.creationError == nil)
+        library.cancelJob(machine.id)
+    }
+
     // MARK: The words
 
     @Test func theRequirementsPanelSaysExactlyThis() {
@@ -279,6 +335,13 @@ struct WindowsNewMachineTests {
             }
         }
     }
+}
+
+/// What a stand-in for the installer check was asked to check.
+@MainActor
+private final class Checked {
+    private(set) var values: [(String, String)] = []
+    func record(_ value: (String, String)) { values.append(value) }
 }
 
 extension VMConfig {

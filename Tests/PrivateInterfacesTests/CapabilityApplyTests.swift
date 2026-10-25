@@ -6,7 +6,7 @@ import Testing
 /// Objects that answer to the same selectors the framework's configuration does, so the call, the read-back and the
 /// restoring can be tested without the framework's private ones.
 @objc(PrivateInterfacesTestSwitch)
-private final class TestSwitch: NSObject {
+private class TestSwitch: NSObject {
     var flag = false
     @objc(_setFlag:) func setFlag(_ value: Bool) { flag = value }
     @objc(_flag) func readFlag() -> Bool { flag }
@@ -18,6 +18,11 @@ private final class StuckSwitch: NSObject {
     var calls: [Bool] = []
     @objc(_setFlag:) func setFlag(_ value: Bool) { calls.append(value) }
     @objc(_flag) func readFlag() -> Bool { false }
+}
+
+/// How often a method added to a subclass at run time was called.
+private final class CallCounter {
+    var calls = 0
 }
 
 struct CapabilityApplyTests {
@@ -74,5 +79,23 @@ struct CapabilityApplyTests {
     func aClassTheRuntimeLacksIsUnavailableAndCallsNothing() {
         let status = Self.entry("PrivateInterfacesNoSuchClass").apply(true, to: TestSwitch(), in: context)
         #expect(status == .unavailable(.classMissing("PrivateInterfacesNoSuchClass")))
+    }
+
+    @Test
+    func aSubclassThatGivesTheSetterAnotherTypeIsRefusedAndItsMethodIsNotCalled() throws {
+        let counter = CallCounter()
+        let name = "PrivateInterfacesTestRetypedSwitch"
+        let retyped: AnyClass = try #require(unsafe objc_allocateClassPair(TestSwitch.self, name, 0))
+        let body: @convention(block) (AnyObject, Int) -> Void = { _, _ in counter.calls += 1 }
+        let added = unsafe class_addMethod(
+            retyped, NSSelectorFromString("_setFlag:"), imp_implementationWithBlock(body), "v@:q")
+        #expect(added)
+        objc_registerClassPair(retyped)
+        let object = try #require((retyped as? NSObject.Type)?.init() as? TestSwitch)
+
+        let status = Self.entry("PrivateInterfacesTestSwitch").apply(true, to: object, in: context)
+
+        #expect(status == .unavailable(.encodingMismatch(selector: "_setFlag:", expected: "v@:B", found: "v@:q")))
+        #expect(counter.calls == 0 && !object.flag)
     }
 }

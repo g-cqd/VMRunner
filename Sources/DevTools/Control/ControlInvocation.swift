@@ -71,18 +71,33 @@ struct ControlInvocation {
         }
     }
 
-    /// Writes the PNG of a `machines.screenshot` answer to `path` (relative to the current directory), for its owner only, and
-    /// says so in one line.
+    /// Writes the PNG of a `machines.screenshot` answer to a new file at `path` (relative to the current directory), for its owner
+    /// only from the moment it exists, and says so in one line. A file already there is not touched, and neither is the target of a
+    /// link at that path.
     static func save(screenshot data: Data, to path: String) throws -> String {
         let shot = try decode(ControlScreenshot.self, from: data)
         let file = URL(filePath: path, directoryHint: .notDirectory, relativeTo: URL.currentDirectory())
         do {
-            try shot.data.write(to: file, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            try createPrivately(shot.data, at: file.path)
         } catch {
             throw ToolError("cannot write the picture to \(path): \(error.localizedDescription)", status: ControlExit.cannotCreate)
         }
         return "\(shot.id.uuidString): \(shot.width) x \(shot.height) png, \(shot.data.count) bytes, written to \(path)"
+    }
+
+    /// Creates `path` with mode 0600 (refusing a file or a link that exists) and writes `contents`; a file left half written is removed.
+    private static func createPrivately(_ contents: Data, at path: String) throws {
+        let descriptor = unsafe open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        do {
+            try handle.write(contentsOf: contents)
+            try handle.close()
+        } catch {
+            try? handle.close()
+            unsafe unlink(path)
+            throw error
+        }
     }
 
     private static func errorJSON(code: Int, message: String) -> String {

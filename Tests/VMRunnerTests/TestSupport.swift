@@ -11,6 +11,7 @@ func scratchDirectory() throws -> URL {
 /// Puts a real, empty EFI variable store at `url`, as machine creation does. A test that stands in for a machine's firmware
 /// variables uses this and not made-up bytes: once the framework has been asked about a file that is not a store, every later
 /// store operation in the same process fails with an EFI error, whichever test makes it.
+/// The few fake `nvram` byte strings that remain (a snapshot test compares them) are never read by the builder.
 func writeEFIVariableStore(at url: URL) throws {
     _ = try VZEFIVariableStore(creatingVariableStoreAt: url, options: [.allowOverwrite])
 }

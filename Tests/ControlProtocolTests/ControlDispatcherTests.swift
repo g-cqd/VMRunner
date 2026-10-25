@@ -219,6 +219,18 @@ struct ControlDispatcherTests {
     }
 
     @Test
+    func aScreenshotLongerThanTheLimitIsRefusedWhateverTheAdapterReturned() async throws {
+        let machine = ControlMachine.fake("m")
+        let oversize = Data(repeating: 0x89, count: ControlScreenshot.maximumBytes + 1)
+        let rig = try Rig(
+            [machine], screenshotOutcome: .done(ControlScreenshot(id: machine.id, width: 1, height: 1, png: oversize)))
+        defer { rig.folder.cleanUp() }
+        let answer = await rig.call(
+            "machines.screenshot", ["token": .string(try rig.secret()), "machine": .string(machine.id.uuidString)])
+        #expect(answer.error == RPCError.refused.with("The screenshot is too large."))
+    }
+
+    @Test
     func aRefusedStartIsAnErrorThatSaysWhy() async throws {
         let machine = ControlMachine.fake("m")
         let rig = try Rig([machine], startOutcome: .refused("“m” is being set up."))

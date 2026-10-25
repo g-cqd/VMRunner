@@ -23,13 +23,15 @@ struct WindowsStartSettings: Sendable {
     var startsWithoutPerformanceMonitoring: Bool
 
     /// The settings of this Mac and this app for `config`, which is the configuration the start uses (managed keys applied).
+    /// Without a `context`, this Mac's is used with the capability turned off when the kill switch is on in `defaults`.
     static func current(
         for config: VMConfig, managed: ManagedPreferences = .current, defaults: UserDefaults = PreferencesDomain.defaults,
-        context: PrivateCapabilityContext = .current(), registry: CapabilityRegistry = .standard
+        context: PrivateCapabilityContext? = nil, registry: CapabilityRegistry = .standard
     ) -> Self {
-        Self(
-            decision: PrivateCapabilityPolicy.decide(
-                posture: config.detectedProfile, managed: managed, killSwitch: PrivateInterfacesKillSwitch.isOn(in: defaults)),
+        let killSwitch = PrivateInterfacesKillSwitch.isOn(in: defaults)
+        let context = context ?? .current(killed: killSwitch ? [.performanceMonitoringEmulation] : [])
+        return Self(
+            decision: PrivateCapabilityPolicy.decide(posture: config.detectedProfile, managed: managed, killSwitch: killSwitch),
             applyPerformanceMonitoring: { PMUEmulation.apply(to: $0, in: context, registry: registry) },
             startsWithoutPerformanceMonitoring: WindowsStartsWithoutPMU.isOn(in: defaults))
     }

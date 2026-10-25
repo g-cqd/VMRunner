@@ -19,6 +19,7 @@ struct WindowsMediaSection: View {
             note(WindowsRequirements.installerNote)
             TextField("Expected SHA-256", text: $model.expectedSHA256, prompt: Text("Optional: 64 hexadecimal digits"))
                 .font(.body.monospaced())
+                .disabled(model.isVerifying)
             if let problem = InstallerDigest.problem(in: model.expectedSHA256) {
                 Label(problem.localizedDescription, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
@@ -26,6 +27,7 @@ struct WindowsMediaSection: View {
             fileRow("Driver disc (optional)", path: model.driverDiscPath) { target = .driverDisc }
             if model.driverDiscPath != nil {
                 Button("Remove Driver Disc", role: .destructive) { model.driverDiscPath = nil }
+                    .disabled(model.isVerifying)
             }
             note(WindowsRequirements.driverDiscNote)
             if model.isVerifying {
@@ -51,6 +53,7 @@ struct WindowsMediaSection: View {
                 Text(path.map { URL(filePath: $0).lastPathComponent } ?? "None selected")
                     .foregroundStyle(path == nil ? .secondary : .primary)
                 Button(path == nil ? "Choose ISO…" : "Change ISO…", action: choose)
+                    .disabled(model.isVerifying)
             }
         }
     }

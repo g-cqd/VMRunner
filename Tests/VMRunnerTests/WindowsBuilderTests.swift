@@ -271,6 +271,17 @@ struct WindowsBuilderTests {
         #expect(read(windows(), open).startsWithoutPerformanceMonitoring)
     }
 
+    @Test func theKillSwitchInTheDomainTurnsOffTheEmulationOfTheContextTheStartBuildsItself() throws {
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        scratch.defaults.set(true, forKey: PrivateInterfacesKillSwitch.defaultsKey)
+        let open = ManagedPreferences(forcedValue: { _ in nil })
+
+        let settings = WindowsStartSettings.current(for: windows(), managed: open, defaults: scratch.defaults)
+
+        #expect(settings.applyPerformanceMonitoring(VZGenericPlatformConfiguration()) == .unavailable(.killSwitch))
+    }
+
     @Test func onlyAnExplicitTrueTurnsTheDeveloperDefaultOn() throws {
         let scratch = try ScratchDefaults()
         defer { scratch.cleanUp() }

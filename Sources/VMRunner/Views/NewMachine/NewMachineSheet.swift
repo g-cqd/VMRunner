@@ -20,6 +20,7 @@ struct NewMachineSheet: View {
                         ForEach(kinds) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                    .disabled(model.isVerifying)
                     .settingHelp(.containers)
                 }
                 if model.workload == .vm {
@@ -27,6 +28,7 @@ struct NewMachineSheet: View {
                         ForEach(GuestOS.newMachineChoices) { Label($0.label, systemImage: $0.symbol).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                    .disabled(model.isVerifying)
                     .settingHelp(.guestSystems)
                 }
             }

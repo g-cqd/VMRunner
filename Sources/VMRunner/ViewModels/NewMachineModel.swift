@@ -43,6 +43,11 @@ final class NewMachineModel {
     private(set) var loadError: String?
     private(set) var creationError: String?
 
+    /// Hashes the installer against the typed digest. The real check by default; a test replaces it with a slower one.
+    @ObservationIgnored var verifyInstaller: @MainActor (URL, String) async throws -> Bool = { file, text in
+        try await InstallerDigest.verify(file, against: text)
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = PreferencesDomain.defaults) {
@@ -201,18 +206,26 @@ final class NewMachineModel {
     }
 
     /// What the Create button calls. A Windows machine's installer is hashed first, away from the main actor, when an expected
-    /// SHA-256 was typed; the machine is made only if it matches. Cancelling the task stops the hashing and makes nothing.
+    /// SHA-256 was typed; the machine is made only if it matches. The installer, the typed digest and the guest are read before
+    /// the hashing and compared with the sheet afterwards: a machine is made only for the choices that were checked. Cancelling
+    /// the task stops the hashing and makes nothing.
     func createAfterVerifying(in library: VMLibrary) async -> Bool {
         guard workload == .vm, config.guest == .windows else { return create(in: library) }
+        guard !isVerifying else { return false }
         isVerifying = true
         defer { isVerifying = false }
+        let checked = (path: localPath, digest: expectedSHA256, guest: config.guest)
         do {
-            if let localPath { try await InstallerDigest.verify(URL(filePath: localPath), against: expectedSHA256) }
+            if let path = checked.path { _ = try await verifyInstaller(URL(filePath: path), checked.digest) }
             try Task.checkCancellation()
         } catch is CancellationError {
             return false
         } catch {
             creationError = VMConfig.reason(for: error)
+            return false
+        }
+        guard localPath == checked.path, expectedSHA256 == checked.digest, config.guest == checked.guest else {
+            creationError = "The installer or its checksum changed while it was being checked. Try again."
             return false
         }
         return add(to: library)

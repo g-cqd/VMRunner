@@ -13,7 +13,7 @@ struct BundleHardeningTests {
     private func makeBundle(in directory: URL) throws -> VMBundle {
         let bundle = VMBundle(url: directory)
         try Data("disk".utf8).write(to: bundle.disk)
-        try Data("nvram".utf8).write(to: bundle.efiVariables)
+        try writeEFIVariableStore(at: bundle.efiVariables)
         return bundle
     }
 
@@ -143,7 +143,7 @@ struct LibraryHardeningTests {
         #expect(try mode() == 0o600, "the debounced save writes it privately too")
 
         try Data("disk".utf8).write(to: library.bundle(config.id).disk)
-        try Data("nvram".utf8).write(to: library.bundle(config.id).efiVariables)
+        try writeEFIVariableStore(at: library.bundle(config.id).efiVariables)
         try library.duplicate(config.id)
         let copy = try #require(library.machines.first { $0.id != config.id })
         let copyMode = try FileManager.default.attributesOfItem(atPath: library.bundle(copy.id).config.path)[.posixPermissions] as? Int

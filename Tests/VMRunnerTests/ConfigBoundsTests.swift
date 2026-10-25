@@ -244,7 +244,7 @@ struct EditorBoundsTests {
         let config = VMConfig.new(name: String(repeating: "n", count: EditorLimits.maxTextLength), guest: .linux)
         try library.add(config)
         try Data("disk".utf8).write(to: library.bundle(config.id).disk)
-        try Data("nvram".utf8).write(to: library.bundle(config.id).efiVariables)
+        try writeEFIVariableStore(at: library.bundle(config.id).efiVariables)
 
         try library.duplicate(config.id)
 

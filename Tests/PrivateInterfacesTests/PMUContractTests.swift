@@ -42,7 +42,7 @@ struct PMUContractTests {
         }
     }
 
-    @Test(.enabled(if: switchSelectorsExist && hostBuildIsVerified, "needs the selectors on a build the registry was verified on"))
+    @Test(.enabled(if: hostBuildIsVerified, "needs a build the registry was verified on; there the selectors must exist"))
     func aFreshConfigurationTakesTheSwitchAndKeepsIt() {
         #expect(PMUEmulation.status() == .available)
         let configuration = VZGenericPlatformConfiguration()

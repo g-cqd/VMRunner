@@ -156,6 +156,22 @@ struct ControlMachineCommandTests {
     }
 
     @Test
+    func aScreenshotIsWrittenToANewFileForItsOwnerAndAnExistingPathIsRefused() async throws {
+        try await withTemporaryDirectory { folder in
+            let png = Data([0x89, 0x50, 0x4E, 0x47])
+            let answer = try JSONEncoder().encode(ControlScreenshot(id: alpha.id, width: 4, height: 3, png: png))
+            let path = folder.appending(path: "shot.png").path
+
+            _ = try ControlInvocation.save(screenshot: answer, to: path)
+
+            #expect(try Data(contentsOf: URL(filePath: path)) == png)
+            #expect(try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? Int == 0o600)
+            #expect(throws: ToolError.self) { try ControlInvocation.save(screenshot: answer, to: path) }
+            #expect(try Data(contentsOf: URL(filePath: path)) == png)
+        }
+    }
+
+    @Test
     func screenshotNeedsAFileOrJSONButNotBothAndTheScreenCapability() async throws {
         try await withService { fixture in
             let environment = try fixture.environment([.screen])
