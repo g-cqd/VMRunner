@@ -89,12 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        let running = MainActor.assumeIsolated { VMLibrary.shared.runningCount }
-        guard running > 0 else { return .terminateNow }
+        let running = MainActor.assumeIsolated { VMLibrary.shared.runningCounts }
+        guard running.virtualMachines + running.containers > 0 else { return .terminateNow }
         let alert = NSAlert()
-        alert.messageText = "\(running) virtual machine\(running == 1 ? " is" : "s are") still running."
-        alert.informativeText =
-            "Quitting force-stops them, like pulling the power cord. Suspend or shut them down first to avoid data loss."
+        alert.messageText = MachineWording.quitTitle(virtualMachines: running.virtualMachines, containers: running.containers)
+        alert.informativeText = MachineWording.quitDetail(virtualMachines: running.virtualMachines, containers: running.containers)
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Quit Anyway")
         return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel

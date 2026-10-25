@@ -11,11 +11,15 @@ struct NewMachineSheet: View {
         Form {
             Section {
                 TextField("Name", text: $model.config.name.limited())
-                Picker("Kind", selection: $model.workload) {
-                    ForEach(WorkloadKind.allCases) { Text($0.label).tag($0) }
+                // A single choice is no choice: when the organisation does not allow containers, the picker is not shown.
+                let kinds = ManagedPreferences.current.offeredWorkloads
+                if kinds.count > 1 {
+                    Picker("Kind", selection: $model.workload) {
+                        ForEach(kinds) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .settingHelp(.containers)
                 }
-                .pickerStyle(.segmented)
-                .settingHelp(.guestSystems)
                 if model.workload == .vm {
                     Picker("Guest", selection: $model.config.guest) {
                         ForEach(GuestOS.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
@@ -30,7 +34,9 @@ struct NewMachineSheet: View {
                     guest: model.config.guest, cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB,
                     diskGiB: $model.config.diskGiB)
             } else {
-                ContainerSection(model: model)
+                ContainerSection(
+                    container: $model.container, commandLine: $model.commandLine, environmentText: $model.environmentText,
+                    problem: model.containerProblem)
             }
             if let error = model.creationError { Text(error).foregroundStyle(.red) }
         }

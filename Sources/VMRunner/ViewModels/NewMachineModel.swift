@@ -94,14 +94,9 @@ final class NewMachineModel {
 
     /// The config of a container machine for the current choices, checked by the same rules a stored configuration is.
     func makeContainerConfig() throws -> VMConfig {
-        var spec = container
-        spec.image = spec.image.trimmingCharacters(in: .whitespacesAndNewlines)
-        spec.command = try ContainerInput.arguments(from: commandLine)
-        spec.environment = try ContainerInput.environment(from: environmentText)
-        var machine = VMConfig.newContainer(name: config.name.trimmingCharacters(in: .whitespaces), container: spec)
+        var machine = VMConfig.newContainer(name: config.name.trimmingCharacters(in: .whitespaces), container: container)
         machine.id = config.id
-        try machine.validate()
-        return machine
+        return try ContainerDraft(spec: container, commandLine: commandLine, environmentText: environmentText).applied(to: machine)
     }
 
     /// What is wrong with the container settings as they stand, or `nil` when a container machine can be made.
@@ -110,14 +105,8 @@ final class NewMachineModel {
             _ = try makeContainerConfig()
             return nil
         } catch {
-            return Self.message(for: error)
+            return VMConfig.reason(for: error)
         }
-    }
-
-    /// A configuration check's reason, without the framework's generic wording around it.
-    private static func message(for error: any Error) -> String {
-        if case DecodingError.dataCorrupted(let context) = error { return context.debugDescription }
-        return error.localizedDescription
     }
 
     // MARK: Actions
@@ -183,7 +172,7 @@ final class NewMachineModel {
             library.beginSetup(machine.id)
             return true
         } catch {
-            creationError = Self.message(for: error)
+            creationError = VMConfig.reason(for: error)
             return false
         }
     }

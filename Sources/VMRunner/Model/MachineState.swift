@@ -250,7 +250,7 @@ enum MachineState: Hashable, Sendable {
         if self == .suspending { effects.append(.discardSavedState) }
         effects.append(.release)
         // The user asked for this stop; an error from the machine they pulled the plug on is not news.
-        if let error, self != .stopping { effects.append(.report("The virtual machine stopped: \(error)")) }
+        if let error, self != .stopping { effects.append(.report(MachineWording.virtualMachineStoppedPrefix + error)) }
         return .moved(.stopped, effects)
     }
 

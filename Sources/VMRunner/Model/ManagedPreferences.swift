@@ -10,6 +10,7 @@ enum ManagedKey: String, CaseIterable, Sendable {
     case allowHostInformation = "AllowHostInformation"
     case allowControlService = "AllowControlService"
     case allowProvisioning = "AllowProvisioning"
+    case allowContainers = "AllowContainers"
     case requireDisposableMachines = "RequireDisposableMachines"
     case maxRuntimeMinutes = "MaxRuntimeMinutes"
 }
@@ -66,6 +67,14 @@ struct ManagedPreferences: Equatable, Sendable {
 
     /// What a locked control's tooltip says.
     static let lockedHelp = "Set by your organisation. Ask your administrator to change it."
+
+    /// Why a container will not start while `AllowContainers` is forced off.
+    static let containersDeniedMessage = "Your organisation doesn't allow containers on this Mac. Ask your administrator to change it."
+
+    /// The kinds a new machine can be: a container only while the organisation allows containers.
+    var offeredWorkloads: [WorkloadKind] {
+        WorkloadKind.allCases.filter { $0 != .container || !denied.contains(.allowContainers) }
+    }
 
     /// Whether the control for `key` is locked: the organisation restricted it.
     func isLocked(_ key: ManagedKey) -> Bool {

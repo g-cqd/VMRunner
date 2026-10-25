@@ -383,6 +383,12 @@ final class VMLibrary {
     }
 
     var runningCount: Int { controllers.values.filter(\.isActive).count }
+
+    /// How many machines run, told apart by what they run, for the alert that quitting raises.
+    var runningCounts: (virtualMachines: Int, containers: Int) {
+        let containers = controllers.filter { $0.value.isActive && machine($0.key)?.workload == .container }.count
+        return (runningCount - containers, containers)
+    }
 }
 
 extension VMLibrary {

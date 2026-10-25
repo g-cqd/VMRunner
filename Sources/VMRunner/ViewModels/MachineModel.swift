@@ -103,7 +103,7 @@ final class MachineModel {
     }
 
     /// Whether the machine runs a container, which has no pause or suspend to offer.
-    var isContainer: Bool { config?.workload == .container }
+    var isContainer: Bool { workload == .container }
     var guestSymbol: String { config?.guest.symbol ?? "questionmark" }
     var showsControls: Bool { library.jobs[id] == nil && config?.isProvisioned == true }
     /// The machine's one state. Everything below that says what is offered is a reading of it.
@@ -121,10 +121,12 @@ final class MachineModel {
     }
     /// A file-system check, cheap enough for a toolbar but not something to call in a loop.
     var hasSavedState: Bool { bundle.hasSavedState }
-    var startHelp: String { hasSavedState ? "Resume from suspended state" : "Start the virtual machine" }
+    var startHelp: String { MachineWording.startHelp(for: workload, hasSavedState: hasSavedState) }
+    /// What the machine runs; a machine the library no longer holds counts as a virtual machine.
+    var workload: WorkloadKind { config?.workload ?? .vm }
 
     var errorMessage: String? {
-        get { controller.errorMessage }
+        get { controller.errorMessage.map { MachineWording.report($0, for: workload) } }
         set { controller.errorMessage = newValue }
     }
 

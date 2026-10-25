@@ -21,7 +21,7 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     // Getting started
     case overview, guestSystems, macRestoreImage, linuxImages, setup
     // Machines
-    case controls, suspendResume, runtimeLimit, duplicateDelete, diskUsage, provisioning
+    case controls, suspendResume, runtimeLimit, duplicateDelete, diskUsage, provisioning, containers
     // CPU and memory
     case cpuCores, memory, nestedVirtualization
     // Storage

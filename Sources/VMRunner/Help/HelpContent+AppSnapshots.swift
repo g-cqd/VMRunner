@@ -119,6 +119,8 @@ extension HelpCatalog {
                     + "off on every machine, and both switches are locked.",
                 "• `AllowProvisioning`: set to false, no machine keeps a provisioning spec, so no seed is built or attached, and "
                     + "the spec chooser is locked.",
+                "• `AllowContainers`: set to false, the New Machine sheet offers no Container kind, a container machine does not "
+                    + "start, and its settings are locked.",
                 "• `RequireDisposableMachines`: set to true, every machine is disposable.",
                 "• `MaxRuntimeMinutes`: every machine stops after at most that many minutes (from 15 to 1440); 0 sets no limit.",
                 "For the app itself, any of `hidesToolbarInFullScreen`, `keepsRestoreImages`, `holdsLatencyActivity`, "

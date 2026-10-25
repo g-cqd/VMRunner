@@ -37,7 +37,7 @@ extension HelpCatalog {
             advanced: [
                 "Windows is not supported by this app. For what the graphics can and cannot do, see Graphics and 3D acceleration."
             ],
-            related: [.rosetta, .graphics, .limits]
+            related: [.rosetta, .graphics, .containers, .limits]
         ),
         .macRestoreImage: HelpEntry(
             area: .start,
@@ -207,6 +207,47 @@ extension HelpCatalog {
                     + "than shown.",
             ],
             related: [.diskSize, .snapshots]
+        ),
+        .containers: HelpEntry(
+            area: .machines,
+            title: "Containers",
+            summary: "A container runs one command from an image in its own small Linux VM, started by a helper.",
+            paragraphs: [
+                "A container machine runs one program from a container image instead of a whole operating system. In the New "
+                    + "Machine sheet choose **Container**, then give the image, optionally a command and some environment "
+                    + "settings, and set its CPU cores, memory and network.",
+                "• **Isolation.** Each container runs in its own lightweight Linux virtual machine, inside a separate helper "
+                    + "process, **ContainerRunner**, bundled in the app. The helper is signed with the virtualization entitlement "
+                    + "only and is not sandboxed. Do not treat that as the same protection as a virtual machine of this app.",
+                "• **The image.** The helper pulls the image from its registry over the network when the container starts. An "
+                    + "image is code from outside your Mac: run only images you trust.",
+                "• **Network.** None, or loopback only: a network device that leads nowhere outside this Mac. There is no outside "
+                    + "network yet, so the container cannot reach your network or the internet. This does not change the helper's "
+                    + "own pull of the image.",
+                "• **Working folder.** The folder `container-scratch` in the machine's folder keeps the kernel and the image cache "
+                    + "the helper downloads. It is not removed automatically; deleting the machine removes it with the rest of the "
+                    + "machine's folder.",
+                "• **Output.** What the container prints is filtered before it is shown (control sequences that could act on "
+                    + "your terminal are removed) and bounded: the oldest output is dropped, with a note of how much.",
+                "• **Stopping.** Stop sends the helper a stop line. If it has not ended after 10 seconds it gets SIGTERM, and "
+                    + "after 5 more seconds SIGKILL. Quitting the app stops every running container.",
+                "A container has no pause, suspend, snapshots or disk of its own, and this app's network policy, filtered "
+                    + "network, shared folders and security profiles do not apply to it. **Allow agent access** works as for a "
+                    + "virtual machine: a script with a control token can start and stop it.",
+            ],
+            advanced: [
+                "The app starts `ContainerRunner <scratch> --json --image <reference> --cpus <n> --memory <MiB> --network "
+                    + "<none|loopback>`, then one `--env NAME=value` per environment setting and one `--command <word>` per word "
+                    + "of the command, without a shell. The scratch folder has mode 0700. The runner reports phases, output and "
+                    + "its exit status as JSON lines.",
+                "Limits: an image reference up to 255 bytes without whitespace; 1 to 16 CPU cores; 128 to 16384 MiB of memory; "
+                    + "up to 64 command words of up to 4096 bytes each; up to 64 environment settings, each name once. The "
+                    + "log keeps the most recent 1 MiB of output.",
+                "An organisation can forbid containers with the managed setting `AllowContainers` set to false: the New "
+                    + "Machine sheet then offers no Container kind, a container machine does not start, and its settings are "
+                    + "locked.",
+            ],
+            related: [.agentAccess, .managedSettings, .guestSystems]
         ),
     ]
 }

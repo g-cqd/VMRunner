@@ -13,46 +13,9 @@ struct ConfigEditor: View {
 
     var body: some View {
         EditorForm {
-            GeneralSection(
-                name: $config.name, guest: config.guest, version: config.guestVersion,
-                allocatedBytes: model.allocatedBytes, isSuspended: model.hasSavedState)
-            SecuritySection(config: $config, bundle: model.bundle)
-            ComputeSection(
-                cpuCount: $config.cpuCount, memoryMiB: $config.memoryMiB,
-                nestedVirtualization: $config.nestedVirtualization, guest: config.guest)
-            StorageSection(
-                diskGiB: config.diskGiB, floorGiB: model.diskFloorGiB, resize: model.setDiskSize,
-                caching: $config.diskCaching, sync: $config.diskSync, extraDisks: $config.extraDisks,
-                addDisk: { model.pickerTarget = .extraDisk })
-            if config.guest == .linux {
-                InstallerSection(
-                    isoPath: config.installerISO, attached: $config.installerAttached,
-                    choose: { model.pickerTarget = .installerISO })
-                ProvisioningSection(
-                    specPath: config.provisioningSpecPath, installerAttached: config.attachedInstallerPath != nil,
-                    approved: model.isProvisioningSpecApproved(config.provisioningSpecPath),
-                    choose: { model.pickerTarget = .provisioningSpec }, remove: { config.provisioningSpecPath = "" })
+            ForEach(EditorSection.visible(for: config)) { section in
+                content(of: section)
             }
-            displaySection
-            InputSection(guest: config.guest, pointing: $config.pointingDevice, capturesSystemKeys: $config.capturesSystemKeys)
-            AudioSection(output: $config.audioOutput, input: $config.audioInput)
-            NetworkSection(config: $config)
-            if config.networkMode == .filtered {
-                NetworkPolicySection(policy: $config.networkPolicy, model: model.network)
-            }
-            IdentitySection(config: $config)
-            SharingSection(
-                guest: config.guest, folders: $config.sharedFolders, clipboard: $config.sharesClipboard,
-                rosetta: $config.rosetta, model: sharing, addFolder: model.addSharedFolder)
-            HostInfoSection(guest: config.guest, sharing: $config.hostInfo)
-            if config.guest == .macOS {
-                BootSection(recovery: $config.bootIntoRecovery, hasBooted: config.hasBooted, provisioning: $config.provisioning)
-            }
-            DevicesSection(
-                balloon: $config.memoryBalloon, entropy: $config.entropyDevice, vsock: $config.socketDevice,
-                serialConsole: $config.serialConsole, guest: config.guest)
-            AgentAccessSection(agentAccess: $config.agentAccess)
-            SnapshotsSection(model: model.snapshots, guest: config.guest, diskGiB: config.diskGiB, didRestore: model.didRestore)
         }
         .task { await model.opened() }
         .fileImporter(
@@ -68,6 +31,67 @@ struct ConfigEditor: View {
             Button("OK") {}
         } message: {
             Text(model.alertMessage ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private func content(of section: EditorSection) -> some View {
+        switch section {
+        case .general:
+            GeneralSection(
+                name: $config.name, guest: config.guest, version: config.guestVersion,
+                allocatedBytes: model.allocatedBytes, isSuspended: model.hasSavedState, workload: config.workload)
+        case .container:
+            // The draft is per machine: a new identity starts a new draft.
+            ContainerEditorSection(config: $config).id(config.id)
+        case .security:
+            SecuritySection(config: $config, bundle: model.bundle)
+        case .compute:
+            ComputeSection(
+                cpuCount: $config.cpuCount, memoryMiB: $config.memoryMiB,
+                nestedVirtualization: $config.nestedVirtualization, guest: config.guest)
+        case .storage:
+            StorageSection(
+                diskGiB: config.diskGiB, floorGiB: model.diskFloorGiB, resize: model.setDiskSize,
+                caching: $config.diskCaching, sync: $config.diskSync, extraDisks: $config.extraDisks,
+                addDisk: { model.pickerTarget = .extraDisk })
+        case .installer:
+            InstallerSection(
+                isoPath: config.installerISO, attached: $config.installerAttached,
+                choose: { model.pickerTarget = .installerISO })
+        case .provisioning:
+            ProvisioningSection(
+                specPath: config.provisioningSpecPath, installerAttached: config.attachedInstallerPath != nil,
+                approved: model.isProvisioningSpecApproved(config.provisioningSpecPath),
+                choose: { model.pickerTarget = .provisioningSpec }, remove: { config.provisioningSpecPath = "" })
+        case .display:
+            displaySection
+        case .input:
+            InputSection(guest: config.guest, pointing: $config.pointingDevice, capturesSystemKeys: $config.capturesSystemKeys)
+        case .audio:
+            AudioSection(output: $config.audioOutput, input: $config.audioInput)
+        case .network:
+            NetworkSection(config: $config)
+        case .networkPolicy:
+            NetworkPolicySection(policy: $config.networkPolicy, model: model.network)
+        case .identity:
+            IdentitySection(config: $config)
+        case .sharing:
+            SharingSection(
+                guest: config.guest, folders: $config.sharedFolders, clipboard: $config.sharesClipboard,
+                rosetta: $config.rosetta, model: sharing, addFolder: model.addSharedFolder)
+        case .hostInfo:
+            HostInfoSection(guest: config.guest, sharing: $config.hostInfo)
+        case .boot:
+            BootSection(recovery: $config.bootIntoRecovery, hasBooted: config.hasBooted, provisioning: $config.provisioning)
+        case .devices:
+            DevicesSection(
+                balloon: $config.memoryBalloon, entropy: $config.entropyDevice, vsock: $config.socketDevice,
+                serialConsole: $config.serialConsole, guest: config.guest)
+        case .agentAccess:
+            AgentAccessSection(agentAccess: $config.agentAccess)
+        case .snapshots:
+            SnapshotsSection(model: model.snapshots, guest: config.guest, diskGiB: config.diskGiB, didRestore: model.didRestore)
         }
     }
 

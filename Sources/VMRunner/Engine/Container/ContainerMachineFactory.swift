@@ -10,14 +10,20 @@ struct ContainerMachineFactory: MachineFactory {
     static var bundledRunner: URL { Bundle.main.bundleURL.appending(path: "Contents/Helpers/ContainerRunner") }
 
     let runner: URL
+    /// The organisation's policy, read at each start so a change reaches a machine that was made before it.
+    private let policy: () -> ManagedPreferences
 
-    init(runner: URL = Self.bundledRunner) {
+    init(runner: URL = Self.bundledRunner, policy: @escaping () -> ManagedPreferences = { .current }) {
         self.runner = runner
+        self.policy = policy
     }
 
     func prepare(
         _ config: VMConfig, bundle: VMBundle, display: (width: Int, height: Int), suspendAllowed: Bool
     ) async throws -> PreparedMachine {
+        guard !policy().isLocked(.allowContainers) else {
+            throw ContainerProcessError(reason: ManagedPreferences.containersDeniedMessage)
+        }
         guard FileManager.default.isExecutableFile(atPath: runner.path) else {
             throw ContainerProcessError(reason: Self.missingRunnerMessage)
         }

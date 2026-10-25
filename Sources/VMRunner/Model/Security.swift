@@ -94,7 +94,9 @@ extension VMConfig {
         imageSupportsSecureBoot = image.supportsSecureBoot
     }
 
+    /// A container machine takes no profile: the profiles set virtual machine channels it does not have, so it comes back as it was.
     func applying(_ profile: SecurityProfile, hostSupportsSecureBoot: Bool = HostCapabilities.secureBoot) -> VMConfig {
+        guard workload == .vm else { return self }
         var config = self
         // Standard restores the channels the stricter profiles close; it leaves your own opt-ins alone.
         config.networkMode = .nat
@@ -139,8 +141,10 @@ extension VMConfig {
         return config
     }
 
-    /// The profile whose settings this machine currently matches, or nil when customized.
+    /// The profile whose settings this machine currently matches, or nil when customized. A container machine matches none:
+    /// it has no `Posture`, because the profiles describe virtual machine channels.
     var detectedProfile: SecurityProfile? {
+        guard workload == .vm else { return nil }
         let current = posture
         return SecurityProfile.allCases.reversed().first { applying($0).posture == current }
     }
@@ -219,6 +223,7 @@ struct Exposure: Identifiable, Sendable {
 
 extension VMConfig {
     var exposures: [Exposure] {
+        if workload == .container { return containerExposures }
         var items: [Exposure] = []
         switch networkMode {
         case .nat:
@@ -270,14 +275,7 @@ extension VMConfig {
             let path = VMBundle(id: id, in: AppPaths.machines).consoleSocket().path
             items.append(Exposure(level: .medium, text: "A serial console is reachable from this Mac as a local socket at \(path)"))
         }
-        if agentAccess {
-            // A host-side door: it starts and stops the machine, it does not reach into the guest.
-            items.append(
-                Exposure(
-                    level: .low,
-                    text: "Agent access: a script or AI agent with a control token can see this machine and start or stop it "
-                        + "while the control service is on in Settings."))
-        }
+        if agentAccess { items.append(agentAccessExposure) }
         if memoryBalloon { items.append(Exposure(level: .low, text: "Memory balloon device present.")) }
         items.append(
             allowsSuspend && !ephemeral
@@ -301,6 +299,14 @@ extension VMConfig {
 }
 
 extension VMConfig {
+    /// A host-side door: it starts and stops the machine, it does not reach into the guest.
+    var agentAccessExposure: Exposure {
+        Exposure(
+            level: .low,
+            text: "Agent access: a script or AI agent with a control token can see this machine and start or stop it "
+                + "while the control service is on in Settings.")
+    }
+
     fileprivate var secureBootExposure: Exposure {
         let unusable = secureBootAvailability() == .imageUnsupported
         if secureBoot {

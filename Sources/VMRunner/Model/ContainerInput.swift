@@ -38,6 +38,20 @@ enum ContainerInput {
         return arguments
     }
 
+    /// Writes arguments as one line that `arguments(from:)` reads back: an empty argument, or one with whitespace, is put in
+    /// double quotes. An argument that holds a double quote cannot be written (the line has no way to keep one), so the line
+    /// then reads back as something else; `ContainerDraft` checks for that.
+    static func line(from arguments: [String]) -> String {
+        arguments.map { argument in
+            argument.isEmpty || argument.contains(where: \.isWhitespace) ? "\"\(argument)\"" : argument
+        }.joined(separator: " ")
+    }
+
+    /// Writes the settings one `NAME=value` per line, in their order.
+    static func text(from environment: [ContainerEnvironmentEntry]) -> String {
+        environment.map { "\($0.name)=\($0.value)" }.joined(separator: "\n")
+    }
+
     /// Reads one `NAME=value` setting per line, in the order written. Blank lines are skipped, and the value is everything
     /// after the first `=`. Whether a name or a value is acceptable is for `VMConfig.validate()` to say.
     static func environment(from text: String) throws -> [ContainerEnvironmentEntry] {

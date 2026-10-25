@@ -13,7 +13,7 @@ struct MachineView: View {
                 .navigationTitle(model.title)
                 .toolbar { MachineToolbar(model: model, state: state) }
                 .alert(
-                    "Virtual Machine Error",
+                    MachineWording.errorTitle(for: model.workload),
                     isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
                 ) {
                     Button("OK") {}
@@ -23,7 +23,7 @@ struct MachineView: View {
                 .confirmationDialog("Delete “\(model.title)”?", isPresented: $model.confirmingDelete, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) { model.delete() }
                 } message: {
-                    Text("The virtual disk and all its contents are permanently removed.")
+                    Text(MachineWording.deleteDetail(for: model.workload))
                 }
         }
     }
