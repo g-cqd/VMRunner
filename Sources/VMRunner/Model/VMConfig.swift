@@ -63,6 +63,16 @@ enum PointingDevice: String, Codable, CaseIterable, Identifiable, Sendable {
     var label: String { self == .trackpad ? "Trackpad" : "Mouse" }
 }
 
+/// Which graphics device a Linux guest gets.
+enum GPUChoice: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// The framework's own graphics device.
+    case apple
+    /// A virtio GPU the app implements itself (macOS 27 or later). It draws in two dimensions only and cannot be saved.
+    case custom
+
+    var id: Self { self }
+}
+
 struct SharedFolder: Codable, Identifiable, Hashable, Sendable {
     var id = UUID()
     var path: String
@@ -139,6 +149,9 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var usesCustomDisplaySize = false
     /// Linux only: guest pixels per window point when the display follows the window. 1 keeps text legible.
     var pixelsPerPoint = 1
+    /// Linux only: which graphics device the machine gets. The custom GPU cannot be saved, so the machine cannot be suspended.
+    /// A stored value this version does not know reads as `.apple`.
+    var gpu = GPUChoice.apple
     /// Framebuffer size of the last cold boot. Saved state only restores into an identical configuration.
     var lastDisplayWidth: Int?
     var lastDisplayHeight: Int?
@@ -254,9 +267,11 @@ extension VMConfig {
     /// they fall outside the ranges the editor offers (`validate()`).
     static func decode(from data: Data) throws -> VMConfig {
         try checkBounds(of: data)
-        guard let stored = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard var stored = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Expected a JSON object"))
         }
+        // A graphics device this version does not know (a file written by a newer one) falls back to the default one.
+        if (stored["gpu"] as? String).flatMap(GPUChoice.init(rawValue:)) == nil { stored["gpu"] = nil }
         let guest = (stored["guest"] as? String).flatMap(GuestOS.init(rawValue:)) ?? .linux
         let defaults = try JSONSerialization.jsonObject(with: Self.new(name: "", guest: guest).encoded()) as? [String: Any] ?? [:]
         let merged = overlay(stored, on: defaults)
@@ -294,12 +309,25 @@ extension VMConfig {
     /// Whether a memory image saved by a machine with the `previous` configuration can be restored into one built from this
     /// one. It compares the Secure Boot setting (its firmware variable store is not comparable here), the network device
     /// (NAT, none or the user-mode stack), the disk as the machine builds it (see `effectiveDisk`), and whether the
-    /// host-information share is present (an extra file-system device while anything is shared), and the provisioning spec
-    /// in use (its seed is a read-only virtio disk; `ProvisioningSeed.prepare` also drops a saved state whose seed's contents changed).
+    /// host-information share is present (an extra file-system device while anything is shared), the graphics device (see
+    /// `usesCustomGPU`), and the provisioning spec in use (its seed is a read-only virtio disk; `ProvisioningSeed.prepare` also
+    /// drops a saved state whose seed's contents changed).
     /// Other hardware changes make the restore fail, and the machine then cold boots with an error message.
     func restoresSavedState(of previous: Self) -> Bool {
         secureBoot == previous.secureBoot && networkMode == previous.networkMode && effectiveDisk == previous.effectiveDisk
             && hostInfo.isEmpty == previous.hostInfo.isEmpty && activeProvisioningSpecPath == previous.activeProvisioningSpecPath
+            && usesCustomGPU == previous.usesCustomGPU
+    }
+
+    /// Whether the machine is set to use the custom GPU: a Linux guest that chose it. Whether the host can build that device is
+    /// `HostCapabilities.customGPU`.
+    var usesCustomGPU: Bool { guest == .linux && gpu == .custom }
+
+    /// Why suspend is unavailable because of the graphics device, or nil when the device does not stand in its way. The device
+    /// holds state the framework cannot save, so no memory image of such a machine is written or restored.
+    /// `hostSupports` is a parameter so tests do not depend on the host's macOS version.
+    func customGPUSuspendReason(hostSupports: Bool = HostCapabilities.customGPU) -> String? {
+        usesCustomGPU && hostSupports ? "Suspend is not available with the custom GPU: its state cannot be saved." : nil
     }
 
     /// The disk as the machine builds it: an NVMe drive only for a Linux guest, and a serial number only on a virtio disk.

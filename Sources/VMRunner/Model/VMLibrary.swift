@@ -214,7 +214,9 @@ final class VMLibrary {
         // A memory image that cannot be restored into the changed machine is dropped (`restoresSavedState(of:)`), so the next
         // start is a cold boot rather than a failed restore. Turning suspend off or disposable on promises that no memory image
         // is kept (the exposure summary says so), so the image already on disk goes too.
-        let forbidsSavedState = (previous.allowsSuspend && !config.allowsSuspend) || (!previous.ephemeral && config.ephemeral)
+        // The custom GPU cannot be saved, so a machine that uses it never keeps a memory image.
+        let forbidsSavedState =
+            (previous.allowsSuspend && !config.allowsSuspend) || (!previous.ephemeral && config.ephemeral) || config.usesCustomGPU
         if !config.restoresSavedState(of: previous) || forbidsSavedState {
             bundle(config.id).discardSavedState()
         }

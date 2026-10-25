@@ -39,6 +39,11 @@ enum HostCapabilities {
     static var secureBoot: Bool {
         if #available(macOS 27.0, *) { true } else { false }
     }
+
+    /// The host-implemented virtio GPU needs the custom device support that arrived in macOS 27.
+    static var customGPU: Bool {
+        if #available(macOS 27.0, *) { true } else { false }
+    }
 }
 
 /// Whether Secure Boot can be on for a machine, and if not, why: the host and the machine's image must both be able to use it.
