@@ -244,6 +244,8 @@ extension HelpCatalog {
                 "Limits: an image reference up to 255 bytes without whitespace; 1 to 16 CPU cores; 128 to 16384 MiB of memory; "
                     + "up to 64 command words of up to 4096 bytes each; up to 64 environment settings, each name once. The "
                     + "log keeps the most recent 1 MiB of output.",
+                "While a container's helper runs, the app holds a user-initiated activity (not latency-critical, so the Mac "
+                    + "still sleeps when it is idle), so that macOS does not slow the app down and delay the stop's time limits.",
                 "An organisation can forbid containers with the managed setting `AllowContainers` set to false: the New "
                     + "Machine sheet then offers no Container kind, a container machine does not start, and its settings are "
                     + "locked.",

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// How a runner process ended.
 struct ContainerExit: Equatable, Sendable {
@@ -121,6 +122,9 @@ final class ContainerProcess {
 
     var isRunning: Bool { handle != nil && exit == nil }
 
+    /// The runner's process identifier for the log; 0 before the start.
+    private var runnerPid: Int32 { handle?.process.processIdentifier ?? 0 }
+
     /// The descriptors this run holds open: none before the start and after the end.
     var openDescriptorCount: Int { ledger.count }  // @dw:accept:this referenced-only-by-tests -- a test reads it
 
@@ -181,19 +185,25 @@ final class ContainerProcess {
         guard let handle, exit == nil, !stopRequested else { return }
         stopRequested = true
         handle.requestStop()
+        let pid = handle.process.processIdentifier
+        let grace = timing.stopGrace.components.seconds
+        Log.container.info("Stop line written to runner \(pid, privacy: .public); SIGTERM due after \(grace, privacy: .public) s")
         tasks.append(
             Task { [clock, timing] in
                 guard (try? await clock.sleep(for: timing.stopGrace)) != nil else { return }
+                Log.container.info("SIGTERM to runner \(pid, privacy: .public), running \(handle.isRunning, privacy: .public)")
                 handle.terminate()
                 guard (try? await clock.sleep(for: timing.terminateGrace)) != nil else { return }
+                Log.container.info("SIGKILL to runner \(pid, privacy: .public), running \(handle.isRunning, privacy: .public)")
                 handle.forceKill()
             })
     }
 
     /// SIGKILL at once. Does nothing when the run is not started or ended.
     func kill() {
-        guard exit == nil else { return }
-        handle?.forceKill()
+        guard exit == nil, let handle else { return }
+        Log.container.info("Runner \(handle.process.processIdentifier, privacy: .public) killed at once")
+        handle.forceKill()
     }
 
     /// Returns the exit, waiting for the run to end when it has not. A process that was never started has no run to wait for: it
@@ -244,9 +254,12 @@ final class ContainerProcess {
             break
         case .terminated(let exit):
             terminated = exit
+            logTermination(exit)
             if !(stdoutEnded && stderrEnded) { armDrainTimer() }
         case .drainExpired:
-            guard !rearmDrainTimer() else { return false }
+            let rearmed = rearmDrainTimer()
+            Log.container.info("Drain wait for runner \(self.runnerPid, privacy: .public) ran out, rearmed \(rearmed, privacy: .public)")
+            guard !rearmed else { return false }
             drainExpired = true
         }
         guard let terminated, (stdoutEnded && stderrEnded) || drainExpired else { return false }
@@ -258,6 +271,17 @@ final class ContainerProcess {
         guard let event = ContainerEvent(line: line) else { return log.noteIgnoredLine() }
         log.apply(event)
         onEvent?(event)
+    }
+
+    /// Says where the run stands when the process ended: its status and which of its streams had ended.
+    private func logTermination(_ result: ContainerExit) {
+        let pid = runnerPid
+        let outEnded = stdoutEnded
+        let errEnded = stderrEnded
+        Log.container.info(
+            "Runner \(pid, privacy: .public): status \(result.status, privacy: .public), signaled \(result.signaled, privacy: .public)")
+        Log.container.info(
+            "Runner \(pid, privacy: .public): stdout ended \(outEnded, privacy: .public), stderr ended \(errEnded, privacy: .public)")
     }
 
     /// Waits for the output to end, after the process did, for `Timing.drainGrace`.
@@ -297,6 +321,7 @@ final class ContainerProcess {
     /// Reports the run once every reader has closed its descriptor; true when it did.
     private func reportIfClosed(_ result: ContainerExit) -> Bool {
         guard closedReaders == readers.count else { return false }
+        Log.container.info("Run of runner \(self.runnerPid, privacy: .public) reported")
         continuation?.finish()
         continuation = nil
         exit = result

@@ -16,6 +16,7 @@ enum Log {
     static let input = Logger(subsystem: subsystem, category: "input")
     static let display = Logger(subsystem: subsystem, category: "display")
     static let control = Logger(subsystem: subsystem, category: "control")
+    static let container = Logger(subsystem: subsystem, category: "container")
 }
 
 extension Error {

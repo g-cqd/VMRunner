@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// A container machine's workload: one container runner process, followed through its events.
 ///
@@ -6,6 +7,10 @@ import Foundation
 /// the container printed or ended first; a runner that ends before that fails the start with what it said. After that the
 /// runner's end is reported as the machine stopping: cleanly when the runner passed or was stopped, with a message when the
 /// container or the runner failed. A stop the app asked for is never an error, whatever signal ended the runner.
+///
+/// While the runner lives the app holds an activity. An app macOS thinks idle (no window, never frontmost) gets App Nap, which
+/// coalesces timers, and the timers carry the stop's time limits (SIGTERM, then SIGKILL): a stop could take far longer than
+/// they say. The activity is user-initiated and not latency-critical, and it does not keep the Mac awake.
 @MainActor
 final class ContainerWorkload: Workload {
     /// The runner's exit statuses that are not failures: it passed, or it was stopped before the command ended.
@@ -13,15 +18,27 @@ final class ContainerWorkload: Workload {
     /// The runner's exit status for "the container ran and its result was wrong".
     private static let failedStatus: Int32 = 1
 
+    /// What the app asks of the system while the runner lives: no App Nap, and the Mac still sleeps when idle.
+    static let activityOptions: ProcessInfo.ActivityOptions = .userInitiatedAllowingIdleSystemSleep
+    static let activityReason = "A container is running and its stop must keep to its time limits"
+
     private let process: ContainerProcess
     private let scratch: URL
+    private let host: any ActivityHost
     private var starting: CheckedContinuation<Void, any Error>?
     private var stopAsked = false
     private var killed = false
+    /// Held from the runner's start to its end, or to the release of the workload.
+    private var activity: (any NSObjectProtocol)?
 
-    init(process: ContainerProcess, scratch: URL) {
+    init(process: ContainerProcess, scratch: URL, host: any ActivityHost = ProcessInfo.processInfo) {
         self.process = process
         self.scratch = scratch
+        self.host = host
+    }
+
+    isolated deinit {
+        endActivity()
     }
 
     var capabilities: WorkloadCapabilities { [] }
@@ -36,6 +53,7 @@ final class ContainerWorkload: Workload {
         process.onEvent = { [weak self] in self?.apply($0) }
         process.onExit = { [weak self] in self?.ended($0) }
         try process.start()
+        activity = host.beginActivity(options: Self.activityOptions, reason: Self.activityReason)
         // No event or exit can be applied before this suspends: they run on this actor.
         try await withCheckedThrowingContinuation { starting = $0 }
     }
@@ -75,8 +93,20 @@ final class ContainerWorkload: Workload {
         pending?.resume()
     }
 
+    private func endActivity() {
+        guard let held = activity else { return }
+        activity = nil
+        host.endActivity(held)
+    }
+
     private func ended(_ exit: ContainerExit) {
+        endActivity()
         let failure = failure(of: exit)
+        let failed = failure != nil
+        let asked = stopAsked
+        let forced = killed
+        Log.container.info(
+            "Run ended: failure \(failed, privacy: .public), stop asked \(asked, privacy: .public), killed \(forced, privacy: .public)")
         if let pending = starting {
             starting = nil
             if let failure {
