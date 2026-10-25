@@ -1,0 +1,5 @@
+{
+  "schema": 1,
+  "about": "The driver discs the owner has checked for Windows machines. Only the owner adds an entry, and only after downloading the file from its source and hashing it (shasum -a 256 FILE). Each entry has: sha256 (64 hexadecimal digits), name, version, and notes (where the file came from and the date it was checked, which must not be empty). This list ships empty on purpose.",
+  "entries": []
+}

@@ -323,6 +323,12 @@ makes a scratch directory and runs it with an image, a command, a size and an en
 conditions above (an authorised session, at most 2 CPUs and 2048 MiB, a run-time limit), refused without `--boot`. A new
 package copies the root manifest's `// BEGIN shared settings` block verbatim (a test compares them).
 
+`swift run vmr windows drivers verify FILE` checks a driver disc you downloaded against the SHA-256 values pinned in
+`Resources/WindowsDriverPins.json`: it prints the matching entry and exits 0, or says "not in the pinned list" and exits 1
+(65: the list is unreadable or malformed; 66: the file cannot be read). It reads the file once, read-only, in chunks, and
+downloads nothing. The list ships empty on purpose: the owner adds an entry (`sha256`, `name`, `version`, and `notes` with
+the source and the date of the file they checked; the value comes from `shasum -a 256 FILE`).
+
 ## Continuous integration
 
 Workflows live in `.github/workflows`; every third-party action is pinned to a full commit SHA with a trailing

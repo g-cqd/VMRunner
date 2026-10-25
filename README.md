@@ -196,6 +196,7 @@ swift run vmr guest start|exec|console|stop ...   # a small Linux guest behind a
 swift run vmr guest start --net filtered --policy p.json; vmr guest policy|flows SOCKET ...   # the filtered network on a real guest
 swift run vmr control status|list|state|start|stop|log ... --token-file F   # call a running app's control service (CONTRIBUTING)
 .build/debug/vmr control mcp                 # the control service as an MCP server over stdio; token in VMR_CONTROL_TOKEN
+swift run vmr windows drivers verify FILE    # checks a driver disc you downloaded against the SHA-256 values pinned in the repository
 swift run vmr sarif arcleak.sarif ...        # readable findings from SARIF files
 swift run vmr hooks install                  # pre-commit hook: format lint and SwiftLint on staged Swift files
 ```
