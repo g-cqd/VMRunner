@@ -9,9 +9,11 @@ public enum RunnerVerdict: Equatable, Sendable {
     /// What the container's `uname -a` must contain on an Apple silicon host.
     public static let expectedArchitecture = "aarch64"
 
-    public static func evaluate(exitCode: Int32, output: String) -> Self {
+    /// Passed when the command exited with status 0 and, if `checksArchitecture`, the output names the architecture. A custom
+    /// command has no expected output, so only its status counts.
+    public static func evaluate(exitCode: Int32, output: String, checksArchitecture: Bool = true) -> Self {
         guard exitCode == 0 else { return .commandFailed(exitCode: exitCode) }
-        return output.contains(expectedArchitecture) ? .passed : .unexpectedOutput
+        return !checksArchitecture || output.contains(expectedArchitecture) ? .passed : .unexpectedOutput
     }
 
     public var summary: String {
@@ -32,6 +34,8 @@ public enum RunnerStatus {
     public static let usage: Int32 = 64
     /// EX_SOFTWARE: something before or around the container failed (download, checksum, pull, boot).
     public static let setupFailed: Int32 = 70
+    /// EX_TEMPFAIL: the container was stopped, on request or because standard input closed, before its command ended.
+    public static let stopped: Int32 = 75
 }
 
 /// The lines the owner copies back from a run: what each phase cost, what the container printed, how it ended.
@@ -53,15 +57,19 @@ public struct RunnerReport: Equatable, Sendable {
     public var output = ""
     public var exitCode: Int32?
     public var verdict: RunnerVerdict?
+    /// Whether the run was stopped before the command ended.
+    public var stopped = false
     /// The frames the guest's network device delivered, and what they show. Both stay empty without a loopback network.
     public var frames: [FrameSummary] = []
     public var networkVerdict: NetworkVerdict?
 
     public init() {}
 
-    /// The runner's own exit status: ``RunnerStatus/passed`` only when the run reached a verdict and every verdict passed;
-    /// ``RunnerStatus/setupFailed`` when the run never reached one; ``RunnerStatus/failed`` otherwise.
+    /// The runner's own exit status: ``RunnerStatus/stopped`` when the run was stopped; otherwise ``RunnerStatus/passed``
+    /// only when the run reached a verdict and every verdict passed; ``RunnerStatus/setupFailed`` when the run never
+    /// reached one; ``RunnerStatus/failed`` otherwise.
     public var processStatus: Int32 {
+        if stopped { return RunnerStatus.stopped }
         guard let verdict else { return RunnerStatus.setupFailed }
         return verdict == .passed && (networkVerdict ?? .passed) == .passed ? RunnerStatus.passed : RunnerStatus.failed
     }

@@ -74,6 +74,28 @@ struct RunnerReportTests {
     }
 
     @Test
+    func aCustomCommandPassesOnItsExitStatusAlone() {
+        #expect(RunnerVerdict.evaluate(exitCode: 0, output: "", checksArchitecture: false) == .passed)
+        #expect(RunnerVerdict.evaluate(exitCode: 0, output: "Linux x86_64\n", checksArchitecture: false) == .passed)
+        #expect(RunnerVerdict.evaluate(exitCode: 2, output: "aarch64", checksArchitecture: false) == .commandFailed(exitCode: 2))
+    }
+
+    @Test
+    func aStoppedRunHasItsOwnStatusWhateverElseHappened() {
+        var report = RunnerReport()
+        report.verdict = .passed
+        report.stopped = true
+        #expect(report.processStatus == RunnerStatus.stopped)
+        #expect(RunnerStatus.stopped == 75)
+        report.verdict = nil
+        #expect(report.processStatus == RunnerStatus.stopped, "stopped before a verdict is not a setup failure")
+        report.stopped = false
+        #expect(report.processStatus == RunnerStatus.setupFailed)
+        let statuses = [RunnerStatus.passed, RunnerStatus.failed, RunnerStatus.usage, RunnerStatus.setupFailed, RunnerStatus.stopped]
+        #expect(Set(statuses).count == statuses.count)
+    }
+
+    @Test
     func aRunThatNeverStartedReportsThat() {
         #expect(RunnerReport().lines == ["output: ", "exit-status: none", "verdict: not reached"])
     }

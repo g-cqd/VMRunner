@@ -7,17 +7,17 @@ import Foundation
 /// This fetches one fixed HTTPS address and verifies it against a pinned checksum before using it. It does not go through
 /// the app's download policy, because the app target cannot be imported without linking the app.
 enum KernelProvider {
-    static func ensureKernel(layout: RunnerLayout) async throws -> URL {
+    static func ensureKernel(layout: RunnerLayout, log: ConsoleStream) async throws -> URL {
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: layout.kernelImage.path) {
             try verify(layout.kernelImage, against: KernelArchive.imageSHA256)
-            Console.line("kernel: \(layout.kernelImage.path) (already there, checksum ok)")
+            Console.line("kernel: \(layout.kernelImage.path) (already there, checksum ok)", to: log)
             return layout.kernelImage
         }
 
         try fileManager.createDirectory(at: layout.kernelArchive.deletingLastPathComponent(), withIntermediateDirectories: true)
         if !fileManager.fileExists(atPath: layout.kernelArchive.path) {
-            Console.line("kernel: downloading \(KernelArchive.urlString)")
+            Console.line("kernel: downloading \(KernelArchive.urlString)", to: log)
             try await download(to: layout.kernelArchive)
         }
         try verify(layout.kernelArchive, against: KernelArchive.archiveSHA256)
@@ -29,7 +29,7 @@ enum KernelProvider {
         try fileManager.moveItem(at: KernelArchive.extractedMember(in: layout.kernelStaging), to: layout.kernelImage)
         try? fileManager.removeItem(at: layout.kernelStaging)
         try verify(layout.kernelImage, against: KernelArchive.imageSHA256)
-        Console.line("kernel: \(layout.kernelImage.path) (unpacked, checksum ok)")
+        Console.line("kernel: \(layout.kernelImage.path) (unpacked, checksum ok)", to: log)
         return layout.kernelImage
     }
 
