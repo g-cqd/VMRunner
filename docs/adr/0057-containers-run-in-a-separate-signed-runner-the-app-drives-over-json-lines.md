@@ -74,3 +74,18 @@ The pinned package stays what ADR-0017 says: exact version 0.52.1, three library
 Whether the app links the library at all; running the runner under a sandbox helper; networking beyond `none` and `loopback`
 (the user-mode stack in a container is ADR-0017's open point, not closed here); an image cache shared between machines and the
 tools to clear it; a macOS container.
+
+(Update 2026-10-25, after the first run from the app: a debug build of the app, started with a scratch data folder and driven
+only through the control service, started two container machines of the Alpine image. Seen: a start reaches `running` (cold
+about 63 s, the download of the runner's kernel archive, about 290 MB for each machine, and of the image included; warm 3 to
+9 s); a container whose command ended is stopped by itself; a stopped container leaves no runner and no virtual machine
+process; a forced stop answers in 0.44 s and the runner is gone at 0.60 s; ending the app with SIGTERM while a container ran
+left no runner. Not seen: the container's output in the app's window (an app that was never activated shows no window to
+automation), and the quit through the menu (the app stayed up behind a confirmation that could not be read). A stop that asks,
+decision 3, took 72 s to reach `stopped`, where the decision gives 15 s at most; the cause is not known. The best-supported
+candidate, unproven, is that macOS slows an app it thinks idle (no window shown, never active: App Nap) and so coalesces the
+timers that carry the escalation. A running container therefore holds a user-initiated activity from the start of its runner
+to its end, not latency-critical, so that the Mac still sleeps when idle; and the stop path logs each step with the runner's
+process identifier (category `container`), so that the next run can show where the time went. The output of each run is now
+also kept in `container-output.log` in the machine's folder, the most recent 1 MiB and one previous file, and a token with the
+log capability can read its last 64 KiB through the control service (ADR-0056). None of this has been run on a real guest yet.)

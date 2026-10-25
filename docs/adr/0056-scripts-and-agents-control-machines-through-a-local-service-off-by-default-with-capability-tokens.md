@@ -83,3 +83,12 @@ links this library and the console's and which the app does not link: an agent r
 and its checks. The client now keeps its read buffer across answers, bounds an answer's size and nesting, and checks the
 socket's user before it sends a token. The library's API stays `public`; moving it to `package` is still open. Neither
 has run against the app yet; the status stays proposed.)
+
+(Update 2026-10-25: a method, `machines.log`, and a capability, `log`, were added for container machines. The method reads
+the end of a container's output log, at most 64 KiB, as `id`, `text` and `truncated`; it is read-only, takes the same
+parameters as `machines.state` (strings and booleans only, and no size), passes the same checks in the same order (token,
+capability, the token's machines, whether the machine exists, its agent access), and refuses a machine that is not a
+container. An older app cannot load a `tokens.json` that lists `log`: it does not know the capability, so the store's
+initialiser throws that the list cannot be read, the file is left untouched, and the older app accepts no token until it is
+upgraded. The exposure summary of a container with agent access on says that a token with this capability can read what the
+container printed.)
