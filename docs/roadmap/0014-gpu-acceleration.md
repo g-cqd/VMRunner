@@ -27,7 +27,13 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
 - The device wiring: each queue element read once, handled, answered when the guest left room and given back exactly
   once; a bounded record of the last 1024 requests and their times, written to `commands.log` at the end, which shows
   whether giving an element back notifies the guest; `--probe-config-change` sets the display event in the configuration
-  space to see whether that notifies it too (the headers name no other way to signal the guest).
+  space to see whether that notifies it too (the headers name no other way to signal the guest). The rules of serving an
+  element are in the library (`GPUDeviceState.serve`, over a `QueueElement` protocol each adapter conforms its framework's
+  element to), tested with a fake element: one read, an oversized request refused after its header, an answer written only
+  when it fits, the element given back exactly once on every path.
+- The cost of a transfer is bounded by the backing's pieces, not the picture's rows: a rectangle as wide as its resource is one
+  span, listed once and copied once per piece. A narrower one is read one span per row and is refused above 8192 rows, the
+  height of the Linux driver's largest scanout, so a hostile resource cannot hold the main queue for millions of rows.
 - The scanout: `--headless-dump` writes the newest picture to `scanout.png` in the scratch directory (at most once a
   second), `--window` shows it in the runner's own window.
 - Checked on the host first: tests of the decoder, the store, the device state and the record with table-driven and seeded
@@ -72,15 +78,12 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 
 ## Remaining
 
-1. The app's side (ADR-0058): the pure core as a library of the root package, the queue serving shared by the app and the
-   runner, the app's own adapter in the engine, and a Linux machine whose display is this device, shown in the machine's
-   window. Everything behind macOS 27.
-2. A bounded cost per request. A transfer copies a rectangle row by row, and the app would run the device on the main queue,
-   so a large or hostile transfer must have a bounded cost in time as well as in bytes.
-3. Resizing the display: the configuration update re-triggers the display-information request (measured above); the device
+1. The app's side (ADR-0058): the app's own adapter in the engine, over the library, and a Linux machine whose display is
+   this device, shown in the machine's window. Everything behind macOS 27.
+2. Resizing the display: the configuration update re-triggers the display-information request (measured above); the device
    must answer it with the new size, and the size limits are the library's.
-4. The runner's follow-ups: a private temporary file for the scanout picture from the moment it is created, and an orderly end
+3. The runner's follow-ups: a private temporary file for the scanout picture from the moment it is created, and an orderly end
    on SIGTERM and SIGINT that still writes the record and the last picture.
-5. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
-6. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
-7. 3D acceleration is not in scope of this work.
+4. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
+5. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
+6. 3D acceleration is not in scope of this work.

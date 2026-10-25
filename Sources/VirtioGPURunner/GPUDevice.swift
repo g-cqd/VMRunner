@@ -92,22 +92,26 @@ final class GPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate, VZCu
         }
     }
 
-    /// Reads the request once, handles the copy, writes the answer when it fits, and gives the element back exactly once.
+    /// Serves the element through the library: the request is read once, handled, answered when the answer fits and the element
+    /// given back exactly once. What the library reports is counted here, and only the first of each kind of trouble is printed.
     private func service(_ element: VZVirtioQueueElement, on queue: GPUQueueKind, memory: MappedGuestMemory) {
-        defer { element.returnToQueue() }
-        let length = element.readBuffersAvailableByteCount
-        guard length <= state.store.limits.maxCommandBytes else {
-            refuse(element, length: length, on: queue)
-            return
+        let outcome = state.serve(FrameworkQueueElement(element), on: queue, memory: memory) { handled in
+            self.observe(handled)
         }
-        let bytes: [UInt8]
-        do {
-            bytes = length == 0 ? [] : [UInt8](try element.readBytes(withExactLength: length))
-        } catch {
+        switch outcome {
+        case .handled(let answer):
+            note(answer)
+        case .oversized(let length, let answer):
+            oversized += 1
+            if oversized == 1 { log("refused a request of \(length) bytes, more than the device reads") }
+            note(answer)
+        case .unreadable(let length, let error):
             noteFailure("could not read a request of \(length) bytes: \(error.localizedDescription)")
-            return
         }
-        let handled = state.handle(bytes, queue: queue, memory: memory)
+    }
+
+    /// What the runner does with a handled request before its answer is written: the record and the pictures.
+    private func observe(_ handled: HandledCommand) {
         for line in recorder.record(handled.logEntry, atMilliseconds: milliseconds) {
             log(line)
         }
@@ -116,28 +120,16 @@ final class GPUDevice: NSObject, VZCustomVirtioDeviceConfigurationDelegate, VZCu
             if flushes == 1 { log("first scanout flush: \(update.width) x \(update.height), format \(update.format)") }
             for sink in sinks { sink.show(update, atMilliseconds: milliseconds) }
         }
-        if let response = handled.response { answer(element, with: response) }
     }
 
-    /// A request longer than the device reads: only its header is read, and it is answered as an invalid parameter.
-    private func refuse(_ element: VZVirtioQueueElement, length: Int, on queue: GPUQueueKind) {
-        oversized += 1
-        if oversized == 1 { log("refused a request of \(length) bytes, more than the device reads") }
-        let header = (try? element.readBytes(withExactLength: GPUWireSize.header)).map { [UInt8]($0) } ?? []
-        guard queue == .control else { return }
-        let request = GPUDecoder.decode(header, limits: state.store.limits)
-        answer(element, with: GPUResponse.error(.errInvalidParameter).encoded(answering: request.header))
-    }
-
-    private func answer(_ element: VZVirtioQueueElement, with response: [UInt8]) {
-        guard element.writeBuffersAvailableByteCount >= response.count else {
+    private func note(_ answer: AnswerStatus) {
+        switch answer {
+        case .written, .notNeeded:
+            break
+        case .didNotFit(let needed, _):
             unanswered += 1
-            if unanswered == 1 { log("an answer of \(response.count) bytes did not fit the guest's buffer; nothing was written") }
-            return
-        }
-        do {
-            try element.write(Data(response))
-        } catch {
+            if unanswered == 1 { log("an answer of \(needed) bytes did not fit the guest's buffer; nothing was written") }
+        case .failed(let error):
             noteFailure("could not write an answer: \(error.localizedDescription)")
         }
     }

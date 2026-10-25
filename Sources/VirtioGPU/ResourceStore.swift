@@ -84,8 +84,11 @@ package struct ResourceStore: Sendable {
 
     /// Copies `rect` of the resource from its backing. As the guest's driver lays it out, `offset` is where the rectangle's
     /// first pixel is in the backing (it already counts `y × stride + x × 4`), and each next row is `stride` further on.
-    /// Every row is read into a temporary copy first; the host copy is written only once all of them were read, so a read
-    /// that fails leaves the resource as it was.
+    /// The bytes are staged in one buffer made once, and the host copy is written only once all of them were read, so a read
+    /// that fails leaves the resource as it was. The rows of a rectangle as wide as the resource follow each other in the
+    /// backing, so they are one span: its pieces are listed once and each piece is copied once, however many rows there are.
+    /// A narrower rectangle is read one span per row, and is refused above `GPULimits.maxTransferRows` rows: its cost grows
+    /// with its rows, not with its bytes.
     package mutating func transferToHost2D(resourceID id: UInt32, rect: GPURect, offset: UInt64, memory: some GuestMemoryReader)
         -> GPUResponseType
     {
@@ -93,29 +96,69 @@ package struct ResourceStore: Sendable {
         guard rect.fits(width: resource.width, height: resource.height) else { return .errInvalidParameter }
         guard let backing = resource.backing else { return .errUnspec }
         guard rect.width > 0, rect.height > 0 else { return .okNoData }
-        let rowBytes = Int(rect.width) * GPUPixelFormat.bytesPerPixel
-        let stride = UInt64(resource.stride)
-        var rows: [UInt8] = []
-        rows.reserveCapacity(rowBytes * Int(rect.height))
-        for row in 0..<UInt64(rect.height) {
-            let (skip, wide) = row.multipliedReportingOverflow(by: stride)
-            let (start, overflow) = offset.addingReportingOverflow(skip)
-            guard !wide, !overflow, let pieces = backing.pieces(offset: start, length: UInt64(rowBytes)) else {
-                return .errInvalidParameter
-            }
-            for piece in pieces {
-                guard let bytes = memory.copyBytes(atPhysicalAddress: piece.address, count: piece.count), bytes.count == piece.count
-                else { return .errUnspec }
-                rows.append(contentsOf: bytes)
-            }
+        let spans = Spans(rect: rect, stride: resource.stride)
+        guard spans.count == 1 || spans.count <= limits.maxTransferRows else { return .errInvalidParameter }
+        let staged: [UInt8]
+        do {
+            staged = try Self.stage(spans, from: backing, at: offset, memory: memory)
+        } catch {
+            return error.responseType
         }
         resources[id] = nil
-        for row in 0..<Int(rect.height) {
-            let destination = (Int(rect.y) + row) * resource.stride + Int(rect.x) * GPUPixelFormat.bytesPerPixel
-            resource.pixels.replaceSubrange(destination..<destination + rowBytes, with: rows[row * rowBytes..<(row + 1) * rowBytes])
+        let origin = Int(rect.y) * resource.stride + Int(rect.x) * GPUPixelFormat.bytesPerPixel
+        for span in 0..<spans.count {
+            let destination = origin + span * resource.stride
+            resource.pixels.replaceSubrange(
+                destination..<destination + spans.bytes, with: staged[span * spans.bytes..<(span + 1) * spans.bytes])
         }
         resources[id] = resource
         return .okNoData
+    }
+
+    /// How a transfer's rectangle splits into runs that are contiguous in the backing: a rectangle as wide as the resource is
+    /// one run of all its rows, a narrower one has a run per row, each `stride` after the last.
+    private struct Spans {
+        let count: Int
+        let bytes: Int
+        let stride: Int
+
+        init(rect: GPURect, stride: Int) {
+            let rowBytes = Int(rect.width) * GPUPixelFormat.bytesPerPixel
+            self.stride = stride
+            (count, bytes) = rowBytes == stride ? (1, rowBytes * Int(rect.height)) : (Int(rect.height), rowBytes)
+        }
+    }
+
+    private enum StagingFailure: Error {
+        /// A span lies outside the backing, or its position overflows.
+        case outsideBacking
+        /// Guest memory could not be read.
+        case unreadable
+
+        var responseType: GPUResponseType { self == .outsideBacking ? .errInvalidParameter : .errUnspec }
+    }
+
+    /// The bytes of every span, one after the other, read from the guest piece by piece into a buffer made once.
+    private static func stage(
+        _ spans: Spans, from backing: BackingLayout, at offset: UInt64, memory: some GuestMemoryReader
+    ) throws(StagingFailure) -> [UInt8] {
+        var staged = [UInt8](repeating: 0, count: spans.count * spans.bytes)
+        var position = 0
+        for span in 0..<UInt64(spans.count) {
+            let (skip, wide) = span.multipliedReportingOverflow(by: UInt64(spans.stride))
+            let (start, overflow) = offset.addingReportingOverflow(skip)
+            guard !wide, !overflow, let pieces = backing.pieces(offset: start, length: UInt64(spans.bytes)) else {
+                throw .outsideBacking
+            }
+            for piece in pieces {
+                guard let bytes = memory.copyBytes(atPhysicalAddress: piece.address, count: piece.count),
+                    bytes.count == piece.count, position + piece.count <= staged.count
+                else { throw .unreadable }
+                staged.replaceSubrange(position..<position + piece.count, with: bytes)
+                position += piece.count
+            }
+        }
+        return staged
     }
 
     /// Drops every resource, as a device reset does.

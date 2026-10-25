@@ -9,6 +9,9 @@ package struct GPULimits: Equatable, Sendable {
     package var maxTotalResourceBytes = 256 << 20
     /// The most guest memory pieces one resource's backing may list: a 64 MiB surface in 4 KiB pages.
     package var maxBackingEntries = 16_384
+    /// The most rows a transfer of a rectangle narrower than its resource may copy. Such a transfer is read one span per row,
+    /// so its cost grows with its rows rather than its bytes. The Linux driver's scanouts are at most 8192 rows high.
+    package var maxTransferRows = 8192
     /// The size of the one display the device reports.
     package var displayWidth: UInt32 = 1280
     package var displayHeight: UInt32 = 800
