@@ -70,6 +70,7 @@ struct SecurityTests {
         config.rosetta = true
         config.hostInfo.battery = true
         config.agentAccess = true
+        config.gpu = .custom
         config.provisioningSpecPath = "/tmp/machine.yaml"
 
         let hardened = config.applying(.hardened)
@@ -83,6 +84,7 @@ struct SecurityTests {
         #expect(hardened.entropyDevice, "entropy must stay on or the guest has no randomness")
         #expect(hardened.hostInfo.isEmpty, "no fact about the Mac reaches a hardened guest")
         #expect(!hardened.agentAccess, "no script or agent can start a hardened machine")
+        #expect(hardened.gpu == .apple, "the app parses no graphics commands from a hardened guest")
         #expect(hardened.provisioningSpecPath.isEmpty, "no script from the Mac runs in a hardened guest")
     }
 

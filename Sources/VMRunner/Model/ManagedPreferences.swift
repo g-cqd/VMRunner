@@ -10,6 +10,7 @@ enum ManagedKey: String, CaseIterable, Sendable {
     case allowHostInformation = "AllowHostInformation"
     case allowControlService = "AllowControlService"
     case allowProvisioning = "AllowProvisioning"
+    case allowCustomGPU = "AllowCustomGPU"
     case allowContainers = "AllowContainers"
     case requireDisposableMachines = "RequireDisposableMachines"
     case maxRuntimeMinutes = "MaxRuntimeMinutes"
@@ -98,6 +99,7 @@ struct ManagedPreferences: Equatable, Sendable {
         if denied.contains(.allowHostInformation) { config.hostInfo = HostInfoSharing() }
         if denied.contains(.allowControlService) { config.agentAccess = false }
         if denied.contains(.allowProvisioning) { config.provisioningSpecPath = "" }
+        if denied.contains(.allowCustomGPU) { config.gpu = .apple }
         if requiresDisposable { config.ephemeral = true }
         if let limit = maxRuntimeMinutes, config.maxRuntimeMinutes == 0 || config.maxRuntimeMinutes > limit {
             config.maxRuntimeMinutes = limit

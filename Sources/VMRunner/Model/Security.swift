@@ -128,6 +128,7 @@ extension VMConfig {
         config.networkMode = .none
         config.serialConsole = false
         config.agentAccess = false
+        config.gpu = .apple
         config.provisioningSpecPath = ""
         config.audioOutput = false
         config.sharedFolders = []
@@ -170,6 +171,7 @@ extension VMConfig {
         var vsock: Bool
         var serialConsole: Bool
         var agentAccess: Bool
+        var customGPU: Bool
         var provisioning: Bool
         var balloon: Bool
         var ephemeral: Bool
@@ -200,6 +202,7 @@ extension VMConfig {
             vsock: socketDevice,
             serialConsole: linux && serialConsole,
             agentAccess: agentAccess,
+            customGPU: usesCustomGPU,
             provisioning: linux && !provisioningSpecPath.isEmpty,
             balloon: memoryBalloon,
             ephemeral: ephemeral,
@@ -281,6 +284,10 @@ extension VMConfig {
             items.append(Exposure(level: .medium, text: "A serial console is reachable from this Mac as a local socket at \(path)"))
         }
         if agentAccess { items.append(agentAccessExposure) }
+        if usesCustomGPU {
+            // The guest's commands to its graphics device are parsed by this app, inside its own process.
+            items.append(Exposure(level: .medium, text: "Custom GPU: the app parses the guest's graphics commands itself."))
+        }
         if memoryBalloon { items.append(Exposure(level: .low, text: "Memory balloon device present.")) }
         items.append(
             allowsSuspend && !ephemeral
