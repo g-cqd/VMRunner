@@ -35,7 +35,12 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   span, listed once and copied once per piece. A narrower one is read one span per row and is refused above 8192 rows, the
   height of the Linux driver's largest scanout, so a hostile resource cannot hold the main queue for millions of rows.
 - The scanout: `--headless-dump` writes the newest picture to `scanout.png` in the scratch directory (at most once a
-  second), `--window` shows it in the runner's own window.
+  second), `--window` shows it in the runner's own window. The picture goes through a temporary file created with mode 0600
+  and renamed into place, so it is never readable by others, not even for a moment.
+- The end of a run: the time limit, the guest stopping, SIGTERM and SIGINT all take the same orderly path, which writes
+  `commands.log` and the last picture; a signal is received through a dispatch source on the main queue, with no code in
+  signal context, and ends the process with 128 plus its number. A second signal while the machine is stopping ends the run
+  at once.
 - Checked on the host first: tests of the decoder, the store, the device state and the record with table-driven and seeded
   random hostile input, and `--dry-run` on macOS 27.0.1, where the framework accepted the configuration once the binary
   was signed with the virtualization entitlement. Then one real run, below.
@@ -73,8 +78,9 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
   scrolled. The guest's 2048 MiB live in the framework's helper process, not in the runner: 100 % CPU while the guest
   booted, then 0.3 to 0.4 %, and 297 MiB resident at 1 s, 665 MiB at 61 s, 687 MiB at 182 s.
 - **Limits of the run.** `commands.log` keeps the last 1024 requests, so the early ones are only in the runner's log with
-  their times. A SIGTERM ends the runner without writing `commands.log` or the last picture. The guest's page size was not
-  recorded (the Debian kernel is normally 4 KiB; unverified). Nothing of 3D was tried; the device offers none.
+  their times. A SIGTERM ended the runner of that run without writing `commands.log` or the last picture; the runner now
+  ends orderly on a signal (see above), which no guest run has exercised yet. The guest's page size was not recorded (the
+  Debian kernel is normally 4 KiB; unverified). Nothing of 3D was tried; the device offers none.
 
 ## Remaining
 
@@ -82,8 +88,6 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
    this device, shown in the machine's window. Everything behind macOS 27.
 2. Resizing the display: the configuration update re-triggers the display-information request (measured above); the device
    must answer it with the new size, and the size limits are the library's.
-3. The runner's follow-ups: a private temporary file for the scanout picture from the moment it is created, and an orderly end
-   on SIGTERM and SIGINT that still writes the record and the last picture.
-4. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
-5. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
-6. 3D acceleration is not in scope of this work.
+3. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
+4. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
+5. 3D acceleration is not in scope of this work.

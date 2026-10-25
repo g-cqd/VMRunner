@@ -3,7 +3,8 @@ import VirtioGPURunnerCore
 import Virtualization
 
 /// One run: the scratch directory, the configuration, the machine, and the hard time limit after which the machine is
-/// stopped whatever it does. Everything runs on the main queue (the framework's, the device's and the runner's).
+/// stopped whatever it does. SIGTERM and SIGINT end the run the same way, through the main queue. Everything runs on the main
+/// queue (the framework's, the device's and the runner's).
 @available(macOS 27.0, *)
 @MainActor
 final class RunnerMain: NSObject, VZVirtualMachineDelegate {
@@ -11,6 +12,9 @@ final class RunnerMain: NSObject, VZVirtualMachineDelegate {
     /// Held here because the device provider keeps its delegate weakly.
     private let device: GPUDevice
     private var machine: VZVirtualMachine?
+    /// Set once the machine is being stopped, so a second request ends the run at once instead of waiting for it.
+    private var stopping = false
+    private var shutdownSignals: ShutdownSignals?
 
     init(options: RunnerOptions) {
         self.options = options
@@ -61,18 +65,37 @@ final class RunnerMain: NSObject, VZVirtualMachineDelegate {
             }
         }
         let limit = options.maxSeconds
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(limit))
-            self.stopAtLimit()
+            self?.stopAtLimit()
         }
+        shutdownSignals = ShutdownSignals { [weak self] number in self?.stopForSignal(number) }
     }
 
     private func stopAtLimit() {
+        stop(because: "time limit reached", ended: "stopped at the time limit", status: 0)
+    }
+
+    /// SIGTERM or SIGINT: the orderly end of the time limit, so the record and the last picture are written. The exit status
+    /// is 128 plus the signal's number, as a shell reports a process that a signal ended.
+    private func stopForSignal(_ number: Int32) {
+        let name = number == SIGINT ? "SIGINT" : "SIGTERM"
+        stop(because: "\(name) received", ended: "stopped by \(name)", status: 128 + number)
+    }
+
+    /// Stops the machine, then writes the record and the last picture and ends the process. A second request while the
+    /// machine is still stopping ends the run at once.
+    private func stop(because reason: String, ended: String, status: Int32) {
+        if stopping {
+            finish("\(reason) again, not waiting for the machine", status: status)
+            return
+        }
         guard let machine else { return }
-        device.log("time limit reached, stopping the machine")
+        stopping = true
+        device.log("\(reason), stopping the machine")
         machine.stop { error in
             MainActor.assumeIsolated {
-                self.finish("stopped at the time limit" + (error.map { ": \($0.localizedDescription)" } ?? ""), status: 0)
+                self.finish(ended + (error.map { ": \($0.localizedDescription)" } ?? ""), status: status)
             }
         }
     }

@@ -68,7 +68,7 @@ let package = Package(
         // The runner's command line (ADR-0042: the testable logic of an executable is `<Executable>Core`), and nothing else.
         .target(name: "VirtioGPURunnerCore", path: "Sources/VirtioGPURunnerCore", swiftSettings: hardening),
         .testTarget(
-            name: "VirtioGPURunnerTests", dependencies: ["VirtioGPURunnerCore"], path: "Tests/VirtioGPURunnerTests",
+            name: "VirtioGPURunnerTests", dependencies: ["VirtioGPURunnerCore", "VirtioGPURunner"], path: "Tests/VirtioGPURunnerTests",
             swiftSettings: hardening),
 
         // The runner boots one Linux guest whose only display is the virtio GPU. The owner runs it, never the gate (it boots a
