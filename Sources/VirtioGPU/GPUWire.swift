@@ -31,6 +31,16 @@ package struct GPUConfigSpace: Equatable, Sendable {
         self.capsetCount = capsetCount
     }
 
+    /// The configuration spaces the host writes, one after the other, to tell the guest that the display changed: the display
+    /// event cleared, then set. The guest never reaches the host's copy of `events_clear` (the framework gives no callback for
+    /// the guest's write), so the event would stay set after the first change, and a second update with the same bytes might not
+    /// interrupt the guest again. Writing the cleared space first makes every update after the first differ from the one before
+    /// it, and a guest that reads the cleared space has no event to handle and does nothing.
+    package static let displayChange = [
+        Self(eventsRead: 0, eventsClear: 0, scanoutCount: 1, capsetCount: 0),
+        Self(eventsRead: GPUWire.eventDisplay, eventsClear: 0, scanoutCount: 1, capsetCount: 0),
+    ]
+
     /// The 16 bytes the guest reads, in field order, each field little-endian.
     package var bytes: [UInt8] {
         [eventsRead, eventsClear, scanoutCount, capsetCount].flatMap { field in

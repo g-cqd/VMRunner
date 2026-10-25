@@ -22,6 +22,10 @@ final class CustomGPUSession: CustomDisplaySource {
             limits: limits, sinks: CustomGPUDevice.Sinks(showFrame: { screen.show($0) }, showCursor: { screen.show($0) }))
     }
 
+    func requestDisplaySize(width: UInt32, height: UInt32) -> Bool {
+        device.requestDisplaySize(width: width, height: height)
+    }
+
     nonisolated func makeConfiguration() -> VZCustomVirtioDeviceConfiguration {
         device.makeConfiguration()
     }

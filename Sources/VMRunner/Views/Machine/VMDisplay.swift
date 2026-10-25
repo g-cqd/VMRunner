@@ -51,6 +51,8 @@ extension VZGraphicsDisplay: ResizableDisplay {}
 @MainActor
 final class DisplayResizer {
     private var machine: VZVirtualMachine?
+    private var source: (any CustomDisplaySource)?
+    private var customDisplay: CustomGPUResizableDisplay?
     private var follower: DisplayFollower?
     private var trace: DisplayTrace?
     private var lastViewSize = CGSize.zero
@@ -64,13 +66,34 @@ final class DisplayResizer {
         if self.machine !== machine {
             self.machine = machine
             trace = DisplayTrace(machine: machine)
-            follower = DisplayFollower(
-                scale: scale, enabled: enabled, hold: holdFor, clock: ContinuousClock(),
-                display: { [weak machine] in machine?.graphicsDevices.first?.displays.first },
-                report: { [weak self] in self?.handle($0) })
-            if lastViewSize != .zero { follower?.viewResized(to: lastViewSize) }
+            makeFollower(scale: scale, enabled: enabled, holdFor: holdFor) { [weak machine] in
+                machine?.graphicsDevices.first?.displays.first
+            }
         }
         follower?.configure(scale: scale, enabled: enabled)
+    }
+
+    /// The same for a machine on the custom GPU: the display the follower resizes is the adapter over the source's device.
+    func configure(
+        source: any CustomDisplaySource, scale: Double, enabled: Bool, holdFor: Duration, guestAnswered: @escaping (Bool) -> Void
+    ) {
+        self.guestAnswered = guestAnswered
+        if self.source !== source {
+            self.source = source
+            let display = CustomGPUResizableDisplay(source: source)
+            customDisplay = display
+            makeFollower(scale: scale, enabled: enabled, holdFor: holdFor) { [weak display] in display }
+        }
+        follower?.configure(scale: scale, enabled: enabled)
+    }
+
+    private func makeFollower(
+        scale: Double, enabled: Bool, holdFor: Duration, display: @escaping () -> (any ResizableDisplay)?
+    ) {
+        follower = DisplayFollower(
+            scale: scale, enabled: enabled, hold: holdFor, clock: ContinuousClock(), display: display,
+            report: { [weak self] in self?.handle($0) })
+        if lastViewSize != .zero { follower?.viewResized(to: lastViewSize) }
     }
 
     func viewResized(to size: CGSize) {

@@ -36,8 +36,8 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   height of the Linux driver's largest scanout, so a hostile resource cannot hold the main queue for millions of rows.
 - The app's adapter (`Sources/VMRunner/Engine/CustomGPU`, macOS 27 only): the framework's delegates over the library, guest
   memory read through one bounds-checked copy, a configuration for the machine's `customVirtioDevices`, sinks for the
-  scanout's pictures and the guest's cursor, and a request to resize the display, which sets the display event in the
-  configuration space and answers the next display-information request with the new size. The size may be up to 8192 on a
+  scanout's pictures and the guest's cursor, and a request to resize the display, which writes the configuration space and
+  answers the next display-information request with the new size. The size may be up to 8192 on a
   side as long as one picture fits a resource (64 MiB), so 4K and 5K are allowed and 8K is not; a cursor image above 256 on a
   side is treated as no cursor. A queue notification is served in turns of at most 32 elements: when a turn ends on its
   budget, another is scheduled on the main actor, because the guest does not notify again for the rest of a batch and the
@@ -56,6 +56,15 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   for each of the eight formats), so making it costs one copy of the bytes (4 MB at 1280 × 800, 33 MB at 4K), not a pass over
   the pixels. Full screen swaps the view; the new one draws the screen from its newest picture, and the device keeps
   running. The view takes the keyboard but swallows key presses: input has no path yet.
+- Resizing follows the window like the framework's display does for a Linux guest: the same policy (`DisplayFollower`) drives an
+  adapter (`CustomGPUResizableDisplay`) over the device. A request sets the size the next display-information answer reports
+  and writes the configuration space twice, the display event cleared and then set, so that every write after the first
+  differs from the one before it (the guest's write to `events_clear` never reaches the host's copy, so the event would
+  otherwise stay set, and a second update with the same bytes might not interrupt the guest). The guest has answered when
+  it flushes a picture of the size that was asked for; the display's size is that of the newest picture, so a guest that
+  never draws at the new size is reported as ignoring the request and asked again, as with the framework's display. A size
+  the device cannot report (zero, a side above 8192, a picture over one resource) is refused. None of this has run against
+  a guest.
 - The scanout: `--headless-dump` writes the newest picture to `scanout.png` in the scratch directory (at most once a
   second), `--window` shows it in the runner's own window. The picture goes through a temporary file created with mode 0600
   and renamed into place, so it is never readable by others, not even for a moment.
@@ -109,9 +118,9 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 1. The cost of a flush: the library copies the scanout's rows once on each flush (about 4 MB at 1280 × 800) before the screen
    decides whether to draw it, and a scrolling console flushed over 300 times a second. A picture made only when the window
    asks would avoid that copy for the flushes it skips; it has not been measured in the app.
-2. Resizing: the configuration update re-triggers the display-information request (measured above) and the adapter answers
-   it with the new size, but a second resize has not been tried (the event bit stays set in the configuration space) and the
-   window that asks for the size does not exist yet.
+2. Resizing, against a guest: that the clear-then-set writes make a second and later resize re-trigger the display-information
+   request (one update was measured above, 0 ms later), and what the Linux driver does with a new size (whether it keeps the
+   console, how long it takes, whether it asks for a size above what one resource holds).
 3. A keyboard and a pointer for such a machine: a virtio input device under the same rules as the GPU (ADR-0058 item 7).
 4. A comparison with the framework's own graphics device: frame latency, CPU and memory per resource.
 5. 3D acceleration is not in scope of this work.

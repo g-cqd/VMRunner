@@ -52,14 +52,24 @@ final class CustomScreen {
     /// One refresh of a 60 Hz display.
     nonisolated static let frameInterval = Duration.milliseconds(16)
 
-    /// The size, in pixels, of the display the guest was told to use: what its display-information request answers.
-    private(set) var displaySize: CGSize
+    /// The size, in pixels, of the display the machine started with: what the guest's first display-information request answers.
+    let displaySize: CGSize
     /// The newest picture of the scanout, or `nil` before the guest's first flush.
     private(set) var frame: ScanoutUpdate?
     /// The cursor, or `nil` before the guest's first cursor request.
     private(set) var cursor: CursorState?
 
+    /// A registration for the size of each picture the guest draws; it ends when the registration is released.
+    final class FrameObservation {
+        fileprivate let handler: @MainActor (CGSize) -> Void
+
+        fileprivate init(_ handler: @escaping @MainActor (CGSize) -> Void) {
+            self.handler = handler
+        }
+    }
+
     private weak var presenter: (any ScreenPresenter)?
+    private var observations: [() -> FrameObservation?] = []
     private var throttle: FrameThrottle
     private var tick: Task<Void, Never>?
     private let sleep: (Duration) async throws -> Void
@@ -83,6 +93,19 @@ final class CustomScreen {
         tick?.cancel()
     }
 
+    /// The size of the picture the guest draws: the newest picture's, or before the first the size the machine started with.
+    var pictureSize: CGSize {
+        frame.map { CGSize(width: Int($0.width), height: Int($0.height)) } ?? displaySize
+    }
+
+    /// Calls `handler` with the size of every picture the guest flushes, each one, before the screen decides whether to draw it.
+    /// The registration lasts as long as the returned object is held.
+    func observeFrames(_ handler: @escaping @MainActor (CGSize) -> Void) -> AnyObject {
+        let observation = FrameObservation(handler)
+        observations.append { [weak observation] in observation }
+        return observation
+    }
+
     /// Makes `presenter` the one that draws, and gives it the newest picture and the cursor now. A presenter that was attached
     /// before is no longer called.
     func attach(_ presenter: some ScreenPresenter) {
@@ -102,6 +125,7 @@ final class CustomScreen {
 
     func show(_ update: ScanoutUpdate) {
         frame = update
+        notifyObservers(of: update)
         guard let presenter else { return }
         if let ready = throttle.offer(update, atMilliseconds: now()) {
             presenter.present(frame: ready)
@@ -113,6 +137,18 @@ final class CustomScreen {
     func show(_ update: CursorUpdate) {
         cursor = CursorState.after(update, previous: cursor)
         presenter?.present(cursor: cursor)
+    }
+
+    private func notifyObservers(of update: ScanoutUpdate) {
+        guard !observations.isEmpty else { return }
+        var live: [FrameObservation] = []
+        observations.removeAll { observation in
+            guard let observation = observation() else { return true }
+            live.append(observation)
+            return false
+        }
+        let size = CGSize(width: Int(update.width), height: Int(update.height))
+        for observation in live { observation.handler(size) }
     }
 
     /// One wait at most is pending: it ends a full interval after the picture it was started for was kept back, by when the

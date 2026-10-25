@@ -27,6 +27,7 @@ final class CustomGPUDevice: NSObject, @preconcurrency VZCustomVirtioDeviceConfi
         case unreadable
         case unanswered
         case writeFailed
+        case updateFailed
     }
 
     /// How many elements one turn serves before the main queue is given back to the app. Each element is bounded by the
@@ -46,15 +47,28 @@ final class CustomGPUDevice: NSObject, @preconcurrency VZCustomVirtioDeviceConfi
     }
 
     /// Resizes the display the guest sees: the next display-information answer reports `width` × `height`, and the guest is told
-    /// to ask for it by setting the display event in the configuration space. Returns `false` and changes nothing for a size
-    /// the library refuses (`GPULimits.allowsDisplay`).
-    func requestDisplaySize(width: UInt32, height: UInt32) async throws -> Bool {
+    /// to ask for it by writing the configuration space (`GPUConfigSpace.displayChange`) once the framework has made the device.
+    /// Returns `false` and changes nothing for a size the library refuses (`GPULimits.allowsDisplay`); `true` means the size is
+    /// taken and the guest is being told, not that it has asked. The framework's update is asynchronous; a failure of it is
+    /// logged once.
+    func requestDisplaySize(width: UInt32, height: UInt32) -> Bool {
         guard state.setDisplaySize(width: width, height: height) else { return false }
-        if let device {
-            let space = GPUConfigSpace(eventsRead: GPUWire.eventDisplay, eventsClear: 0, scanoutCount: 1, capsetCount: 0)
-            try await device.update(VZVirtioDeviceSpecificConfiguration(configurationData: Data(space.bytes)))
-        }
+        announceDisplayChange()
         return true
+    }
+
+    private func announceDisplayChange() {
+        guard let device else { return }
+        Task { [weak self] in
+            for space in GPUConfigSpace.displayChange {
+                do {
+                    try await device.update(VZVirtioDeviceSpecificConfiguration(configurationData: Data(space.bytes)))
+                } catch {
+                    self?.report(.updateFailed, "Couldn't tell the guest the display changed (\(error.logKind))")
+                    return
+                }
+            }
+        }
     }
 
     func customVirtioConfiguration(_ configuration: VZCustomVirtioDeviceConfiguration, didCreateDevice device: VZCustomVirtioDevice) {

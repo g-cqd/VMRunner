@@ -42,12 +42,12 @@ struct CustomGPUConfigurationTests {
     }
 
     @Test(.enabled(if: hostHasCustomDevices))
-    func aDisplaySizeOutsideTheLimitsIsRefusedWithoutAMachine() async throws {
+    func aDisplaySizeOutsideTheLimitsIsRefusedWithoutAMachine() {
         guard #available(macOS 27.0, *) else { return }
         let gpu = device()
-        let empty = try await gpu.requestDisplaySize(width: 0, height: 600)
-        let tooBig = try await gpu.requestDisplaySize(width: 7680, height: 4320)
-        let fine = try await gpu.requestDisplaySize(width: 3840, height: 2160)
+        let empty = gpu.requestDisplaySize(width: 0, height: 600)
+        let tooBig = gpu.requestDisplaySize(width: 7680, height: 4320)
+        let fine = gpu.requestDisplaySize(width: 3840, height: 2160)
         #expect(!empty && !tooBig)
         #expect(fine, "a size within the limits is taken, and no device is told yet")
     }

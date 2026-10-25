@@ -33,11 +33,12 @@ struct MachineView: View {
 /// makes (it needs the framework's machine, which this view does not name).
 private struct RunningScreen<Framework: View>: View {
     let model: MachineModel
+    let settings: MachineModel.DisplaySettings
     @ViewBuilder let framework: Framework
 
     var body: some View {
         if let source = model.customDisplay {
-            CustomGPUDisplay(source: source)
+            CustomGPUDisplay(source: source, settings: settings, guestAnswered: model.displayResizeAnswered)
         } else {
             framework
         }
@@ -63,7 +64,7 @@ private struct MachinePane: View {
                 HelpButton(.setup)
             }
         case .running(.virtualMachine(let machine, let settings)):
-            RunningScreen(model: model) {
+            RunningScreen(model: model, settings: settings) {
                 VMDisplay(machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered)
             }
             .overlay { MachineStatusOverlay(model: model) }

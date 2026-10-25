@@ -9,6 +9,11 @@ protocol CustomDisplaySource: AnyObject, Sendable {
     /// The picture and the cursor the guest draws.
     var screen: CustomScreen { get }
 
+    /// Asks the guest to resize its display to `width` × `height` pixels. `false` means the device refuses that size and changed
+    /// nothing; `true` means the guest is being told, not that it has drawn at the new size (the screen shows that when frames
+    /// of the new size arrive).
+    func requestDisplaySize(width: UInt32, height: UInt32) -> Bool
+
     /// The device for `VZVirtualMachineConfiguration.customVirtioDevices`. It is made off the main actor, with the rest of the
     /// configuration; the framework calls the device back on the main queue.
     @available(macOS 27.0, *)
