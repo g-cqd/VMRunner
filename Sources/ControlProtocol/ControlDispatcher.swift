@@ -65,7 +65,15 @@ public struct ControlDispatcher: Sendable {
         case .start: return Self.outcome(await machines.start(machineID), of: machineID, id: id)
         case .stop: return Self.outcome(await machines.stop(machineID, force: call.force), of: machineID, id: id)
         case .log: return Self.logAnswer(await machines.log(machineID), of: machineID, id: id)
+        case .screenshot: return Self.screenshot(await machines.screenshot(machineID), id: id)
         case .list, .state: return Self.result(machine, id: id)
+        }
+    }
+
+    private static func screenshot(_ outcome: ControlScreenshotOutcome, id: RPCID) -> RPCResponse {
+        switch outcome {
+        case .done(let shot): result(shot, id: id)
+        case .refused(let reason): RPCResponse(id: id, error: .refused.with(reason))
         }
     }
 
@@ -89,7 +97,8 @@ public struct ControlDispatcher: Sendable {
 
     private static func result(_ value: some Encodable, id: RPCID) -> RPCResponse {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
+        // Base64 holds slashes, and an escaped one would cost a byte each of the answer's limited length.
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         guard let json = try? encoder.encode(value) else { return RPCResponse(id: id, error: .internalError) }
         return RPCResponse(id: id, result: json)
     }

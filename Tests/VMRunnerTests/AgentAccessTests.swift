@@ -54,7 +54,8 @@ struct AgentAccessTests {
         let line = try #require(machine(guest).exposures.first { $0.text.hasPrefix("Agent access") })
         #expect(
             line.text == "Agent access: a script or AI agent with a control token can see this machine and start or stop it "
-                + "while the control service is on in Settings.")
+                + "while the control service is on in Settings. A token with the Read screen capability can also read the picture "
+                + "of the screen of a machine that uses the custom GPU.")
         #expect(line.level == .low)
     }
 

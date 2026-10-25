@@ -9,6 +9,8 @@ enum ControlExit {
     static let refused: Int32 = 1
     /// The token file is missing or cannot be read (`EX_NOINPUT`).
     static let noInput: Int32 = 66
+    /// A screenshot cannot be written to the file the caller named (`EX_CANTCREAT`).
+    static let cannotCreate: Int32 = 73
     /// Nothing serves the socket: the service is off or the app is not running (`EX_UNAVAILABLE`).
     static let unavailable: Int32 = 69
     /// No answer in time, or the service's own -32005 (`EX_TEMPFAIL`): what the call started may still finish.

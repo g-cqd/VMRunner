@@ -71,6 +71,20 @@ struct ControlInvocation {
         }
     }
 
+    /// Writes the PNG of a `machines.screenshot` answer to `path` (relative to the current directory), for its owner only, and
+    /// says so in one line.
+    static func save(screenshot data: Data, to path: String) throws -> String {
+        let shot = try decode(ControlScreenshot.self, from: data)
+        let file = URL(filePath: path, directoryHint: .notDirectory, relativeTo: URL.currentDirectory())
+        do {
+            try shot.data.write(to: file, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        } catch {
+            throw ToolError("cannot write the picture to \(path): \(error.localizedDescription)", status: ControlExit.cannotCreate)
+        }
+        return "\(shot.id.uuidString): \(shot.width) x \(shot.height) png, \(shot.data.count) bytes, written to \(path)"
+    }
+
     private static func errorJSON(code: Int, message: String) -> String {
         let object: [String: Any] = ["error": ["code": code, "message": message]]
         return text((try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data())

@@ -1,9 +1,9 @@
 import CryptoKit
 public import Foundation
 
-/// What a token allows. Each method needs one capability; later steps add screenshots, input and exec.
+/// What a token allows. Each method needs one capability; later steps add input and exec.
 public enum ControlCapability: String, Codable, CaseIterable, Hashable, Sendable {
-    case list, state, start, stop, log
+    case list, state, start, stop, log, screen
 
     /// How Settings names it.
     public var label: String {
@@ -13,6 +13,7 @@ public enum ControlCapability: String, Codable, CaseIterable, Hashable, Sendable
         case .start: "Start"
         case .stop: "Stop"
         case .log: "Read a container's log"
+        case .screen: "Read screen"
         }
     }
 }
@@ -28,6 +29,10 @@ public struct ControlToken: Codable, Equatable, Identifiable, Sendable {
     /// SHA-256 of the secret, in lowercase hex.
     let digest: String
 
+    fileprivate enum CodingKeys: String, CodingKey {
+        case id, name, capabilities, machines, created, digest
+    }
+
     /// Capabilities are written in a fixed order, so the token file is the same on every save. Files written in any order
     /// still decode, since the set is decoded as before.
     public func encode(to encoder: any Encoder) throws {
@@ -38,6 +43,27 @@ public struct ControlToken: Codable, Equatable, Identifiable, Sendable {
         try container.encodeIfPresent(machines, forKey: .machines)
         try container.encode(created, forKey: .created)
         try container.encode(digest, forKey: .digest)
+    }
+}
+
+extension ControlToken {
+    /// The token file as it is written, with the capabilities as plain words.
+    private struct Stored: Decodable {
+        let id: UUID
+        let name: String
+        let capabilities: [String]
+        let machines: [UUID]?
+        let created: Date
+        let digest: String
+    }
+
+    /// A capability this version does not know (a token file written by a newer app) is left out rather than failing the whole
+    /// file; a token left with none can do nothing. Saving the file again drops what was left out.
+    public init(from decoder: any Decoder) throws {
+        let stored = try Stored(from: decoder)
+        self.init(
+            id: stored.id, name: stored.name, capabilities: Set(stored.capabilities.compactMap(ControlCapability.init(rawValue:))),
+            machines: stored.machines, created: stored.created, digest: stored.digest)
     }
 }
 

@@ -54,11 +54,22 @@ public enum MCPStdio {
             if let code = answer.errorCode {
                 return MCPServer.toolResult(id: id, text: "error \(code): \(answer.errorMessage ?? "refused")", isError: true)
             }
+            if tool == .screenshot { return screenshot(from: answer, id: id) }
             let text = answer.result.flatMap { String(bytes: $0, encoding: .utf8) } ?? "null"
             return MCPServer.toolResult(id: id, text: text, isError: false)
         } catch {
             return MCPServer.toolResult(id: id, text: "the control service could not be used: \(error)", isError: true)
         }
+    }
+
+    /// A screenshot answer as MCP image content, with its size as text.
+    private static func screenshot(from answer: ControlAnswer, id: RPCID) -> Data {
+        guard let json = answer.result, let shot = try? JSONDecoder().decode(ControlScreenshot.self, from: json) else {
+            return MCPServer.toolResult(id: id, text: "the control service's answer cannot be read", isError: true)
+        }
+        return MCPServer.imageResult(
+            id: id, base64: shot.data.base64EncodedString(), mimeType: "image/\(shot.format)",
+            text: "\(shot.width) x \(shot.height) pixels, \(shot.format)")
     }
 
     private static func write(_ data: Data, to output: Int32) -> Bool {

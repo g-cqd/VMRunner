@@ -10,8 +10,10 @@ extension HelpCatalog {
                     + "that stays off until you turn it on in Settings. Each machine decides for itself: an agent sees and acts on "
                     + "a machine only while its **Allow agent access** switch is on.",
                 "With it on, an agent that holds a control token can list the machine, read its state, and start or stop it, as "
-                    + "far as its token allows. It cannot see the screen, type into the guest or run commands in it. For a container "
-                    + "machine it can also read the end of what the container printed, if its token has the log capability.",
+                    + "far as its token allows. With the **Read screen** capability it can also take a picture of the screen of a "
+                    + "machine that uses the custom GPU; a machine with the framework's own graphics has none to read yet. It "
+                    + "cannot type into the guest or run commands in it. For a container machine it can also read the end of what "
+                    + "the container printed, if its token has the log capability.",
                 "The Isolated and Hardened profiles turn it off. While it is on, \"What this machine can reach\" says so.",
             ],
             advanced: [
@@ -29,8 +31,8 @@ extension HelpCatalog {
                     + "stop them, and read a container's log. It is off until you turn on **Let scripts and AI agents control "
                     + "machines** in Settings.",
                 "Three things must all be true before anything happens: the service is on, the client presents a control token "
-                    + "that has the capability it needs (list, read state, start, stop, read a container's log), and the machine's "
-                    + "own **Allow agent access** switch is on.",
+                    + "that has the capability it needs (list, read state, start, stop, read a container's log, read screen), and "
+                    + "the machine's own **Allow agent access** switch is on.",
                 "Only your user account can open the socket, and nothing listens on the network. Every request refused for "
                     + "its token, its capability or a machine's access is logged, without the token.",
                 "Your organisation can keep it off with the managed setting `AllowControlService`.",
@@ -38,13 +40,15 @@ extension HelpCatalog {
             advanced: [
                 "The socket is `Control/control.sock` in VMRunner's data folder (`~/Library/Application Support/VMRunner`), mode "
                     + "0600 in a folder only you can enter. The protocol is JSON-RPC 2.0, one request per line: `machines.list`, "
-                    + "`machines.state`, `machines.start`, `machines.stop` and `machines.log`, each with `token` in its `params`, "
-                    + "and `machine` (the machine's id) for the last four. `machines.stop` asks the guest to shut down; with "
-                    + "`force` set to true it cuts the power. A container machine is listed with `workload` set to `container` "
-                    + "(a virtual machine has `vm`) and its `guest` is `linux`; `machines.stop` asks the container to stop, and "
-                    + "with `force` kills it. "
+                    + "`machines.state`, `machines.start`, `machines.stop`, `machines.log` and `machines.screenshot`, each with "
+                    + "`token` in its `params`, and `machine` (the machine's id) for the last five. `machines.stop` asks the guest "
+                    + "to shut down; with `force` set to true it cuts the power. A container machine is listed with `workload` set "
+                    + "to `container` (a virtual machine has `vm`) and its `guest` is `linux`; `machines.stop` asks the container "
+                    + "to stop, and with `force` kills it. "
                     + "`machines.log` answers `id`, `text` (the last 64 KiB at most of a container's output log, at a character boundary) "
-                    + "and `truncated`; a machine that is not a container refuses it. Batches are refused.",
+                    + "and `truncated`; a machine that is not a container refuses it. `machines.screenshot` answers `id`, `width`, "
+                    + "`height`, `format` (`png`) and `data` (the PNG, base64) for a running machine that uses the custom GPU, "
+                    + "at most 1280 pixels on its longest side and 700,000 bytes of PNG. Batches are refused.",
                 "Limits: a request is at most 64 KiB; 4 clients at a time; a client is disconnected after 10 seconds without a "
                     + "request; an answer that would take over 2 minutes says it timed out, and what it started goes on.",
                 #"From a terminal: `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"machines.list","params":{"token":"…"}}' "#
@@ -60,8 +64,8 @@ extension HelpCatalog {
                 "Give each script or agent its own token, so you can see what each may do and revoke one without touching "
                     + "the others.",
                 "To make one, type a name, tick what it may do (list machines, read their state, start, stop, read a container's "
-                    + "log), and choose **Create Token**. The token is shown once: copy it then. VMRunner keeps only a fingerprint "
-                    + "of it and cannot show it again; if it is lost, revoke it and make a new one.",
+                    + "log, read the screen), and choose **Create Token**. The token is shown once: copy it then. VMRunner keeps "
+                    + "only a fingerprint of it and cannot show it again; if it is lost, revoke it and make a new one.",
                 "**Revoke** removes a token: its next request is refused, even on a connection that is already open.",
                 "A token works only while the control service is on, and only on machines whose **Allow agent access** switch "
                     + "is on.",

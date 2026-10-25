@@ -316,12 +316,14 @@ extension VMConfig {
 }
 
 extension VMConfig {
-    /// A host-side door: it starts and stops the machine, it does not reach into the guest.
+    /// A host-side door: it starts and stops the machine; the one thing it reads of the guest is the picture of a custom GPU's
+    /// screen.
     var agentAccessExposure: Exposure {
         Exposure(
             level: .low,
             text: "Agent access: a script or AI agent with a control token can see this machine and start or stop it "
-                + "while the control service is on in Settings.")
+                + "while the control service is on in Settings. A token with the Read screen capability can also read the picture "
+                + "of the screen of a machine that uses the custom GPU.")
     }
 
     fileprivate var secureBootExposure: Exposure {

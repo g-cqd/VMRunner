@@ -112,6 +112,18 @@ struct ControlTokenStoreTests {
     }
 
     @Test
+    func aCapabilityThisVersionDoesNotKnowIsLeftOutAndTheTokenStillLoads() throws {
+        let folder = try ScratchFolder()
+        defer { folder.cleanUp() }
+        let file = folder.url.appending(path: "tokens.json")
+        let made = try ControlTokenStore(file: file).create(name: "agent", capabilities: [.list, .screen])
+        let text = try String(contentsOf: file, encoding: .utf8)
+        try Data(text.replacingOccurrences(of: "\"screen\"", with: "\"telepathy\"").utf8).write(to: file)
+        let reloaded = try ControlTokenStore(file: file)
+        #expect(reloaded.authenticate(made.secret)?.capabilities == [.list])
+    }
+
+    @Test
     func aFileThatDoesNotDecodeIsRefusedAndKept() throws {
         let folder = try ScratchFolder()
         defer { folder.cleanUp() }

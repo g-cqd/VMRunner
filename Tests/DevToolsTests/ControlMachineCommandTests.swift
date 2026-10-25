@@ -133,6 +133,49 @@ struct ControlMachineCommandTests {
     }
 
     @Test
+    func screenshotWritesThePNGToTheFileForItsOwnerOnly() async throws {
+        try await withService { fixture in
+            let environment = try fixture.environment([.screen])
+            let run = try await VMR.vmr(
+                ["control", "screenshot", alpha.id.uuidString, "--output", "shot.png", "--socket", fixture.socket],
+                in: fixture.folder, environment: environment)
+            #expect(run.status == 0, "\(run.combined)")
+            #expect(run.output == "\(alpha.id.uuidString): 4 x 3 png, 6 bytes, written to shot.png\n")
+            let file = fixture.folder.appending(path: "shot.png")
+            #expect(try Data(contentsOf: file) == MemoryMachines.picture)
+            #expect(try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int == 0o600)
+            #expect(fixture.machines.requests == ["screenshot \(alpha.id.uuidString)"])
+
+            let json = try await VMR.vmr(
+                ["control", "screenshot", alpha.id.uuidString, "--json", "--socket", fixture.socket], in: fixture.folder,
+                environment: environment)
+            #expect(json.status == 0, "\(json.combined)")
+            let shot = try JSONDecoder().decode(ControlScreenshot.self, from: Data(json.output.utf8))
+            #expect(shot.data == MemoryMachines.picture && shot.format == "png")
+        }
+    }
+
+    @Test
+    func screenshotNeedsAFileOrJSONButNotBothAndTheScreenCapability() async throws {
+        try await withService { fixture in
+            let environment = try fixture.environment([.screen])
+            let neither = try await VMR.vmr(
+                ["control", "screenshot", alpha.id.uuidString, "--socket", fixture.socket], in: fixture.folder, environment: environment)
+            #expect(neither.status == 64, "\(neither.combined)")
+            let both = try await VMR.vmr(
+                ["control", "screenshot", alpha.id.uuidString, "--json", "-o", "x.png", "--socket", fixture.socket],
+                in: fixture.folder, environment: environment)
+            #expect(both.status == 64, "\(both.combined)")
+            let lacking = try await VMR.vmr(
+                ["control", "screenshot", alpha.id.uuidString, "-o", "x.png", "--socket", fixture.socket], in: fixture.folder,
+                environment: try fixture.environment([.state]))
+            #expect(lacking.status == 77, "\(lacking.combined)")
+            #expect(!FileManager.default.fileExists(atPath: fixture.folder.appending(path: "x.png").path))
+            #expect(fixture.machines.requests.isEmpty)
+        }
+    }
+
+    @Test
     func stopAsksTheGuestAndForceCutsThePower() async throws {
         try await withService { fixture in
             let environment = try fixture.environment([.stop])

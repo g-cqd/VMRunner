@@ -16,6 +16,11 @@ struct MCPStdioTests {
         func start(_ id: UUID) async -> ControlOutcome { .done(.running) }
         func stop(_ id: UUID, force: Bool) async -> ControlOutcome { .done(force ? .stopped : .shuttingDown) }
         func log(_ id: UUID) async -> ControlLogOutcome { .text("the end of the log\n", truncated: true) }
+        func screenshot(_ id: UUID) async -> ControlScreenshotOutcome {
+            .done(ControlScreenshot(id: id, width: 3, height: 2, png: Self.picture))
+        }
+
+        static let picture = Data([0x89, 0x50, 0x4E, 0x47, 0xFF, 0xFE])
     }
 
     private let machines = TwoMachines()
@@ -112,6 +117,26 @@ struct MCPStdioTests {
         #expect(status == 0)
         #expect(try toolOutcome(answers[0]) == ("error -32003: Agent access is off for this machine", true))
         #expect(try toolOutcome(answers[1]) == ("error -32001: Not permitted", true))
+    }
+
+    @Test
+    func aScreenshotIsAnsweredAsImageContentAndNeedsItsCapability() async throws {
+        let open = machines.open.id.uuidString
+        let closed = machines.closed.id.uuidString
+        let (_, answers) = try await session([
+            call(1, "machines_screenshot", #"{"machine":"\#(open)"}"#), call(2, "machines_screenshot", #"{"machine":"\#(closed)"}"#),
+        ])
+        let result = try #require(answers[0]["result"] as? [String: Any])
+        #expect(result["isError"] as? Bool == false)
+        let content = try #require(result["content"] as? [[String: Any]])
+        #expect(content.first?["type"] as? String == "image")
+        #expect(content.first?["mimeType"] as? String == "image/png")
+        #expect(content.first?["data"] as? String == TwoMachines.picture.base64EncodedString())
+        #expect(content.last?["text"] as? String == "3 x 2 pixels, png")
+        #expect(try toolOutcome(answers[1]) == ("error -32003: Agent access is off for this machine", true))
+
+        let (_, lacking) = try await session([call(1, "machines_screenshot", #"{"machine":"\#(open)"}"#)], capabilities: [.list, .start])
+        #expect(try toolOutcome(lacking[0]) == ("error -32001: Not permitted", true))
     }
 
     @Test

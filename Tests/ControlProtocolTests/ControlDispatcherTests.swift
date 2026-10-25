@@ -15,10 +15,13 @@ struct ControlDispatcherTests {
         let denials: AsyncEventProbe<ControlDenial>
         let dispatcher: ControlDispatcher
 
-        init(_ list: [ControlMachine], startOutcome: ControlOutcome = .done(.running)) throws {
+        init(
+            _ list: [ControlMachine], startOutcome: ControlOutcome = .done(.running),
+            screenshotOutcome: ControlScreenshotOutcome? = nil
+        ) throws {
             folder = try ScratchFolder()
             store = try ControlTokenStore(file: folder.url.appending(path: "tokens.json"))
-            machines = FakeMachines(list, startOutcome: startOutcome)
+            machines = FakeMachines(list, startOutcome: startOutcome, screenshotOutcome: screenshotOutcome)
             let probe = AsyncEventProbe<ControlDenial>()
             denials = probe
             dispatcher = ControlDispatcher(tokens: store, machines: machines, report: { probe.record($0) })
@@ -155,6 +158,64 @@ struct ControlDispatcherTests {
         let state = try object(stateAnswer)
         #expect(state["name"] as? String == "m")
         #expect(state["state"] as? String == "stopped")
+    }
+
+    @Test
+    func aScreenshotNeedsTheScreenCapabilityAndAnswersThePictureOfTheMachine() async throws {
+        let machine = ControlMachine.fake("m")
+        let rig = try Rig([machine])
+        defer { rig.folder.cleanUp() }
+        let id = machine.id.uuidString
+        let without = try rig.secret([.list, .state, .start, .stop])
+        let refused = await rig.call("machines.screenshot", ["token": .string(without), "machine": .string(id)])
+        #expect(refused.error?.code == -32001)
+        #expect(rig.denials.events.map(\.reason) == [.missingCapability])
+        #expect(rig.machines.calls.events.isEmpty, "no screenshot was taken")
+
+        let answer = await rig.call("machines.screenshot", ["token": .string(try rig.secret([.screen])), "machine": .string(id)])
+        let shot = try object(answer)
+        #expect(Set(shot.keys) == ["id", "width", "height", "format", "data"])
+        #expect(shot["id"] as? String == id)
+        #expect(shot["width"] as? Int == 2 && shot["height"] as? Int == 1)
+        #expect(shot["format"] as? String == "png")
+        #expect(shot["data"] as? String == Data([0x89, 0x50, 0x4E, 0x47]).base64EncodedString())
+        #expect(rig.machines.calls.events == ["screenshot \(id)"])
+    }
+
+    @Test
+    func aScreenshotOfAMachineWithAgentAccessOffIsRefusedAndNotTaken() async throws {
+        let closed = ControlMachine.fake("closed", access: false)
+        let rig = try Rig([closed])
+        defer { rig.folder.cleanUp() }
+        let answer = await rig.call(
+            "machines.screenshot", ["token": .string(try rig.secret()), "machine": .string(closed.id.uuidString)])
+        #expect(answer.error?.code == -32003)
+        #expect(rig.denials.events.map(\.reason) == [.agentAccessOff])
+        #expect(rig.machines.calls.events.isEmpty)
+    }
+
+    @Test
+    func aRefusedScreenshotIsAnErrorThatSaysWhy() async throws {
+        let machine = ControlMachine.fake("m")
+        let rig = try Rig([machine], screenshotOutcome: .refused("Screenshots need the custom GPU for now."))
+        defer { rig.folder.cleanUp() }
+        let answer = await rig.call(
+            "machines.screenshot", ["token": .string(try rig.secret()), "machine": .string(machine.id.uuidString)])
+        #expect(answer.error == RPCError.refused.with("Screenshots need the custom GPU for now."))
+    }
+
+    @Test
+    func theLargestScreenshotStillFitsTheLongestAnswerAClientAccepts() async throws {
+        let machine = ControlMachine.fake("m")
+        // 0xFF bytes are base64 slashes, the character a JSON encoder escapes by default.
+        let largest = Data(repeating: 0xFF, count: ControlScreenshot.maximumBytes)
+        let shot = ControlScreenshot(id: machine.id, width: 1280, height: 800, png: largest)
+        let rig = try Rig([machine], screenshotOutcome: .done(shot))
+        defer { rig.folder.cleanUp() }
+        let answer = await rig.call(
+            "machines.screenshot", ["token": .string(try rig.secret()), "machine": .string(machine.id.uuidString)])
+        #expect(answer.error == nil)
+        #expect(answer.encoded().count < ControlClient.defaultAnswerBytes)
     }
 
     @Test

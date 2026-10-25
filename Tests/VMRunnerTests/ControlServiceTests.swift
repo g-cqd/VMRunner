@@ -1,9 +1,11 @@
 import ControlProtocol
 import Foundation
+import ImageIO
 import Synchronization
 import Testing
 
 @testable import VMRunner
+@testable import VirtioGPU
 
 /// A fixed list of machines for the service tests: nothing is started or stopped.
 struct StaticMachines: ControlMachines {
@@ -13,6 +15,7 @@ struct StaticMachines: ControlMachines {
     func start(_ id: UUID) async -> ControlOutcome { .refused("not in this test") }
     func stop(_ id: UUID, force: Bool) async -> ControlOutcome { .refused("not in this test") }
     func log(_ id: UUID) async -> ControlLogOutcome { .refused("not in this test") }
+    func screenshot(_ id: UUID) async -> ControlScreenshotOutcome { .refused("not in this test") }
 }
 
 /// The library as the control service sees it, with fake machines in a scratch folder.
@@ -78,6 +81,65 @@ struct LibraryControlMachinesTests {
         defer { rig.cleanUp() }
         open(rig)
         #expect(await rig.library.stopAndWait(rig.id, force: false) == .refused("“fake” is not running."))
+    }
+
+    private func frame(_ width: Int, _ height: Int) -> ScanoutUpdate {
+        ScanoutUpdate(
+            width: UInt32(width), height: UInt32(height), format: .b8g8r8x8,
+            pixels: (0..<(width * height * 4)).map { UInt8(truncatingIfNeeded: $0) })
+    }
+
+    @Test
+    func aScreenshotIsRefusedWhenAccessIsOffTheMachineIsStoppedOrItHasNoCustomGPU() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        let adapter = LibraryControlMachines(library: rig.library)
+        #expect(await adapter.screenshot(rig.id) == .refused("Agent access is off for this machine."))
+        open(rig)
+        #expect(await adapter.screenshot(rig.id) == .refused("The machine is not running."))
+        _ = await adapter.start(rig.id)
+        #expect(await adapter.screenshot(rig.id) == .refused("Screenshots need the custom GPU for now."))
+        let source = FakeCustomSource()
+        guest.customDisplay = source
+        #expect(await adapter.screenshot(rig.id) == .refused("The guest has not drawn anything yet."))
+        await rig.controller.forceStop()
+    }
+
+    @Test
+    func aScreenshotOfACustomGPUMachineIsAPNGOfItsScreenNoLargerThanTheLimit() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        let guest = rig.factory.add()
+        let source = FakeCustomSource()
+        guest.customDisplay = source
+        open(rig)
+        let adapter = LibraryControlMachines(library: rig.library)
+        _ = await adapter.start(rig.id)
+        source.screen.show(frame(2560, 1600))
+
+        guard case .done(let shot) = await adapter.screenshot(rig.id) else {
+            Issue.record("expected a screenshot")
+            return
+        }
+        #expect(shot.id == rig.id && shot.format == "png")
+        #expect(shot.width == 1280 && shot.height == 800)
+        #expect(shot.data.count <= ControlScreenshot.maximumBytes)
+        let image = try #require(
+            CGImageSourceCreateWithData(shot.data as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+        #expect(image.width == 1280 && image.height == 800)
+        await rig.controller.forceStop()
+    }
+
+    @Test
+    func aScreenshotIsRefusedWhileTheOrganisationKeepsTheServiceOff() async throws {
+        let rig = try ControllerRig()
+        defer { rig.cleanUp() }
+        open(rig)
+        let adapter = LibraryControlMachines(
+            library: rig.library,
+            policy: { ManagedPreferences(forcedValue: { $0 == ManagedKey.allowControlService.rawValue ? false : nil }) })
+        #expect(await adapter.screenshot(rig.id) == .refused("Your organisation does not allow the control service."))
     }
 
     @Test

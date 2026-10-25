@@ -92,3 +92,19 @@ container. An older app cannot load a `tokens.json` that lists `log`: it does no
 initialiser throws that the list cannot be read, the file is left untouched, and the older app accepts no token until it is
 upgraded. The exposure summary of a container with agent access on says that a token with this capability can read what the
 container printed.)
+
+(Update 2026-10-25: a further capability, `screen` ("Read screen", off unless ticked), and a further method,
+`machines.screenshot`, for a machine that uses the custom GPU only. The answer is `id`, `width`, `height`, `format` (`png`)
+and `data` (the PNG, base64). The app copies the newest picture the guest drew from the device's own screen, with no
+screen capture, no private interface and no AppKit, and makes a PNG of it with ImageIO, at most 1280 pixels on its longest
+side. A picture whose PNG is over 700,000 bytes (noise does not compress) is made smaller in steps until it fits, so the
+answer line always stays under the client's 1 MiB limit; the service now writes slashes unescaped for the same reason. A
+machine with the framework's own graphics, a macOS guest, a container and a machine that is not running are refused with a
+sentence. The checks are those of the other methods: the token, its capability, its machines and the machine's agent
+access, and the organisation's switch. This changes the exposure of agent access, which no longer stops at the host: a token
+with `screen` reads what the guest shows, so the machine's exposure line says so. The MCP tool `machines_screenshot` returns
+the picture as image content, and `vmr control screenshot` writes it to a file only the user can read. A token file that
+names a capability a version does not know now loads without it instead of failing; versions before this update refuse a
+file that holds `screen`, as the update above says they do for `log`, and keep it unchanged, so remove the token or the
+capability by hand to use them. The status
+stays proposed.)

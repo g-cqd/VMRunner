@@ -16,11 +16,11 @@ struct ControlCommand: AsyncParsableCommand {
 
             Exit status: 0 done; 1 the service refused the call (no such machine, agent access off, refused); 64 a usage \
             error, no token, or a token that is not one; 66 the token file cannot be read; 69 nothing serves the socket (the \
-            service is off or the app is not running); 75 no answer in time, and what the call started may still finish; 76 \
-            an answer this client cannot read; 77 not permitted (the token lacks the capability, the token file is open to \
-            other users, or another user serves the socket).
+            service is off or the app is not running); 73 a screenshot cannot be written to its file; 75 no answer in time, and \
+            what the call started may still finish; 76 an answer this client cannot read; 77 not permitted (the token lacks the \
+            capability, the token file is open to other users, or another user serves the socket).
             """,
-        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self, Log.self, MCP.self]
+        subcommands: [Status.self, List.self, State.self, Start.self, Stop.self, Log.self, Screenshot.self, MCP.self]
     )
 
     /// `--socket` and `--token-file`, shared by every subcommand.
@@ -225,6 +225,34 @@ struct ControlCommand: AsyncParsableCommand {
         }
     }
 
+    struct Screenshot: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Save a PNG of a running machine's screen to a file.",
+            discussion: """
+                Needs a token with the screen capability; naming the machine by its name also needs the list capability. Only a \
+                machine that uses the custom GPU has a screen to read. The picture is at most 1280 pixels on its longest side. \
+                The file is written for you only. With --json the service's answer is printed instead, the picture in it as \
+                base64, and no file is written.
+                """
+        )
+
+        @OptionGroup var options: MachineOptions
+
+        @Option(name: .shortAndLong, help: ArgumentHelp("The file to write the PNG to.", valueName: "file"))
+        var output: String?
+
+        func validate() throws {
+            if options.json == (output != nil) {
+                throw ValidationError("give --output FILE to save the picture, or --json to print the answer, not both")
+            }
+        }
+
+        func run() async throws {
+            let output = output ?? ""
+            try await options.call(.screenshot) { data in try ControlInvocation.save(screenshot: data, to: output) }
+        }
+    }
+
     struct MCP: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "mcp",
@@ -232,10 +260,10 @@ struct ControlCommand: AsyncParsableCommand {
             discussion: """
                 Give an agent's MCP configuration the built vmr binary with the arguments `control mcp`, and the token in \
                 VMR_CONTROL_TOKEN (or --token-file). It speaks the Model Context Protocol (2025-11-25, and 2025-06-18) as one \
-                JSON-RPC message per line and offers five tools, machines_list, machines_state, machines_start, machines_stop \
-                and machines_log: each one call of the control service with the token, so the service's checks decide what the \
-                agent may do. Only answers are written to standard output; it ends with its input. The service may be off \
-                when it starts: a tool call then answers that the service could not be used.
+                JSON-RPC message per line and offers six tools, machines_list, machines_state, machines_start, machines_stop, \
+                machines_log and machines_screenshot: each one call of the control service with the token, so the service's \
+                checks decide what the agent may do. Only answers are written to standard output; it ends with its input. The \
+                service may be off when it starts: a tool call then answers that the service could not be used.
                 """
         )
 

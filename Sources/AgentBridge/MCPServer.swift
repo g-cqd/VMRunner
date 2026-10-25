@@ -42,6 +42,13 @@ public enum MCPServer {
         reply(id, ["content": [["type": "text", "text": text]], "isError": isError])
     }
 
+    /// The line that answers the request `id` with a picture: `base64` as its image content of type `mimeType`, and `text` as a
+    /// text content that describes it.
+    public static func imageResult(id: RPCID, base64: String, mimeType: String, text: String) -> Data {
+        let image: [String: Any] = ["type": "image", "data": base64, "mimeType": mimeType]
+        return reply(id, ["content": [image, ["type": "text", "text": text]], "isError": false])
+    }
+
     private enum Parsed {
         case request(RPCID, String, [String: Any])
         case ignored
@@ -130,9 +137,9 @@ public enum MCPServer {
             "protocolVersion": protocolVersions.contains(requested) ? requested : protocolVersions[0],
             "capabilities": ["tools": ["listChanged": false]],
             "serverInfo": ["name": "vmrunner-control", "title": "VMRunner control", "version": "1.0.0"],
-            "instructions": "Lists, reads, starts and stops VMRunner machines, and reads a container's output log, through the "
-                + "app's local control service. Only machines whose agent access is on are visible, and the token decides which "
-                + "tools may act.",
+            "instructions": "Lists, reads, starts and stops VMRunner machines, reads a container's output log, and takes "
+                + "screenshots of machines that use the custom GPU, through the app's local control service. Only machines "
+                + "whose agent access is on are visible, and the token decides which tools may act.",
         ]
     }
 

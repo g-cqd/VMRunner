@@ -82,6 +82,35 @@ public struct ControlLog: Codable, Equatable, Sendable {
     }
 }
 
+/// A picture of a machine's screen, as `machines.screenshot` answers it. The data is a PNG, base64 in the JSON.
+public struct ControlScreenshot: Codable, Equatable, Sendable {
+    /// The most bytes of PNG the service answers with. Base64 makes it a third longer, and the answer must fit the longest line
+    /// a client accepts (`ControlClient.defaultAnswerBytes`, 1 MiB) with the rest of the answer.
+    public static let maximumBytes = 700_000
+
+    public let id: UUID
+    public let width: Int
+    public let height: Int
+    /// Always `png`.
+    public let format: String
+    public let data: Data
+
+    public init(id: UUID, width: Int, height: Int, png: Data) {
+        self.id = id
+        self.width = width
+        self.height = height
+        format = "png"
+        data = png
+    }
+}
+
+/// What a screenshot came to.
+public enum ControlScreenshotOutcome: Equatable, Sendable {
+    case done(ControlScreenshot)
+    /// Not done, with a sentence that says why.
+    case refused(String)
+}
+
 /// The machines the service acts on: the app's library, or a fake in tests.
 public protocol ControlMachines: Sendable {
     func machines() async -> [ControlMachine]
@@ -89,6 +118,7 @@ public protocol ControlMachines: Sendable {
     func stop(_ id: UUID, force: Bool) async -> ControlOutcome
     /// The end of a container machine's output log. A machine that is not a container has none.
     func log(_ id: UUID) async -> ControlLogOutcome
+    func screenshot(_ id: UUID) async -> ControlScreenshotOutcome
 }
 
 /// The methods of the control service, each needing one capability.
@@ -98,6 +128,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case start = "machines.start"
     case stop = "machines.stop"
     case log = "machines.log"
+    case screenshot = "machines.screenshot"
 
     public var capability: ControlCapability {
         switch self {
@@ -106,6 +137,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .start: .start
         case .stop: .stop
         case .log: .log
+        case .screenshot: .screen
         }
     }
 
@@ -113,7 +145,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     var parameters: Set<String> {
         switch self {
         case .list: ["token"]
-        case .state, .start, .log: ["token", "machine"]
+        case .state, .start, .log, .screenshot: ["token", "machine"]
         case .stop: ["token", "machine", "force"]
         }
     }

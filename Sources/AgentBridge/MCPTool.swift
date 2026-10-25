@@ -7,6 +7,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
     case log = "machines_log"
     case start = "machines_start"
     case stop = "machines_stop"
+    case screenshot = "machines_screenshot"
 
     /// The control method the tool calls.
     public var method: ControlMethod {
@@ -16,6 +17,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
         case .start: .start
         case .stop: .stop
         case .log: .log
+        case .screenshot: .screenshot
         }
     }
 
@@ -33,6 +35,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
         case .start: "Start a machine"
         case .stop: "Stop a machine"
         case .log: "Read a container's log"
+        case .screenshot: "Take a screenshot of a machine"
         }
     }
 
@@ -48,6 +51,9 @@ public enum MCPTool: String, CaseIterable, Sendable {
         case .log:
             "Reads the end of a container machine's output log, at most 64 KiB, as JSON with the text and whether there was more. "
                 + "A virtual machine has no such log."
+        case .screenshot:
+            "Takes a PNG screenshot of a running machine's screen, at most 1280 pixels on its longest side. "
+                + "Only machines that use the custom GPU have one to read."
         }
     }
 
@@ -55,7 +61,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
         let machine: [String: Any] = ["type": "string", "description": "The machine's id, as machines_list gives it."]
         switch self {
         case .list: return [:]
-        case .state, .start, .log: return ["machine": machine]
+        case .state, .start, .log, .screenshot: return ["machine": machine]
         case .stop:
             let force: [String: Any] = [
                 "type": "boolean", "description": "Cut the power at once instead of asking the guest to shut down.",
@@ -66,7 +72,7 @@ public enum MCPTool: String, CaseIterable, Sendable {
 
     private var annotations: [String: Any] {
         switch self {
-        case .list, .state, .log: ["readOnlyHint": true, "openWorldHint": false]
+        case .list, .state, .log, .screenshot: ["readOnlyHint": true, "openWorldHint": false]
         case .start: ["readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false]
         case .stop: ["readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false]
         }

@@ -55,22 +55,27 @@ struct MCPServerTests {
     }
 
     @Test
-    func theToolsAreTheFiveControlMethodsWithStrictSchemas() throws {
+    func theToolsAreTheSixControlMethodsWithStrictSchemas() throws {
         let tools = try #require(try result(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)["tools"] as? [[String: Any]])
         #expect(
             tools.compactMap { $0["name"] as? String } == [
-                "machines_list", "machines_state", "machines_log", "machines_start", "machines_stop",
+                "machines_list", "machines_state", "machines_log", "machines_start", "machines_stop", "machines_screenshot",
             ])
         for tool in tools {
             let schema = try #require(tool["inputSchema"] as? [String: Any])
             #expect(schema["type"] as? String == "object")
             #expect(schema["additionalProperties"] as? Bool == false)
         }
-        let stop = try #require(tools.last?["inputSchema"] as? [String: Any])
-        #expect(((stop["properties"] as? [String: Any])?["force"] as? [String: Any])?["type"] as? String == "boolean")
-        #expect(stop["required"] as? [String] == ["machine"])
+        let stop = try #require(tools.first { $0["name"] as? String == "machines_stop" })
+        let stopSchema = try #require(stop["inputSchema"] as? [String: Any])
+        #expect(((stopSchema["properties"] as? [String: Any])?["force"] as? [String: Any])?["type"] as? String == "boolean")
+        #expect(stopSchema["required"] as? [String] == ["machine"])
         #expect((tools.first?["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true)
-        #expect((tools.last?["annotations"] as? [String: Any])?["destructiveHint"] as? Bool == true)
+        #expect((stop["annotations"] as? [String: Any])?["destructiveHint"] as? Bool == true)
+        let screenshot = try #require(tools.first { $0["name"] as? String == "machines_screenshot" })
+        #expect((screenshot["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true)
+        #expect((screenshot["inputSchema"] as? [String: Any])?["required"] as? [String] == ["machine"])
+        #expect(MCPTool.screenshot.method == .screenshot)
     }
 
     @Test

@@ -47,7 +47,7 @@ final class MemoryMachines: ControlMachines {
 
     init(_ list: [ControlMachine]) { state = Mutex((list, [])) }
 
-    /// The starts and stops asked for, oldest first: `start <id>`, `stop <id>`, `stop <id> force`.
+    /// The requests made, oldest first: `start <id>`, `stop <id>`, `stop <id> force`, `log <id>`, `screenshot <id>`.
     var requests: [String] { state.withLock { $0.requests } }
 
     func machines() async -> [ControlMachine] { state.withLock { $0.list } }
@@ -69,6 +69,14 @@ final class MemoryMachines: ControlMachines {
         record("log \(id.uuidString)")
         return .text(Self.logText, truncated: false)
     }
+
+    func screenshot(_ id: UUID) async -> ControlScreenshotOutcome {
+        record("screenshot \(id.uuidString)")
+        return .done(ControlScreenshot(id: id, width: 4, height: 3, png: Self.picture))
+    }
+
+    /// What every screenshot answers: not a picture, only bytes to compare.
+    static let picture = Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF])
 
     private func record(_ request: String) { state.withLock { $0.requests.append(request) } }
 }
