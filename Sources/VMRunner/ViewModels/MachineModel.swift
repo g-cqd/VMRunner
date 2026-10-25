@@ -38,7 +38,7 @@ final class MachineModel {
         /// How much of `DisplayFollower.firmwareHold` is left at `now`: a view made later in the run (full screen swaps it) has
         /// none, and neither has a macOS guest or one restored from saved state.
         func firmwareHoldRemaining(at now: ContinuousClock.Instant) -> Duration {
-            guard guest == .linux, let firmwareStartedAt else { return .zero }
+            guard guest.usesGenericPlatform, let firmwareStartedAt else { return .zero }
             return max(.zero, DisplayFollower.firmwareHold - firmwareStartedAt.duration(to: now))
         }
     }

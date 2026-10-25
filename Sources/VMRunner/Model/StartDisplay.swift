@@ -114,7 +114,10 @@ enum StartDisplay {
 
     /// What `VMConfig.new` gives a guest.
     private static func defaultSize(for guest: GuestOS) -> (width: Int, height: Int) {
-        guest == .linux ? (1280, 800) : (1920, 1200)
+        switch guest {
+        case .macOS, .windows: (1920, 1200)
+        case .linux: (1280, 800)
+        }
     }
 
     private static func fitted(_ width: Double, _ height: Double, capped: Bool) -> (width: Int, height: Int) {

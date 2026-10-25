@@ -26,7 +26,8 @@ struct SharingSection: View {
                 }
             }
             Button("Add Shared Folder…", systemImage: "plus") { choosingFolder = true }.managedLock(.allowSharedFolders)
-            if !folders.isEmpty { mountHint }
+            // The hint quotes a mount command; a Windows guest has none to quote.
+            if !folders.isEmpty, guest != .windows { mountHint }
             if guest == .linux {
                 Toggle("Share clipboard (SPICE agent)", isOn: $clipboard).managedLock(.allowClipboardSharing).settingHelp(.clipboard)
                 Text("Needs spice-vdagent running in the guest.")

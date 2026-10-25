@@ -132,7 +132,7 @@ struct VZMachineFactory: MachineFactory {
         let built = try await ConfigurationBuilder.buildInBackground(config, bundle: bundle, display: display, customGPU: customGPU)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }
         let suspend =
-            config.customGPUSuspendReason().map { SuspendSupport.unavailable(reason: $0) }
+            (config.guestSuspendReason ?? config.customGPUSuspendReason()).map { SuspendSupport.unavailable(reason: $0) }
             ?? Self.suspendSupport(of: built.configuration, allowed: suspendAllowed, filtered: config.networkMode == .filtered)
         let machine = VZVirtualMachine(configuration: built.configuration)
         return PreparedMachine(

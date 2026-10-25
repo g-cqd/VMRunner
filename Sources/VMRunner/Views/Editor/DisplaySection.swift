@@ -21,7 +21,7 @@ struct DisplaySection: View {
                     step: EditorLimits.pixelsPerInchStep, text: "\(pixelsPerInch) ppi"
                 )
                 .settingHelp(.pixelDensity)
-            } else {
+            } else if guest == .linux {
                 Text(
                     "Linux starts at no more than 1280 pixels wide, in the shape of the window, so UEFI and GRUB text stays "
                         + "legible, then follows the window once the system runs. A fixed size keeps the same aspect ratio only if "

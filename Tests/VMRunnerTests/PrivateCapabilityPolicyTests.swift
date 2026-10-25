@@ -124,8 +124,8 @@ struct PrivateCapabilityPolicyTests {
         #expect(line.text.contains("does not document"))
     }
 
-    @Test(arguments: GuestOS.allCases)
-    func theGuestsTheAppBuildsTodayUseNoPrivateInterfaceAndShowNoLine(guest: GuestOS) {
+    @Test(arguments: [GuestOS.macOS, .linux])
+    func macOSAndLinuxUseNoPrivateInterfaceAndShowNoLine(guest: GuestOS) {
         let config = machine(guest)
         #expect(config.privateCapabilities.isEmpty)
         #expect(!config.exposures.contains { $0.text.hasPrefix("Private interface") })

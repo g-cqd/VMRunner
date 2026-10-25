@@ -37,6 +37,7 @@ extension VMConfig {
         try validateHostPaths()
         try validateRules()
         try validateContainer()
+        try validateGuest()
         try Self.require(diskGiB, in: 1...EditorLimits.maxDiskGiB, "diskGiB")
         try Self.require(displayWidth, in: EditorLimits.displayWidth, "displayWidth")
         try Self.require(displayHeight, in: EditorLimits.displayHeight, "displayHeight")
@@ -86,6 +87,18 @@ extension VMConfig {
                     "networkPolicy.\(list.rawValue)", "must hold rules of at most \(EditorLimits.maxRuleLength) characters")
             }
         }
+    }
+
+    /// A Windows machine has none of the Linux-only features: a stored value that turns one on is refused, as a value out of
+    /// range is. Shared folders and the clipboard setting are not refused: the first is guest-neutral, and the standard security
+    /// profile sets the second on every guest, where nothing but a Linux machine acts on it.
+    private func validateGuest() throws {
+        guard guest == .windows else { return }
+        let linuxOnly: [(key: String, isOn: Bool)] = [
+            ("gpu", gpu != .apple), ("rosetta", rosetta), ("nestedVirtualization", nestedVirtualization),
+            ("serialConsole", serialConsole), ("secureBoot", secureBoot), ("provisioningSpecPath", !provisioningSpecPath.isEmpty),
+        ]
+        if let refused = linuxOnly.first(where: \.isOn) { throw Self.corrupted(refused.key, "is not available for a Windows machine") }
     }
 
     /// A container machine's spec, within what the container runner accepts. A virtual machine ignores its `container`.

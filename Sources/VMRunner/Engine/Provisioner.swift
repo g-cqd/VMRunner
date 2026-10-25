@@ -9,6 +9,7 @@ enum Provisioner {
         switch config.guest {
         case .linux: try await provisionLinux(config, library, job)
         case .macOS: try await provisionMac(config, library, job)
+        case .windows: throw SetupError.unsupportedGuest(config.guest)
         }
     }
 

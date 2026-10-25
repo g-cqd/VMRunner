@@ -62,6 +62,9 @@ final class NewMachineModel {
         case .linux:
             if case .file = linuxSource { return hasStorableLocalPath }
             return true
+        case .windows:
+            // The sheet does not offer a Windows machine: nothing here can make one.
+            return false
         }
     }
 
@@ -88,6 +91,8 @@ final class NewMachineModel {
             case .catalog(let id): machine.source = .linuxCatalog(id: id)
             case .file: machine.source = localPath.map(ImageSource.local)
             }
+        case .windows:
+            break
         }
         return machine
     }
@@ -125,7 +130,7 @@ final class NewMachineModel {
     func guestChanged(to guest: GuestOS) {
         let name = config.name
         let id = config.id
-        config = .new(name: name == "macOS" || name == "Linux" ? guest.label : name, guest: guest)
+        config = .new(name: GuestOS.allCases.map(\.label).contains(name) ? guest.label : name, guest: guest)
         config.id = id
         localPath = nil
     }

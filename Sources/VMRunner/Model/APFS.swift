@@ -160,7 +160,7 @@ extension VMBundle {
         try APFS.clone(disk, to: ephemeralDisk)
         switch guest {
         case .macOS: try APFS.clone(auxiliaryStorage, to: ephemeralAuxiliaryStorage)
-        case .linux: try APFS.clone(efiVariables, to: ephemeralEFIVariables)
+        case .linux, .windows: try APFS.clone(efiVariables, to: ephemeralEFIVariables)
         }
         if let identity { try identity.writePrivately(to: ephemeralMachineIdentifier) }
     }

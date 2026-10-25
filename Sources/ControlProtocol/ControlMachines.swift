@@ -9,7 +9,7 @@ public enum ControlState: String, Codable, CaseIterable, Sendable {
 public struct ControlMachine: Codable, Equatable, Sendable {
     public let id: UUID
     public let name: String
-    /// `macOS` or `linux`. A container machine reports `linux`: the container runs a Linux userland, and `guest` has only
+    /// `macOS`, `linux` or `windows`. A container machine reports `linux`: the container runs a Linux userland, and `guest` has only
     /// ever named an operating system, so a client that switches on it keeps working. Tell a container from a virtual
     /// machine by `workload`.
     public let guest: String

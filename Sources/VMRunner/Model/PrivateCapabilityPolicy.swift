@@ -68,11 +68,12 @@ enum PrivateInterfacesKillSwitch {
 }
 
 extension VMConfig {
-    /// The private interfaces this machine's start would use, each listed in its exposure summary. The guests the app builds
-    /// today use none; a guest that needs one names it here, and the switch fails to compile until it does.
+    /// The private interfaces this machine's start would use, each listed in its exposure summary. A Windows machine needs the
+    /// performance-monitoring emulation; a guest that needs another names it here, and the switch fails to compile until it does.
     var privateCapabilities: [PrivateCapabilityID] {
         switch guest {
         case .macOS, .linux: []
+        case .windows: [.performanceMonitoringEmulation]
         }
     }
 }

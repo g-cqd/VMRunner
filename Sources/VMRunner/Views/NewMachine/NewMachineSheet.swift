@@ -22,7 +22,7 @@ struct NewMachineSheet: View {
                 }
                 if model.workload == .vm {
                     Picker("Guest", selection: $model.config.guest) {
-                        ForEach(GuestOS.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                        ForEach(GuestOS.newMachineChoices) { Label($0.label, systemImage: $0.symbol).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .settingHelp(.guestSystems)

@@ -56,6 +56,7 @@ enum ConfigurationBuilder {
         switch config.guest {
         case .macOS: try configureMac(vz, config, bundle, display)
         case .linux: try configureLinux(vz, config, bundle, display, customGPU)
+        case .windows: throw SetupError.unsupportedGuest(config.guest)
         }
 
         vz.storageDevices += try storage(for: config, bundle: bundle)
@@ -232,12 +233,12 @@ enum ConfigurationBuilder {
         return devices
     }
 
-    /// The machine's own disk: an NVMe drive when a Linux machine asks for one, otherwise a virtio disk that reports the
+    /// The machine's own disk: an NVMe drive when a Linux or Windows machine asks for one, otherwise a virtio disk that reports the
     /// machine's serial number, if it has one.
     private static func mainDisk(
         _ attachment: VZDiskImageStorageDeviceAttachment, for config: VMConfig
     ) throws -> VZStorageDeviceConfiguration {
-        if config.guest == .linux, config.diskInterface == .nvme {
+        if config.usesNVMeMainDisk {
             return VZNVMExpressControllerDeviceConfiguration(attachment: attachment)
         }
         let disk = VZVirtioBlockDeviceConfiguration(attachment: attachment)

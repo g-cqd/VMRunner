@@ -3,11 +3,35 @@ import NetPolicy
 import NetStack
 
 enum GuestOS: String, Codable, CaseIterable, Identifiable, Sendable {
-    case macOS, linux
+    case macOS, linux, windows
+
+    /// The guests the New Machine sheet offers. A guest is listed here only once the sheet can set it up.
+    static let newMachineChoices: [Self] = [.macOS, .linux]
 
     var id: Self { self }
-    var label: String { self == .macOS ? "macOS" : "Linux" }
-    var symbol: String { self == .macOS ? "apple.logo" : "terminal" }
+    var label: String {
+        switch self {
+        case .macOS: "macOS"
+        case .linux: "Linux"
+        case .windows: "Windows"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .macOS: "apple.logo"
+        case .linux: "terminal"
+        case .windows: "pc"
+        }
+    }
+
+    /// Whether the guest runs on the framework's generic platform with EFI firmware and a virtio graphics device (Linux and
+    /// Windows), as opposed to the Mac platform. Display sizing, firmware state and the installer drive follow this.
+    var usesGenericPlatform: Bool {
+        switch self {
+        case .macOS: false
+        case .linux, .windows: true
+        }
+    }
 }
 
 enum NetworkMode: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -137,7 +161,7 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var diskGiB: Int
     var diskCaching = DiskCaching.automatic
     var diskSync = DiskSync.full
-    /// Linux only: how the machine's own disk is attached. NVMe shows the guest no virtio storage device.
+    /// Linux and Windows only: how the machine's own disk is attached. NVMe shows the guest no virtio storage device.
     var diskInterface = DiskInterface.virtio
     /// The serial number the virtio disk reports to the guest, at most `EditorLimits.maxDiskSerialLength` ASCII
     /// characters; empty reports none.
@@ -145,9 +169,9 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var extraDisks: [ExtraDisk] = []
     var installerISO: String?
     var installerAttached = true
-    /// The installer image the machine boots with attached as a read-only USB drive: Linux guests only, and only while
-    /// attached. The guest can read the whole file, so this is a host channel like a shared folder.
-    var attachedInstallerPath: String? { guest == .linux && installerAttached ? installerISO : nil }
+    /// The installer image the machine boots with attached as a read-only USB drive: Linux and Windows guests only, and only
+    /// while attached. The guest can read the whole file, so this is a host channel like a shared folder.
+    var attachedInstallerPath: String? { guest.usesGenericPlatform && installerAttached ? installerISO : nil }
 
     // Display
     var displayWidth = 1920
@@ -243,19 +267,41 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var provisioning = Provisioning()
 
     static func new(name: String, guest: GuestOS) -> Self {
-        let hostCPUs = ProcessInfo.processInfo.activeProcessorCount
-        let hostMemoryGiB = Int(ProcessInfo.processInfo.physicalMemory >> 30)
+        new(
+            name: name, guest: guest, hostCPUs: ProcessInfo.processInfo.activeProcessorCount,
+            hostMemoryGiB: Int(ProcessInfo.processInfo.physicalMemory >> 30))
+    }
+
+    /// The defaults of a new machine on a host with `hostCPUs` processors and `hostMemoryGiB` of memory: half the host's, up to
+    /// what the guest is given on a large host. A Windows machine gets 4 processors, 8 GiB and a 64 GiB NVMe disk there, no
+    /// sound, no clipboard sharing and none of the Linux-only features.
+    static func new(name: String, guest: GuestOS, hostCPUs: Int, hostMemoryGiB: Int) -> Self {
+        let memoryGiB: Int
+        let diskGiB: Int
+        switch guest {
+        case .macOS: (memoryGiB, diskGiB) = (8, 100)
+        case .linux: (memoryGiB, diskGiB) = (4, 64)
+        case .windows: (memoryGiB, diskGiB) = (8, 64)
+        }
         var config = Self(
             name: name,
             guest: guest,
             cpuCount: max(2, min(4, hostCPUs / 2)),
-            memoryMiB: min(guest == .macOS ? 8 : 4, max(2, hostMemoryGiB / 2)) * 1024,
-            diskGiB: guest == .macOS ? 100 : 64
+            memoryMiB: min(memoryGiB, max(2, hostMemoryGiB / 2)) * 1024,
+            diskGiB: diskGiB
         )
-        if guest == .linux {
+        switch guest {
+        case .macOS:
+            break
+        case .linux:
             config.pointingDevice = .mouse
             config.displayWidth = 1280
             config.displayHeight = 800
+        case .windows:
+            config.pointingDevice = .mouse
+            config.diskInterface = .nvme
+            config.audioOutput = false
+            config.sharesClipboard = false
         }
         return config
     }
@@ -282,6 +328,8 @@ extension VMConfig {
         }
         // A graphics device this version does not know (a file written by a newer one) falls back to the default one.
         if (stored["gpu"] as? String).flatMap(GPUChoice.init(rawValue:)) == nil { stored["gpu"] = nil }
+        // A guest this version does not know is read with a Linux machine's defaults for the merge, and then fails to decode:
+        // the library skips that machine alone. A file without the key is a Linux machine.
         let guest = (stored["guest"] as? String).flatMap(GuestOS.init(rawValue:)) ?? .linux
         let defaults = try JSONSerialization.jsonObject(with: Self.new(name: "", guest: guest).encoded()) as? [String: Any] ?? [:]
         let merged = overlay(stored, on: defaults)
@@ -340,9 +388,22 @@ extension VMConfig {
         usesCustomGPU && hostSupports ? "Suspend is not available with the custom GPU: its state cannot be saved." : nil
     }
 
-    /// The disk as the machine builds it: an NVMe drive only for a Linux guest, and a serial number only on a virtio disk.
+    /// Why suspend is unavailable because of the guest, or nil when the guest does not stand in its way. A Windows machine
+    /// is never suspended.
+    var guestSuspendReason: String? {
+        switch guest {
+        case .macOS, .linux: nil
+        case .windows: "Suspend is not available for Windows machines."
+        }
+    }
+
+    /// Whether the machine's own disk is an NVMe drive: only a Linux or Windows guest can ask for one.
+    var usesNVMeMainDisk: Bool { guest.usesGenericPlatform && diskInterface == .nvme }
+
+    /// The disk as the machine builds it: an NVMe drive only for a Linux or Windows guest, and a serial number only on a virtio
+    /// disk.
     private var effectiveDisk: (nvme: Bool, serial: String) {
-        let nvme = guest == .linux && diskInterface == .nvme
+        let nvme = usesNVMeMainDisk
         return (nvme, nvme ? "" : diskSerial)
     }
 }
