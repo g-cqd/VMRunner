@@ -34,7 +34,7 @@ enum HelpTopic: String, CaseIterable, Identifiable, Hashable, Sendable {
     case networkPolicy, policyRules, policyLimits, guestVpn, killSwitch
     // Security
     case securityProfiles, disposable, secureBoot, exposureSummary, devices, memoryBalloon, entropy, vsock, serialConsole, guestIdentity
-    case agentAccess
+    case agentAccess, privateInterfaces
     // macOS guests
     case bootRecovery, firstBootAccount
     // Snapshots and copies

@@ -11,6 +11,7 @@ enum ManagedKey: String, CaseIterable, Sendable {
     case allowControlService = "AllowControlService"
     case allowProvisioning = "AllowProvisioning"
     case allowCustomGPU = "AllowCustomGPU"
+    case allowPrivateInterfaces = "AllowPrivateInterfaces"
     case allowContainers = "AllowContainers"
     case requireDisposableMachines = "RequireDisposableMachines"
     case maxRuntimeMinutes = "MaxRuntimeMinutes"

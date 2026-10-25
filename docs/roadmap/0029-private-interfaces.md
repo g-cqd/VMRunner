@@ -19,6 +19,11 @@ fail-closed paths and a contract test that skips where the selectors are absent.
 runtime's lookup functions out of every other target. Policy (the Hardened and Isolated postures, the managed key) is not
 part of the module.
 
+2026-10-25: the policy is in the app. `PrivateCapabilityPolicy.decide` turns a private interface off when the machine matches the
+Isolated or Hardened profile, when the managed key `AllowPrivateInterfaces` is forced to anything but true, or when the developer
+default `DisablePrivateInterfaces` is on, and it names the first of those in that order. The exposure summary lists each private
+interface a machine would use, and the help has a topic for them. No guest uses one yet.
+
 ## Done when
 
 The module exists, a lint test keeps private lookups out of every other target, both capabilities validate on this host (or

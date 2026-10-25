@@ -42,7 +42,9 @@ let package = Package(
             path: "Sources/VMRunner", swiftSettings: hardening),
         .testTarget(
             name: "VMRunnerTests",
-            dependencies: ["VMRunner", "ControlProtocol", "NetPolicy", "NetStack", "VirtioGPU", "VirtioInput", "TestKit"],
+            dependencies: [
+                "VMRunner", "ControlProtocol", "NetPolicy", "NetStack", "PrivateInterfaces", "VirtioGPU", "VirtioInput", "TestKit",
+            ],
             path: "Tests/VMRunnerTests",
             swiftSettings: hardening),
 

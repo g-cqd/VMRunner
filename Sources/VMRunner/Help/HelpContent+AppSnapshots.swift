@@ -123,6 +123,8 @@ extension HelpCatalog {
                     + "sheet offers no Container kind. A container machine that already exists stays in the library. "
                     + "`RequireDisposableMachines` does not make a container's cache disposable.",
                 "• `AllowCustomGPU`: set to false, every machine uses Apple's graphics device.",
+                "• `AllowPrivateInterfaces`: set to false, no machine uses an interface Apple's framework does not document, "
+                    + "and a machine that needs one will not start.",
                 "• `RequireDisposableMachines`: set to true, every machine is disposable.",
                 "• `MaxRuntimeMinutes`: every machine stops after at most that many minutes (from 15 to 1440); 0 sets no limit.",
                 "For the app itself, any of `hidesToolbarInFullScreen`, `keepsRestoreImages`, `holdsLatencyActivity`, "

@@ -220,6 +220,30 @@ extension HelpCatalog {
             ],
             related: [.securityProfiles, .linuxImages]
         ),
+        .privateInterfaces: HelpEntry(
+            area: .security,
+            title: "Private interfaces",
+            summary: "A few features use a framework switch Apple does not document. Strict profiles turn them off.",
+            paragraphs: [
+                "Apple documents what its virtualization framework can do. A few features need something it does not "
+                    + "document. Today there is one: **performance-monitoring emulation**, for Windows on ARM guests.",
+                "The app reaches it through one checked path. Before each use it confirms that your Mac's macOS build is one "
+                    + "the switch was tried on and that the framework still has it in the expected shape, then sets it and "
+                    + "reads the value back. If any check fails, the feature stays off and the machine says why.",
+                "A machine that uses a private interface cannot use it under the Isolated or Hardened profile, and your "
+                    + "organisation can turn every private interface off with `AllowPrivateInterfaces`. \"What this machine "
+                    + "can reach\" lists each one a machine would use.",
+                "Because the switch is not documented, a macOS update can remove or change it, and an app that uses it cannot "
+                    + "be offered on the Mac App Store.",
+            ],
+            advanced: [
+                "A developer can turn every private interface off with a hidden default, `DisablePrivateInterfaces`, in the "
+                    + "app's defaults domain (`defaults write` with the app's bundle identifier, the key and `-bool true`). It "
+                    + "is read when a machine starts and is not a setting in the app; any value but an explicit false turns "
+                    + "them off. Nothing here changes macOS or switches off any of its protections."
+            ],
+            related: [.securityProfiles, .exposureSummary, .managedSettings]
+        ),
         .exposureSummary: HelpEntry(
             area: .security,
             title: "What this machine can reach",

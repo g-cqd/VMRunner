@@ -154,7 +154,7 @@ struct ModuleBoundaryTests {
     }
 
     /// The code that looks an interface up by name (ADR-0019, ADR-0059) depends on no target and no package, and no target links
-    /// it but the app and its own tests.
+    /// it but the app and the tests of the app and of itself.
     @Test
     func thePrivateInterfacesLibraryDependsOnNothingAndOnlyTheAppLinksIt() throws {
         let manifest = try Self.manifest()
@@ -169,7 +169,7 @@ struct ModuleBoundaryTests {
         for name in names where try Self.dependencies(of: name, in: manifest).targets.contains("PrivateInterfaces") {
             linkers.insert(name)
         }
-        #expect(linkers == ["VMRunner", "PrivateInterfacesTests"], "PrivateInterfaces is linked by \(linkers.sorted())")
+        #expect(linkers == ["VMRunner", "VMRunnerTests", "PrivateInterfacesTests"], "PrivateInterfaces is linked by \(linkers.sorted())")
     }
 
     /// The runtime's lookup functions, which find a method by the name of its class and selector, are used in the capability
