@@ -29,6 +29,21 @@ struct MachineView: View {
     }
 }
 
+/// The running machine's picture: the custom GPU's when the machine has one, else the framework's view, which the caller
+/// makes (it needs the framework's machine, which this view does not name).
+private struct RunningScreen<Framework: View>: View {
+    let model: MachineModel
+    @ViewBuilder let framework: Framework
+
+    var body: some View {
+        if let source = model.customDisplay {
+            CustomGPUDisplay(source: source)
+        } else {
+            framework
+        }
+    }
+}
+
 /// Switches between setup progress, an interrupted-setup prompt, the running display, and the settings form.
 private struct MachinePane: View {
     let model: MachineModel
@@ -48,8 +63,10 @@ private struct MachinePane: View {
                 HelpButton(.setup)
             }
         case .running(.virtualMachine(let machine, let settings)):
-            VMDisplay(machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered)
-                .overlay { MachineStatusOverlay(model: model) }
+            RunningScreen(model: model) {
+                VMDisplay(machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered)
+            }
+            .overlay { MachineStatusOverlay(model: model) }
         case .running(.workloadLog(let log)):
             ContainerLogView(log: log)
                 .overlay { MachineStatusOverlay(model: model) }

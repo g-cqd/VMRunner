@@ -28,6 +28,8 @@ final class FakeGuest: GuestMachine {
     /// Everything a virtual machine does, unless a test narrows it.
     var capabilities = WorkloadCapabilities.virtualMachine
     var virtualMachine: VZVirtualMachine? { nil }
+    /// Set by a test that wants the machine to look like one on the custom GPU.
+    var customDisplay: (any CustomDisplaySource)?
     var canStop: Bool { state == .running || state == .paused }
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?

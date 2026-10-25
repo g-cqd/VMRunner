@@ -131,8 +131,8 @@ final class InputLatencyMonitor {
         return shows
     }
 
-    private static func holdsMachineView(_ view: NSView) -> Bool {
-        view is VZVirtualMachineView || view.subviews.contains(where: holdsMachineView)
+    static func holdsMachineView(_ view: NSView) -> Bool {
+        view is VZVirtualMachineView || view is CustomGPUView || view.subviews.contains(where: holdsMachineView)
     }
 
     // MARK: Run loop

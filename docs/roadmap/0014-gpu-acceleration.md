@@ -47,8 +47,15 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
   (`CustomGPUSession`: the device and the `CustomScreen` it draws on, seen by the rest of the app only as a
   `CustomDisplaySource`) and the machine object holds it, because the framework holds the device it makes weakly. Its
   display starts at the size the start chose, scaled down to the library's limits. A host older than macOS 27 refuses the
-  machine with a message. The picture of each flush is kept as the newest one; nothing shows it yet. It has not run against
-  a guest: the host tests check the configuration the builder hands the framework and the library's behaviour.
+  machine with a message. It has not run against a guest: the host tests check the configuration the builder hands the
+  framework and the library's behaviour.
+- The machine's window: a layer-backed view whose layer contents are the newest picture, scaled to fit over black, with the
+  guest's cursor as a layer above it, placed by the guest's position and hot spot. The screen (`CustomScreen`) hands the view
+  one picture per 16 ms at most, the newest, and keeps no timer while nothing waits; the view makes one image per picture it
+  is handed. The image reads the guest's bytes where they are (the bitmap description names where red, green and blue sit
+  for each of the eight formats), so making it costs one copy of the bytes (4 MB at 1280 × 800, 33 MB at 4K), not a pass over
+  the pixels. Full screen swaps the view; the new one draws the screen from its newest picture, and the device keeps
+  running. The view takes the keyboard but swallows key presses: input has no path yet.
 - The scanout: `--headless-dump` writes the newest picture to `scanout.png` in the scratch directory (at most once a
   second), `--window` shows it in the runner's own window. The picture goes through a temporary file created with mode 0600
   and renamed into place, so it is never readable by others, not even for a moment.
@@ -99,9 +106,9 @@ powered itself off after 189 s. What was seen, in the runner's log, in `commands
 
 ## Remaining
 
-1. The app's side (ADR-0058): the machine's window that shows the screen's picture and cursor. Each flush already copies the
-   scanout's rows once in the library (about 4 MB at 1280 × 800) before the window decides whether to draw it; a picture made
-   only when the window asks would avoid that copy for the flushes it skips.
+1. The cost of a flush: the library copies the scanout's rows once on each flush (about 4 MB at 1280 × 800) before the screen
+   decides whether to draw it, and a scrolling console flushed over 300 times a second. A picture made only when the window
+   asks would avoid that copy for the flushes it skips; it has not been measured in the app.
 2. Resizing: the configuration update re-triggers the display-information request (measured above) and the adapter answers
    it with the new size, but a second resize has not been tried (the event bit stays set in the configuration space) and the
    window that asks for the size does not exist yet.

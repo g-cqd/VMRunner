@@ -104,6 +104,10 @@ final class MachineModel {
 
     /// Whether the machine runs a container, which has no pause or suspend to offer.
     var isContainer: Bool { workload == .container }
+    /// The running machine's custom GPU, or `nil` when it has the framework's own graphics device or no machine runs. The cast goes
+    /// through `Any` so that it reads the same whatever type the controller gives its guest.
+    var customDisplay: (any CustomDisplaySource)? { (controller.guest as Any as? any GuestMachine)?.customDisplay }
+
     var guestSymbol: String { config?.guest.symbol ?? "questionmark" }
     var showsControls: Bool { library.jobs[id] == nil && config?.isProvisioned == true }
     /// The machine's one state. Everything below that says what is offered is a reading of it.

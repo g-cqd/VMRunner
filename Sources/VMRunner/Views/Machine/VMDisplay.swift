@@ -95,72 +95,16 @@ final class DisplayResizer {
     }
 }
 
-/// Hosts the VM view without exposing its intrinsic size, which would otherwise resize the window to the
-/// guest framebuffer.
-final class DisplayContainer: NSView {
-    let machineView = VZVirtualMachineView()
-    var onLayout: ((CGSize) -> Void)?
-    private var gaveKeyboard = false
+/// The framework's machine view, hosted like every screen.
+final class DisplayContainer: ScreenContainer {
+    let machineView: VZVirtualMachineView
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        // The framework's view turns off `translatesAutoresizingMaskIntoConstraints` itself, so an autoresizing mask does
-        // nothing for it: inside a container that Auto Layout sizes (SwiftUI's hosting does) the view stayed at the size of
-        // its first layout. The picture was then scaled to that oversized view and cropped by the window. Pin the four edges.
-        machineView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(machineView)
-        NSLayoutConstraint.activate([
-            machineView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            machineView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            machineView.topAnchor.constraint(equalTo: topAnchor),
-            machineView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+    init() {
+        let view = VZVirtualMachineView()
+        machineView = view
+        super.init(hosting: view)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("DisplayContainer is created in code only") }
-
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
-    }
-
-    override func layout() {
-        super.layout()
-        report("layout")
-    }
-
-    /// AppKit lays a view out when it decides to; the size is also reported as soon as the frame changes, so a resize that
-    /// does not reach `layout()` still reaches the guest.
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        report("frame")
-    }
-
-    override func viewDidChangeBackingProperties() {
-        super.viewDidChangeBackingProperties()
-        DisplayDiagnostics.note("backing properties changed: \(windowDescription)")
-    }
-
-    /// The machine's view takes the keyboard the first time the display is in a window, so typing reaches the guest without a
-    /// click first. Only once: a later move must not take the keyboard from wherever the user put it.
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        // AppKit declares `window` unowned(unsafe); it is alive for the duration of this callback and not kept.
-        guard !gaveKeyboard, let window = unsafe self.window else { return }
-        gaveKeyboard = window.makeFirstResponder(machineView)
-    }
-
-    private func report(_ cause: String) {
-        let containerSize = DisplayDiagnostics.text(bounds.size)
-        let viewSize = DisplayDiagnostics.text(machineView.frame.size)
-        DisplayDiagnostics.note("\(cause): container \(containerSize) pt, machine view \(viewSize) pt, \(windowDescription)")
-        onLayout?(bounds.size)
-    }
-
-    private var windowDescription: String {
-        // AppKit declares `window` unowned(unsafe); it is alive for the duration of this call and not kept.
-        guard let window = unsafe self.window else { return "no window" }
-        return "window \(DisplayDiagnostics.text(window.frame.size)) pt, backing scale \(window.backingScaleFactor), "
-            + "full screen \(window.styleMask.contains(.fullScreen))"
-    }
 }
