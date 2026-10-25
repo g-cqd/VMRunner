@@ -12,7 +12,7 @@ struct ConfigEditor: View {
     @State private var sharing = SharingModel()
 
     var body: some View {
-        Form {
+        EditorForm {
             GeneralSection(
                 name: $config.name, guest: config.guest, version: config.guestVersion,
                 allocatedBytes: model.allocatedBytes, isSuspended: model.hasSavedState)
@@ -54,7 +54,6 @@ struct ConfigEditor: View {
             AgentAccessSection(agentAccess: $config.agentAccess)
             SnapshotsSection(model: model.snapshots, guest: config.guest, diskGiB: config.diskGiB, didRestore: model.didRestore)
         }
-        .formStyle(.grouped)
         .task { await model.opened() }
         .fileImporter(
             isPresented: Binding(get: { model.pickerTarget != nil }, set: { if !$0 { model.pickerTarget = nil } }),
