@@ -127,24 +127,55 @@ struct ModuleBoundaryTests {
         #expect(!direct.contains("VMRunner"), "VMHelper names the app target: \(direct)")
     }
 
-    /// The host-implemented GPU device (roadmap 0014) is a package of its own that the app never links: the root manifest
-    /// does not name it, no source of the root package imports it, so `vmr build-app` cannot bundle it, and it depends on
-    /// no package.
+    /// The pure core of the host-implemented GPU device (roadmap 0014, ADR-0058) depends on no target and no package, and no
+    /// source of it imports anything, not even Foundation: the device decides the same in the app, in the runner and in tests.
     @Test
-    func theVirtioGPUPackageStaysOutOfTheRootPackageAndTheApp() throws {
-        #expect(!(try Self.manifest()).contains("VirtioGPU"), "the root Package.swift names the VirtioGPU package")
-        for file in try Self.swiftFiles(under: "Sources") {
+    func theVirtioGPULibraryDependsOnNothingAndImportsNothing() throws {
+        let library = try Self.dependencies(of: "VirtioGPU", in: try Self.manifest())
+        #expect(library.targets.isEmpty, "VirtioGPU depends on no other target: \(library.targets)")
+        #expect(library.products.isEmpty, "VirtioGPU depends on no package product: \(library.products)")
+        for file in try Self.swiftFiles(under: "Sources/VirtioGPU") {
             let imported = Self.importedModules(in: try String(contentsOf: file, encoding: .utf8))
-            let forbidden = imported.intersection(["VirtioGPURunnerCore", "VirtioGPURunner"])
-            #expect(forbidden.isEmpty, "\(file.path) imports \(forbidden.sorted())")
+            #expect(imported.isEmpty, "\(file.lastPathComponent) imports \(imported.sorted())")
         }
-        let nested = try String(contentsOf: Self.root.appending(path: "Packages/VirtioGPU/Package.swift"), encoding: .utf8)
-        #expect(!nested.contains(".package("), "the VirtioGPU package depends on no package")
+    }
+
+    /// The runner links the library and its own command-line parser, which depends on nothing, and no other target links the
+    /// runner's parser but the runner and its tests.
+    @Test
+    func theVirtioGPURunnerLinksTheLibraryAndItsCommandLineParserOnly() throws {
+        let manifest = try Self.manifest()
+        let runner = try Self.dependencies(of: "VirtioGPURunner", in: manifest)
+        #expect(runner.targets == ["VirtioGPU", "VirtioGPURunnerCore"], "the runner links \(runner.targets)")
+        #expect(runner.products.isEmpty, "the runner depends on no package product: \(runner.products)")
+        let parser = try Self.dependencies(of: "VirtioGPURunnerCore", in: manifest)
+        #expect(parser.targets.isEmpty && parser.products.isEmpty, "the parser depends on nothing: \(parser)")
+    }
+
+    /// The app does not link the runner or its parser, directly or through another target, no source of it imports them, and
+    /// `vmr build-app` builds the app's product alone, so the runner is neither compiled for nor bundled in the app.
+    @Test
+    func theAppDoesNotLinkTheVirtioGPURunnerAndBuildAppDoesNotBuildIt() throws {
+        let manifest = try Self.manifest()
+        var seen: Set<String> = []
+        var pending = ["VMRunner"]
+        while let target = pending.popLast() {
+            guard seen.insert(target).inserted else { continue }
+            pending += try Self.dependencies(of: target, in: manifest).targets.sorted()
+        }
+        let runnerTargets: Set<String> = ["VirtioGPURunner", "VirtioGPURunnerCore"]
+        #expect(seen.isDisjoint(with: runnerTargets), "VMRunner reaches the runner through \(seen.sorted())")
+        for file in try Self.swiftFiles(under: "Sources/VMRunner") {
+            let imported = Self.importedModules(in: try String(contentsOf: file, encoding: .utf8))
+            #expect(imported.isDisjoint(with: runnerTargets), "\(file.lastPathComponent) imports \(imported.sorted())")
+        }
+        let bundler = try String(contentsOf: Self.root.appending(path: "Sources/DevTools/App/AppBundler.swift"), encoding: .utf8)
+        #expect(bundler.contains(#""--product", Self.productName"#), "build-app builds the whole package, runner included")
     }
 
     @Test(arguments: [
         "Sources/NetPolicy", "Sources/NetStack", "Sources/GuestSeed", "Sources/ControlProtocol", "Sources/AgentBridge",
-        "Packages/VirtioGPU/Sources/VirtioGPURunnerCore",
+        "Sources/VirtioGPU", "Sources/VirtioGPURunnerCore",
     ])
     func noSourceOfTheLibraryTargetsImportsAUserInterfaceOrVirtualizationFramework(directory: String) throws {
         let files = try Self.swiftFiles(under: directory)

@@ -59,6 +59,24 @@ let package = Package(
             name: "NetStackTests", dependencies: ["NetStack", "NetPolicy", "TestKit"], path: "Tests/NetStackTests",
             swiftSettings: hardening),
 
+        // The pure core of the host-implemented virtio GPU (roadmap 0014, ADR-0058): the wire format, the resource store, the
+        // device state, the queue serving and a bounded command record. It imports no framework at all; the app and the runner
+        // each bring their own Virtualization adapter and share the library through `package` access.
+        .target(name: "VirtioGPU", path: "Sources/VirtioGPU", swiftSettings: hardening),
+        .testTarget(name: "VirtioGPUTests", dependencies: ["VirtioGPU"], path: "Tests/VirtioGPUTests", swiftSettings: hardening),
+
+        // The runner's command line (ADR-0042: the testable logic of an executable is `<Executable>Core`), and nothing else.
+        .target(name: "VirtioGPURunnerCore", path: "Sources/VirtioGPURunnerCore", swiftSettings: hardening),
+        .testTarget(
+            name: "VirtioGPURunnerTests", dependencies: ["VirtioGPURunnerCore"], path: "Tests/VirtioGPURunnerTests",
+            swiftSettings: hardening),
+
+        // The runner boots one Linux guest whose only display is the virtio GPU. The owner runs it, never the gate (it boots a
+        // virtual machine); the app does not link it and `vmr build-app` does not build it.
+        .executableTarget(
+            name: "VirtioGPURunner", dependencies: ["VirtioGPU", "VirtioGPURunnerCore"], path: "Sources/VirtioGPURunner",
+            swiftSettings: hardening),
+
         // The console of a guest (roadmap 0005): a byte bridge between a guest's serial port and a private local socket,
         // and the client that runs commands through it. Foundation and the system's C library only, so the app, the helper
         // and the tooling can all link it.

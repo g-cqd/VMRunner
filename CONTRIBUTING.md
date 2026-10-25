@@ -154,6 +154,12 @@ The compiler and linters enforce most of these (`Package.swift`, `.swiftlint.yml
 - `Sources/AgentBridge` (the MCP server over stdio, roadmap 0005) is a library target of the same kind: it links
   `ControlProtocol` and `GuestConsole` and the system frameworks only (the manifest test in `DevToolsTests` checks it), the
   app does not link it, and `vmr control mcp` serves it. Its API is `public`, like the control library's.
+- `Sources/VirtioGPU` (the pure core of the host-implemented virtio GPU, roadmap 0014, ADR-0058) is a library target of the
+  same kind as `NetPolicy`, with a stricter import rule: it imports nothing at all, not even Foundation. A declaration
+  another target uses is `package`; the rest stays internal, and its tests use `@testable import`. The runner
+  (`Sources/VirtioGPURunner`, its command line in `Sources/VirtioGPURunnerCore`) links it and boots a virtual machine, so
+  only its owner runs it; the app does not link the runner, and `vmr build-app` builds the app's product alone (a test in
+  `DevToolsTests` checks the manifest, the imports and the build arguments).
 - Code that needs a display or the virtualization entitlement (`Views`, `VMController`, `Provisioner`,
   `ConfigurationBuilder`) is kept thin; put logic in the model layer where unit tests can reach it.
 

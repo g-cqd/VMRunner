@@ -11,10 +11,10 @@ below answers it for a stock Linux guest. ADR-0058 decides where the code lives 
 
 ## Built so far: a host-implemented virtio GPU for a feasibility study, 2026-10-25
 
-- `Packages/VirtioGPU`, a package of its own that the app never links or bundles (a layering test keeps the root manifest
-  and the root sources free of it); the gate formats, lints, builds, tests and analyzes it. `VirtioGPURunnerCore` holds
-  everything that can be tested without a machine; `VirtioGPURunner` is the executable, run by the owner only. ADR-0058
-  moves the pure part into the root package as a library the app links, and keeps the runner as a thin adapter of its own.
+- The code is in the root package (ADR-0058, which moved it out of a package of its own): `Sources/VirtioGPU` is the pure
+  library, importing nothing, under `package` access; `Sources/VirtioGPURunner` is the executable, run by the owner only,
+  with its command line in `Sources/VirtioGPURunnerCore`. The app does not link the runner and `vmr build-app` does not
+  build it; layering tests keep it so, and the gate formats, lints, builds, tests and analyzes all of it.
 - The machine: a headless Linux guest booted by EFI from a raw disk, an optional cloud-init seed as a read-only second
   disk, entropy, the serial console written to a file in a scratch directory, no network, no keyboard or pointer, none of
   the framework's graphics devices, and one custom virtio device: a GPU (device 16, display class) with a control and a

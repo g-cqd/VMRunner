@@ -38,6 +38,9 @@ struct PackageLayoutTests {
         #expect(!manifest.contains("containerization"), "the container library stays out of the root package")
         #expect(!resolved.contains("containerization"), "and out of its Package.resolved")
         #expect(!manifest.contains(".package(path:"), "the root depends on no nested package")
+        for package in try Self.nestedPackages() {
+            #expect(!manifest.contains(package), "the root manifest names the nested package \(package)")
+        }
     }
 
     @Test

@@ -1,10 +1,10 @@
 {
-  "lintPaths": ["Sources", "Plugins", "Tests", "Packages/Containers/Sources", "Packages/Containers/Tests", "Packages/VirtioGPU/Sources", "Packages/VirtioGPU/Tests"],
-  "packages": ["Packages/Containers", "Packages/VirtioGPU"],
+  "lintPaths": ["Sources", "Plugins", "Tests", "Packages/Containers/Sources", "Packages/Containers/Tests"],
+  "packages": ["Packages/Containers"],
   "skipTestsWhenInstrumented": ["DevToolsTests"],
   "coverage": {
     "minimum": 55,
-    "testBundles": ["VMRunnerTests", "NetPolicyTests", "NetStackTests", "GuestSeedTests", "ControlProtocolTests", "AgentBridgeTests"],
+    "testBundles": ["VMRunnerTests", "NetPolicyTests", "NetStackTests", "GuestSeedTests", "ControlProtocolTests", "AgentBridgeTests", "VirtioGPUTests", "VirtioGPURunnerTests"],
     "ignoreRegex": "Tests/|\\.build|/Views/|VMRunnerApp|VMController|Provisioner|ConfigurationBuilder"
   }
 }

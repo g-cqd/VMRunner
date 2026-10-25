@@ -58,7 +58,9 @@ struct AppBundler {
     // MARK: Build and assemble
 
     private func compile() async throws -> URL {
-        var arguments = ["--package-path", root.path, "-c", options.configuration.rawValue]
+        // Only the app's product: a build of the whole package also compiles every other executable (the tooling, the helper
+        // and the virtio GPU runner, which needs the macOS 27 SDK), none of which goes into the bundle.
+        var arguments = ["--package-path", root.path, "-c", options.configuration.rawValue, "--product", Self.productName]
         if options.arm64e {
             arguments += ["--arch", "arm64e", "--scratch-path", root.appending(path: ".build-arm64e").path]
         }
