@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The "New Machine" sheet: name and guest, installation media, and starting resources.
+/// The "New Machine" sheet: name and kind, then for a virtual machine its guest, installation media and starting resources,
+/// or for a container its image, command, environment and limits.
 struct NewMachineSheet: View {
     @Environment(VMLibrary.self) private var library
     @Environment(\.dismiss) private var dismiss
@@ -10,22 +11,34 @@ struct NewMachineSheet: View {
         Form {
             Section {
                 TextField("Name", text: $model.config.name.limited())
-                Picker("Guest", selection: $model.config.guest) {
-                    ForEach(GuestOS.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                Picker("Kind", selection: $model.workload) {
+                    ForEach(WorkloadKind.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .settingHelp(.guestSystems)
+                if model.workload == .vm {
+                    Picker("Guest", selection: $model.config.guest) {
+                        ForEach(GuestOS.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .settingHelp(.guestSystems)
+                }
             }
-            MediaSection(model: model)
-            ResourcesSection(
-                guest: model.config.guest, cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB,
-                diskGiB: $model.config.diskGiB)
+            if model.workload == .vm {
+                MediaSection(model: model)
+                ResourcesSection(
+                    guest: model.config.guest, cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB,
+                    diskGiB: $model.config.diskGiB)
+            } else {
+                ContainerSection(model: model)
+            }
             if let error = model.creationError { Text(error).foregroundStyle(.red) }
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 560)
         .safeAreaInset(edge: .bottom) { footer }
         .onChange(of: model.config.guest) { _, guest in model.guestChanged(to: guest) }
+        .onChange(of: model.workload) { _, workload in model.workloadChanged(to: workload) }
     }
 
     private var footer: some View {

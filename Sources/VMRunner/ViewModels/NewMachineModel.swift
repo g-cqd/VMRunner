@@ -19,6 +19,14 @@ final class NewMachineModel {
     static let deviceDefaultsKey = AppSetting.ipswDeviceIdentifier.rawValue
 
     var config = VMConfig.new(name: "macOS", guest: .macOS)
+    /// Whether the new machine is a virtual machine or a container. A container uses `container`, `commandLine` and
+    /// `environmentText`; `config` then only carries its name and identity.
+    var workload = WorkloadKind.vm
+    var container = ContainerSpec()
+    /// The command as typed on one line; `ContainerInput.arguments(from:)` splits it.
+    var commandLine = ""
+    /// The environment as typed, one `NAME=value` per line.
+    var environmentText = ""
     var macSource = MacSource.latest
     var linuxSource: LinuxSource
     var deviceIdentifier: String
@@ -43,6 +51,7 @@ final class NewMachineModel {
     var canCreate: Bool {
         let name = config.name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, name.count <= EditorLimits.maxTextLength else { return false }
+        if workload == .container { return containerProblem == nil }
         switch config.guest {
         case .macOS:
             switch macSource {
@@ -83,6 +92,34 @@ final class NewMachineModel {
         return machine
     }
 
+    /// The config of a container machine for the current choices, checked by the same rules a stored configuration is.
+    func makeContainerConfig() throws -> VMConfig {
+        var spec = container
+        spec.image = spec.image.trimmingCharacters(in: .whitespacesAndNewlines)
+        spec.command = try ContainerInput.arguments(from: commandLine)
+        spec.environment = try ContainerInput.environment(from: environmentText)
+        var machine = VMConfig.newContainer(name: config.name.trimmingCharacters(in: .whitespaces), container: spec)
+        machine.id = config.id
+        try machine.validate()
+        return machine
+    }
+
+    /// What is wrong with the container settings as they stand, or `nil` when a container machine can be made.
+    var containerProblem: String? {
+        do {
+            _ = try makeContainerConfig()
+            return nil
+        } catch {
+            return Self.message(for: error)
+        }
+    }
+
+    /// A configuration check's reason, without the framework's generic wording around it.
+    private static func message(for error: any Error) -> String {
+        if case DecodingError.dataCorrupted(let context) = error { return context.debugDescription }
+        return error.localizedDescription
+    }
+
     // MARK: Actions
 
     /// Takes the file the user picked as the installation media, unless a configuration could not store its location.
@@ -104,6 +141,22 @@ final class NewMachineModel {
         localPath = nil
     }
 
+    /// Switching to a container renames a placeholder name; switching back to a virtual machine restores that guest's defaults,
+    /// as `guestChanged(to:)` does, and gives a placeholder name back.
+    func workloadChanged(to workload: WorkloadKind) {
+        let name = config.name
+        switch workload {
+        case .container:
+            if GuestOS.allCases.map(\.label).contains(name) { config.name = WorkloadKind.container.label }
+        case .vm:
+            let id = config.id
+            config = .new(name: name == WorkloadKind.container.label ? config.guest.label : name, guest: config.guest)
+            config.id = id
+            localPath = nil
+        }
+        creationError = nil
+    }
+
     func loadFirmwares() async {
         isLoadingFirmwares = true
         loadError = nil
@@ -117,15 +170,20 @@ final class NewMachineModel {
         }
     }
 
-    /// Adds the machine to the library and starts its setup. Returns false and sets `creationError` on failure.
+    /// Adds the machine to the library and, for a virtual machine, starts its setup. Returns false and sets `creationError` on failure.
     func create(in library: VMLibrary) -> Bool {
-        let machine = makeConfig()
         do {
+            if workload == .container {
+                // A container machine has nothing to install: it is ready as soon as it is added.
+                try library.add(makeContainerConfig())
+                return true
+            }
+            let machine = makeConfig()
             try library.add(machine)
             library.beginSetup(machine.id)
             return true
         } catch {
-            creationError = error.localizedDescription
+            creationError = Self.message(for: error)
             return false
         }
     }

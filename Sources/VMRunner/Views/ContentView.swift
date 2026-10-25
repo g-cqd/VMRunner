@@ -141,12 +141,13 @@ private struct MachineRow: View {
     var body: some View {
         let controller = library.controller(for: config.id)
         HStack {
-            Image(systemName: config.guest.symbol)
+            Image(systemName: config.sidebarSymbol)
                 .frame(width: 22)
                 .foregroundStyle(.secondary)
+                .accessibilityLabel(config.sidebarKind)
             VStack(alignment: .leading, spacing: 2) {
                 Text(config.name)
-                Text("\(config.guest.label) · \(config.cpuCount) CPU · \(config.memoryMiB / 1024) GiB")
+                Text(config.sidebarCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -167,5 +168,20 @@ private struct MachineRow: View {
         case .busy: .yellow
         case .none: nil
         }
+    }
+}
+
+extension VMConfig {
+    /// The symbol in front of the machine's name in the sidebar: a box for a container, the guest's symbol otherwise.
+    var sidebarSymbol: String { workload == .container ? "shippingbox" : guest.symbol }
+
+    /// What the symbol stands for, for VoiceOver: the kind of machine.
+    var sidebarKind: String { workload == .container ? workload.label : guest.label }
+
+    /// The line under the name: the kind of machine and its resources. A container's come from its own settings.
+    var sidebarCaption: String {
+        guard workload == .container else { return "\(guest.label) · \(cpuCount) CPU · \(memoryMiB / 1024) GiB" }
+        let spec = container ?? ContainerSpec()
+        return "\(workload.label) · \(spec.cpus) CPU · \(spec.memoryMiB) MiB"
     }
 }
