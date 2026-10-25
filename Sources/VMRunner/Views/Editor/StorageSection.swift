@@ -12,12 +12,10 @@ struct StorageSection: View {
 
     var body: some View {
         Section {
-            Stepper(
-                value: Binding(get: { diskGiB }, set: { resize($0) }), in: floorGiB...EditorLimits.maxDiskGiB,
-                step: EditorLimits.diskStepGiB
-            ) {
-                LabeledContent("Disk size", value: "\(diskGiB) GiB")
-            }
+            ValueStepper(
+                title: "Disk size", value: Binding(get: { diskGiB }, set: { resize($0) }),
+                range: floorGiB...EditorLimits.maxDiskGiB, step: EditorLimits.diskStepGiB, text: "\(diskGiB) GiB"
+            )
             .settingHelp(.diskSize)
             Text("Sparse image: only blocks the guest writes use space. Growing is permanent, and the guest must extend its partition.")
                 .font(.caption).foregroundStyle(.secondary)

@@ -33,9 +33,11 @@ struct SecuritySection: View {
                 .disabled(config.ephemeral)
                 .managedLock(.allowSuspend)
                 .settingHelp(.suspendResume)
-            Stepper(value: $config.maxRuntimeMinutes, in: EditorLimits.runtimeMinutes, step: EditorLimits.runtimeStepMinutes) {
-                LabeledContent("Runtime limit", value: config.maxRuntimeMinutes == 0 ? "Off" : "\(config.maxRuntimeMinutes) min")
-            }
+            ValueStepper(
+                title: "Runtime limit", value: $config.maxRuntimeMinutes, range: EditorLimits.runtimeMinutes,
+                step: EditorLimits.runtimeStepMinutes,
+                text: config.maxRuntimeMinutes == 0 ? "Off" : "\(config.maxRuntimeMinutes) min"
+            )
             .managedLock(.maxRuntimeMinutes)
             .settingHelp(.runtimeLimit)
             if config.guest == .linux { secureBootRows }

@@ -49,9 +49,10 @@ private struct ResourcesSection: View {
     var body: some View {
         Section {
             CoreAndMemorySteppers(cpuCount: $cpuCount, memoryMiB: $memoryMiB, memoryStepMiB: EditorLimits.newMemoryStepMiB)
-            Stepper(value: $diskGiB, in: EditorLimits.newDiskGiB(for: guest), step: EditorLimits.diskStepGiB) {
-                LabeledContent("Disk", value: "\(diskGiB) GiB")
-            }
+            ValueStepper(
+                title: "Disk", value: $diskGiB, range: EditorLimits.newDiskGiB(for: guest), step: EditorLimits.diskStepGiB,
+                text: "\(diskGiB) GiB"
+            )
             .settingHelp(.diskSize)
         } header: {
             Text("Resources")

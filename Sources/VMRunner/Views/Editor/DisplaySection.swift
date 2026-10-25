@@ -14,9 +14,10 @@ struct DisplaySection: View {
         Section {
             resolutionRows
             if guest == .macOS {
-                Stepper(value: $pixelsPerInch, in: EditorLimits.pixelsPerInch, step: EditorLimits.pixelsPerInchStep) {
-                    LabeledContent("Pixel density", value: "\(pixelsPerInch) ppi")
-                }
+                ValueStepper(
+                    title: "Pixel density", value: $pixelsPerInch, range: EditorLimits.pixelsPerInch,
+                    step: EditorLimits.pixelsPerInchStep, text: "\(pixelsPerInch) ppi"
+                )
                 .settingHelp(.pixelDensity)
             } else {
                 Text(
@@ -52,12 +53,14 @@ struct DisplaySection: View {
         }
         .settingHelp(.resolution)
         if choice == .custom {
-            Stepper(value: $width, in: EditorLimits.displayWidth, step: EditorLimits.displayWidthStep) {
-                LabeledContent("Width", value: "\(width) px")
-            }
-            Stepper(value: $height, in: EditorLimits.displayHeight, step: EditorLimits.displayHeightStep) {
-                LabeledContent("Height", value: "\(height) px")
-            }
+            ValueStepper(
+                title: "Width", value: $width, range: EditorLimits.displayWidth, step: EditorLimits.displayWidthStep,
+                text: "\(width) px"
+            )
+            ValueStepper(
+                title: "Height", value: $height, range: EditorLimits.displayHeight, step: EditorLimits.displayHeightStep,
+                text: "\(height) px"
+            )
         }
     }
 }
