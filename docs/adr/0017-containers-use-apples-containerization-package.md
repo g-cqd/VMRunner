@@ -32,3 +32,7 @@ Whether containers can use the real user-mode network stack: a custom interface 
 guest's frames and the guest accepts the static address (shown on a socketpair), but the stack itself lives in the app target
 and was not plugged in. Also open: the newer kernel the package's examples use, the licences of the packages the library brings
 in, and how the app links the library without growing the root dependency graph.
+
+(Update 2026-10-25: decision 1 is amended by [ADR-0057](0057-containers-run-in-a-separate-signed-runner-the-app-drives-over-json-lines.md).
+Containers ship now as a separate signed runner inside the app bundle, driven over JSON lines, and the app does not link the
+package until the licences of its pins are inventoried and the access is reviewed.)

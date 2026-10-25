@@ -161,7 +161,7 @@ machine: the owner runs it once, from the instructions below, and the result dec
   carries them too. The study was right that a recent advisory exists; only the fixing release was unknown.
 - **Requirements of 0.52.1.** Tools version 6.2 (the repository uses 6.4), declared macOS 15 (the repository 26; the README
   asks for macOS 26 on an Apple silicon Mac), Apache-2.0.
-- **Dependency graph.** The package brings 24 others with it, 29 pins in all: an asynchronous networking stack, an RPC stack
+- **Dependency graph.** The package brings 28 others with it, 29 pins in all: an asynchronous networking stack, an RPC stack
   with its serialization library, an HTTP client, TLS and certificate libraries, a crypto library, a compression library and
   logging, tracing and configuration libraries. It also links the system archive library. ADR-0001 keeps the root graph
   small, so the runner is a package of its own, `Packages/Containers`, with its own committed `Package.resolved`: the root
@@ -325,8 +325,8 @@ text and the boot log if there was one; `sw_vers -productVersion` and the Mac's 
 That a virtual machine boots at all with these pins; the figures for the boot and the run; the behaviour of the hardened
 runtime with the library under a real run; the loopback network with a real guest; the CI workflows with the new package
 (the same commands pass locally, but the hosted runners were not tried, and the build lane compiles the package's graph on
-every run until `.build-packages` is cached); the licences of the 24 packages the library brings in (nothing is shipped, but
-an inventory is due before the app links any of them).
+every run until `.build-packages` is cached); the licences of the 28 packages the library brings in (nothing was shipped when this
+was written; the last section lists the pins and what is due before the app links any of them).
 
 ## First run results (2026-10-22)
 
@@ -386,3 +386,52 @@ The real user-mode stack in place of the socketpair (the module split above is s
 from inside the guest; a pull with credentials; the Kata 3.26.0 kernel; the licences of the packages the library brings in;
 the behaviour of the runner under a sandbox (App Sandbox or a Seatbelt profile); and any run longer than the few seconds
 `uname -a` takes.
+
+## Licences to inventory before the app links the library
+
+ADR-0057 keeps the container library out of the app: the signed runner is a separate process, so none of the packages below
+is linked into the app. The runner executable in the app bundle does contain their compiled code. Before the app links the
+library, or before anything is said about what the bundle contains, every pin of `Packages/Containers/Package.resolved` needs
+its licence read from the pinned revision of its own repository and written next to it. **None has been inventoried.** The only
+licence this study records is Apache-2.0 for the container package itself (the facts above, as of 2026-10-21); the licences of
+the other 28 pins were not read, and no statement about them is made here. The inventory should also note which pins carry C or
+other non-Swift code (`zstd` does), which carry notices that a distribution has to reproduce, and whether any pin's terms differ
+from the others'.
+
+The 29 pins (the container package and the 28 it brings in, exact versions from the committed lock file, 2026-10-25):
+
+| Pin | Version |
+|---|---|
+| `async-http-client` | 1.36.2 |
+| `containerization` | 0.52.1 |
+| `grpc-swift-2` | 2.4.4 |
+| `grpc-swift-nio-transport` | 2.11.0 |
+| `grpc-swift-protobuf` | 2.5.0 |
+| `swift-algorithms` | 1.2.1 |
+| `swift-argument-parser` | 1.8.2 |
+| `swift-asn1` | 1.7.3 |
+| `swift-async-algorithms` | 1.1.7 |
+| `swift-atomics` | 1.3.1 |
+| `swift-certificates` | 1.21.0 |
+| `swift-collections` | 1.7.3 |
+| `swift-configuration` | 1.3.0 |
+| `swift-crypto` | 4.5.2 |
+| `swift-distributed-tracing` | 1.7.2 |
+| `swift-http-structured-headers` | 1.7.0 |
+| `swift-http-types` | 1.8.0 |
+| `swift-log` | 1.16.1 |
+| `swift-nio` | 2.104.0 |
+| `swift-nio-extras` | 1.35.1 |
+| `swift-nio-http2` | 1.46.0 |
+| `swift-nio-ssl` | 2.37.5 |
+| `swift-nio-transport-services` | 1.28.0 |
+| `swift-numerics` | 1.1.1 |
+| `swift-protobuf` | 1.39.0 |
+| `swift-service-context` | 1.5.1 |
+| `swift-service-lifecycle` | 2.13.0 |
+| `swift-system` | 1.8.1 |
+| `zstd` | 1.5.7 |
+
+ADR-0001 keeps the app to system frameworks and one package, and says why `swift-crypto`, `swift-system`, `swift-atomics`,
+`swift-log` and `swift-nio` were refused for the app. Linking the library would reverse that for the app, so it needs its own
+decision and not only this inventory.
