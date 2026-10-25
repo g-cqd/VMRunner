@@ -41,6 +41,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         machine.delegate = self
     }
 
+    var capabilities: WorkloadCapabilities { .virtualMachine }
     var virtualMachine: VZVirtualMachine? { machine }
     var canStop: Bool { machine.canStop }
 

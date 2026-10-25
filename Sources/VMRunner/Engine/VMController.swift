@@ -18,7 +18,7 @@ import os
 final class VMController {
     private(set) var state = MachineState.stopped
     /// The machine of this run, from the end of preparation until it is released.
-    private(set) var guest: (any GuestMachine)?
+    private(set) var guest: (any Workload)?
     /// When the runtime limit will shut the machine down, if one is set.
     private(set) var deadline: Date?
     /// The live view of this run's filtered network; `nil` for other network modes and while stopped.
@@ -42,7 +42,7 @@ final class VMController {
     @ObservationIgnored private let latency: LatencyActivity
 
     init(
-        factory: any MachineFactory = VZMachineFactory(), runtimeLimit: RuntimeLimit = RuntimeLimit(clock: ContinuousClock()),
+        factory: any MachineFactory = RoutingMachineFactory(), runtimeLimit: RuntimeLimit = RuntimeLimit(clock: ContinuousClock()),
         latency: LatencyActivity = .shared
     ) {
         self.factory = factory
@@ -52,7 +52,7 @@ final class VMController {
 
     var isActive: Bool { state.isActive }
     /// The framework's machine, for the view that displays it.
-    var virtualMachine: VZVirtualMachine? { guest?.virtualMachine }
+    var virtualMachine: VZVirtualMachine? { (guest as? any GuestMachine)?.virtualMachine }
     /// Whether Suspend can be used now: the state allows it and this run's configuration can be saved.
     var canSuspend: Bool { state.allowsSuspend && suspendSupport == .available }
     /// Why Suspend is unavailable, when this run's configuration cannot be saved.
@@ -319,7 +319,7 @@ final class VMController {
         return outcome
     }
 
-    private func boot(_ machine: any GuestMachine) async -> MachineEvent {
+    private func boot(_ machine: any Workload) async -> MachineEvent {
         firmwareStartedAt = .now
         do {
             try await machine.start()
@@ -330,7 +330,7 @@ final class VMController {
         }
     }
 
-    private func restore(_ machine: any GuestMachine) async -> MachineEvent {
+    private func restore(_ machine: any Workload) async -> MachineEvent {
         guard let bundle = launch?.bundle else { return .restoreFailed(reason: "There is nothing to restore.") }
         do {
             try await machine.restoreState(from: bundle.savedState)
@@ -345,7 +345,7 @@ final class VMController {
         }
     }
 
-    private func pause(_ machine: any GuestMachine) async -> MachineEvent {
+    private func pause(_ machine: any Workload) async -> MachineEvent {
         do {
             try await machine.pause()
             return .pauseSucceeded
@@ -354,7 +354,7 @@ final class VMController {
         }
     }
 
-    private func resume(_ machine: any GuestMachine) async -> MachineEvent {
+    private func resume(_ machine: any Workload) async -> MachineEvent {
         do {
             try await machine.resume()
             return .resumeSucceeded
@@ -363,7 +363,7 @@ final class VMController {
         }
     }
 
-    private func suspend(_ machine: any GuestMachine, pauseFirst: Bool, run token: UInt64) async -> MachineEvent {
+    private func suspend(_ machine: any Workload, pauseFirst: Bool, run token: UInt64) async -> MachineEvent {
         guard let bundle = launch?.bundle else { return .suspendFailed("There is no machine to suspend.", paused: false) }
         var paused = !pauseFirst
         do {
@@ -398,7 +398,7 @@ final class VMController {
 
     /// Stops the machine now if the framework allows it. When a call is still in flight the stop waits for it: the state
     /// asks for it again when that call finishes.
-    private func stop(_ machine: any GuestMachine) async -> MachineEvent? {
+    private func stop(_ machine: any Workload) async -> MachineEvent? {
         guard machine.canStop, !stopIssued else { return nil }
         stopIssued = true
         do {
@@ -410,13 +410,24 @@ final class VMController {
     }
 }
 
+// MARK: What this run's workload offers
+
+extension VMController {
+    /// What the machine of this run can do; nothing until a machine exists.
+    var capabilities: WorkloadCapabilities { guest?.capabilities ?? [] }
+    /// Whether Pause can be used now: the state allows it and this run's workload can pause.
+    var canPause: Bool { state.canPause && capabilities.contains(.pause) }
+}
+
 // MARK: Adopting a prepared machine
 
 extension VMController {
     private func adopt(_ prepared: PreparedMachine, run token: UInt64) {
         guest = prepared.machine
         latency.hold(for: ObjectIdentifier(self))
-        suspendSupport = prepared.suspend
+        suspendSupport =
+            prepared.machine.capabilities.contains(.suspend)
+            ? prepared.suspend : .unavailable(reason: "This kind of machine can't be suspended.")
         network = prepared.network
         prepared.network?.start()
         prepared.machine.onGuestStopped = { [weak self] in self?.notify(.guestStopped, run: token) }

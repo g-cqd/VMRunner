@@ -25,6 +25,8 @@ final class FakeGuest: GuestMachine {
     let log = AsyncEventProbe<String>()
     private(set) var state = VZVirtualMachine.State.stopped
 
+    /// Everything a virtual machine does, unless a test narrows it.
+    var capabilities = WorkloadCapabilities.virtualMachine
     var virtualMachine: VZVirtualMachine? { nil }
     var canStop: Bool { state == .running || state == .paused }
     var onGuestStopped: (@MainActor () -> Void)?

@@ -29,7 +29,7 @@ struct MachineToolbar: ToolbarContent {
                 .disabled(!state.canResume)
         } else {
             Button("Pause", systemImage: "pause.fill", action: model.pause)
-                .disabled(!state.canPause)
+                .disabled(!model.canPause)
         }
         if let status = state.statusText {
             Text(status).foregroundStyle(.secondary)

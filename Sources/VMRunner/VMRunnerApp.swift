@@ -118,7 +118,7 @@ struct MachineCommands: Commands {
             } else {
                 Button("Pause") { Task { await controller?.pause() } }
                     .keyboardShortcut("p", modifiers: [.command, .option])
-                    .disabled(!state.canPause)
+                    .disabled(controller?.canPause != true)
             }
             Button("Suspend") { if let id { library.suspendMachine(id) } }
                 .keyboardShortcut("s", modifiers: [.command, .option])

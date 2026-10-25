@@ -43,10 +43,16 @@ final class MachineModel {
         }
     }
 
+    /// What a running machine shows: the framework's screen, or the log of a workload that has no screen.
+    enum RunningDisplay {
+        case virtualMachine(VZVirtualMachine, DisplaySettings)
+        case workloadLog
+    }
+
     enum Phase {
         case settingUp(SetupJob)
         case setupIncomplete
-        case running(VZVirtualMachine, DisplaySettings)
+        case running(RunningDisplay)
         case editing
     }
 
@@ -75,7 +81,14 @@ final class MachineModel {
         guard let config else { return nil }
         if let job = library.jobs[id] { return .settingUp(job) }
         if !config.isProvisioned { return .setupIncomplete }
-        if state.hasMachine, let machine = controller.virtualMachine {
+        if state.hasMachine, let display = runningDisplay(of: config) { return .running(display) }
+        return .editing
+    }
+
+    /// What the running machine shows, or `nil` when there is nothing to show yet: a machine with a screen shows it, one that
+    /// has none shows its log.
+    private func runningDisplay(of config: VMConfig) -> RunningDisplay? {
+        if let machine = controller.virtualMachine {
             let settings = DisplaySettings(
                 capturesSystemKeys: config.capturesSystemKeys,
                 followsWindow: config.automaticallyReconfiguresDisplay,
@@ -83,9 +96,9 @@ final class MachineModel {
                 scale: config.displayScale,
                 firmwareStartedAt: controller.firmwareStartedAt
             )
-            return .running(machine, settings)
+            return .virtualMachine(machine, settings)
         }
-        return .editing
+        return controller.guest != nil && !controller.capabilities.contains(.display) ? .workloadLog : nil
     }
 
     var guestSymbol: String { config?.guest.symbol ?? "questionmark" }
@@ -95,9 +108,10 @@ final class MachineModel {
     var isRunning: Bool { state.isActive }
     var deadline: Date? { controller.deadline }
     /// The running machine's filtered-network log and VPN signals; `nil` unless the machine runs with filtered networking.
-    var networkActivity: NetworkActivity? { controller.network }
+    var networkActivity: NetworkActivity? { controller.capabilities.contains(.networkActivity) ? controller.network : nil }
     /// Why the kill switch has disconnected the running machine's network card; nil while it is connected or has no rule.
     var networkCutoff: NetworkCutoffReason? { controller.guest?.networkCutoff?.reason }
+    var canPause: Bool { controller.canPause }
     var canSuspend: Bool { controller.canSuspend }
     var suspendHelp: String {
         controller.canSuspend ? "Save state to disk and stop" : (controller.suspendUnavailableReason ?? "Suspend isn't available")
