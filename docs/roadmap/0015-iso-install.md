@@ -17,6 +17,13 @@ roadmap 0029, with no virtual TPM, no suspend and no custom GPU. Nothing below i
 installer ISO with an optional expected SHA-256 and a read-only driver disc, the editor shows the rows a Windows machine has, and
 the help has a topic for it. No Windows installer has been run (item 4).
 
+2026-10-26: the first installer attempt crashed Apple's helper on build 26A434 with PMU enabled. A same-commit, fresh-machine
+comparison with PMU disabled remained running for 191 seconds but established no Windows boot. The
+[crash study](../research/windows-pmu-crash-2026-10.md) records both runs. That build's PMU capability is refused before
+application; this contains the observed crash path, not the unresolved Windows boot problem. TPM research is paused.
+
+The [development history](../research/development-history-2026-10.md) indexes the imported planning and guest-run evidence.
+
 ## Windows items
 
 1. A guest kind of its own for Windows, with the machine of ADR-0059 item 5: generic platform, EFI, Secure Boot off, NVMe main
@@ -27,7 +34,8 @@ the help has a topic for it. No Windows installer has been run (item 4).
 3. The requirements panel and the help: private interface in use, the fixed no-TPM wording, no suspend, a licence per
    installation, Insider Preview builds expire, a driver disc is needed for the virtio network device.
 4. A run against a real Windows installer, by the owner: whether the machine boots with the framework's own display, how far
-   Setup gets, and what a first boot shows. Not run. Nothing in this item may alter the installer or what Windows Setup checks.
+   Setup gets, and what a first boot shows. First attempts recorded above; a successful boot and Setup remain unverified.
+   Nothing in this item may alter the installer or what Windows Setup checks.
    The .app display resizer, the uncapped 1920 x 1200 display, the Linux share tag and the generic machine identifier are
    accepted defaults that are unverified on a real Windows guest.
 

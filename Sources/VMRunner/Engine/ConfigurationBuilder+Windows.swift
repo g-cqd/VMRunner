@@ -10,7 +10,7 @@ extension ConfigurationBuilder {
     /// clipboard setting is inert for it. Shared folders are not special-cased: they use the shared device and tag, which
     /// a Windows guest sees only with a virtio file system driver of its own.
     ///
-    /// The machine needs the performance-monitoring emulation to boot Windows. It is turned on through the capability module
+    /// Windows is reported to need performance-monitoring emulation. It is turned on through the capability module
     /// when the policy allows it; when the policy denies it or the capability is unavailable, the start fails with a message
     /// that names the capability and why, unless the developer default lets the machine start without it.
     static func configureWindows(

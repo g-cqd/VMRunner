@@ -64,12 +64,18 @@ package struct PrivateCapabilityContext: Sendable {
 package struct CapabilityEntry: Sendable {
     package let id: PrivateCapabilityID
     package let builds: ClosedRange<OSBuild>
+    /// Runtime failures override a successful selector probe on these builds.
+    package let unsafeBuilds: [OSBuild]
     package let setter: MethodContract
     package let getter: MethodContract
 
-    package init(id: PrivateCapabilityID, builds: ClosedRange<OSBuild>, setter: MethodContract, getter: MethodContract) {
+    package init(
+        id: PrivateCapabilityID, builds: ClosedRange<OSBuild>, unsafeBuilds: [OSBuild] = [],
+        setter: MethodContract, getter: MethodContract
+    ) {
         self.id = id
         self.builds = builds
+        self.unsafeBuilds = unsafeBuilds
         self.setter = setter
         self.getter = getter
     }
@@ -82,6 +88,7 @@ package struct CapabilityEntry: Sendable {
         guard builds.contains(build) else {
             return .unavailable(.osBuildOutsideRange(build: text, verified: "\(builds.lowerBound) to \(builds.upperBound)"))
         }
+        guard !unsafeBuilds.contains(build) else { return .unavailable(.unsafeHostBuild(text)) }
         for method in [setter, getter] {
             switch context.resolver.lookup(className: method.className, selector: method.selector) {
             case .classMissing:

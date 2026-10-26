@@ -16,6 +16,9 @@ extension HelpCatalog {
                 "• **Defaults**: 4 processors and 8 GiB of memory (less on a small Mac), a 64 GiB sparse NVMe disk, NAT "
                     + "networking and a 1920 × 1200 display. Sound is off because Windows has no built-in driver for it; turn it "
                     + "on in the settings if you add one.",
+                "On macOS 27.0.1 build 26A434, Windows starts are refused because performance-monitoring emulation crashed "
+                    + "Apple's virtualization helper in a real-guest test. Turning it off avoided that early crash but did not "
+                    + "establish a successful Windows boot. There is no automatic fallback.",
                 "Before you start:",
             ] + WindowsRequirements.lines.map { "• " + $0 } + [
                 "The settings show only what a Windows machine has. Shared folders and host information reach the guest only if "

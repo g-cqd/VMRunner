@@ -24,6 +24,7 @@ package enum PrivateCapabilityReason: Equatable, Sendable, CustomStringConvertib
     case notRegistered
     case osBuildUnreadable
     case osBuildOutsideRange(build: String, verified: String)
+    case unsafeHostBuild(String)
     case classMissing(String)
     case receiverMismatch(class: String)
     case selectorMissing(class: String, selector: String)
@@ -40,6 +41,8 @@ package enum PrivateCapabilityReason: Equatable, Sendable, CustomStringConvertib
             "the build of macOS could not be read"
         case .osBuildOutsideRange(let build, let verified):
             "macOS build \(build) is outside the builds it was verified on (\(verified))"
+        case .unsafeHostBuild(let build):
+            "macOS build \(build) is disabled because this capability crashed the virtualization helper"
         case .classMissing(let name):
             "this macOS has no class \(name)"
         case .receiverMismatch(let name):

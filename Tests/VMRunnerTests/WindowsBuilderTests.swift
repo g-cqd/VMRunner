@@ -210,7 +210,7 @@ struct WindowsBuilderTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let scratch = try ScratchDefaults()
         defer { scratch.cleanUp() }
-        let context = PrivateCapabilityContext(osBuild: "26A434", killed: [], resolver: EmptyResolver())
+        let context = PrivateCapabilityContext(osBuild: "26A435", killed: [], resolver: EmptyResolver())
         let real = WindowsStartSettings.current(
             for: windows(), managed: ManagedPreferences(forcedValue: { _ in nil }), defaults: scratch.defaults, context: context)
 
@@ -221,6 +221,27 @@ struct WindowsBuilderTests {
         } catch let error as SetupError {
             let missing = PrivateCapabilityReason.classMissing("VZGenericPlatformConfiguration")
             #expect(error.errorDescription == "Windows needs the performance-monitoring emulation, which is unavailable: \(missing).")
+        }
+    }
+
+    @Test func theKnownCrashingHostStopsWindowsBeforeTheHelperCanBeCreated() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let scratch = try ScratchDefaults()
+        defer { scratch.cleanUp() }
+        let context = PrivateCapabilityContext(osBuild: "26A434", killed: [], resolver: EmptyResolver())
+        let real = WindowsStartSettings.current(
+            for: windows(), managed: ManagedPreferences(forcedValue: { _ in nil }), defaults: scratch.defaults, context: context)
+        let reason = PrivateCapabilityReason.unsafeHostBuild("26A434")
+
+        #expect(real.applyPerformanceMonitoring(VZGenericPlatformConfiguration()) == .unavailable(reason))
+        do {
+            _ = try assemble(windows(), in: directory, real)
+            Issue.record("the unsafe Windows configuration was built")
+        } catch let error as SetupError {
+            #expect(
+                error.errorDescription
+                    == "Windows needs the performance-monitoring emulation, which is unavailable: \(reason.description).")
         }
     }
 

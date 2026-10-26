@@ -91,7 +91,8 @@ struct CapabilityStatusTests {
     func everyReasonSaysInWordsWhatIsWrong() {
         let reasons: [PrivateCapabilityReason] = [
             .killSwitch, .notRegistered, .osBuildUnreadable, .osBuildOutsideRange(build: "25H100", verified: "26A0 to 26Z99999"),
-            .classMissing("C"), .receiverMismatch(class: "C"), .selectorMissing(class: "C", selector: "_s:"),
+            .unsafeHostBuild("26A434"), .classMissing("C"), .receiverMismatch(class: "C"),
+            .selectorMissing(class: "C", selector: "_s:"),
             .encodingMismatch(selector: "_s:", expected: "v@:B", found: "v@:q"), .readBackMismatch(selector: "_s:"),
         ]
         #expect(Set(reasons.map(\.description)).count == reasons.count, "no two reasons read alike")

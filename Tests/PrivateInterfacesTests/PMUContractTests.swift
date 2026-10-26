@@ -24,7 +24,10 @@ struct PMUContractTests {
         if case .found = resolver.lookup(className: $0.className, selector: $0.selector) { true } else { false }
     }
 
-    static let hostBuildIsVerified: Bool = OSBuild.running.flatMap { OSBuild($0) }.map { PMUEmulation.entry.builds.contains($0) } ?? false
+    static let hostBuildCanApply: Bool =
+        OSBuild.running.flatMap { OSBuild($0) }.map {
+            PMUEmulation.entry.builds.contains($0) && !PMUEmulation.entry.unsafeBuilds.contains($0)
+        } ?? false
 
     @Test(.enabled(if: switchSelectorsExist, "this macOS has no performance-monitoring selectors on the generic platform"))
     func theSelectorsHaveTheEncodingsTheRegistryDeclares() {
@@ -42,7 +45,7 @@ struct PMUContractTests {
         }
     }
 
-    @Test(.enabled(if: hostBuildIsVerified, "needs a build the registry was verified on; there the selectors must exist"))
+    @Test(.enabled(if: hostBuildCanApply, "needs a compatible build without an observed runtime failure; selectors must exist"))
     func aFreshConfigurationTakesTheSwitchAndKeepsIt() {
         #expect(PMUEmulation.status() == .available)
         let configuration = VZGenericPlatformConfiguration()

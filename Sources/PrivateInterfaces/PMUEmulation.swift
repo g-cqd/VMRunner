@@ -6,11 +6,13 @@ package import Virtualization
 package enum PMUEmulation {
     private static let className = "VZGenericPlatformConfiguration"
 
-    /// Verified on macOS 27.0.1 (build 26A434): the setter's encoding is `v20@0:8B16`, the getter's `B16@0:8`. The builds are
-    /// those of Darwin 26, which is macOS 27; a build outside them is off until it is probed and this range is widened.
+    /// Selector encodings were probed on 26A434 (`v20@0:8B16` and `B16@0:8`), but a real guest crashed the helper on that
+    /// build with the switch enabled. Refuse it before lookup or application; see the Windows PMU crash research of 2026-10.
+    /// The Darwin 26 range limits selector compatibility only, not verified guest execution on every build.
     package static let entry = CapabilityEntry(
         id: .performanceMonitoringEmulation,
         builds: OSBuild(major: 26, letter: "A", count: 0)...OSBuild(major: 26, letter: "Z", count: 99_999),
+        unsafeBuilds: [OSBuild(major: 26, letter: "A", count: 434)],
         setter: MethodContract(
             className: className, selector: "_setPerformanceMonitoringUnitEmulationEnabled:", encoding: "v@:B"),
         getter: MethodContract(className: className, selector: "_performanceMonitoringUnitEmulationEnabled", encoding: "B@:"))
