@@ -1,0 +1,104 @@
+import AppKit
+import Foundation
+import Virtualization
+
+@MainActor
+final class FrameOverlay: NSImageView {
+    // Display only: leave mouse and keyboard handling with the underlying VZ view.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override var acceptsFirstResponder: Bool { false }
+}
+
+@MainActor
+// Both delegate protocols are called on the explicitly configured main device queue.
+final class FrameMirror: NSObject, @preconcurrency VZCustomVirtioDeviceConfigurationDelegate, @preconcurrency VZCustomVirtioDeviceDelegate {
+    private var device: VZCustomVirtioDevice?
+    private let log: @MainActor (String) -> Void
+    private let overlay = FrameOverlay()
+    private var previous: Data?
+    private var announced = false
+    private var refusedMapping = false
+    private var frames = 0
+
+    init(log: @escaping @MainActor (String) -> Void) {
+        self.log = log
+    }
+
+    func configuration() -> VZCustomVirtioDeviceConfiguration {
+        let configuration = VZCustomVirtioDeviceConfiguration()
+        configuration.deviceID = 0x7f
+        configuration.pciClassID = 0xff
+        configuration.pciSubclassID = 0
+        configuration.virtioQueueCount = 1
+        configuration.provider = VZCustomVirtioDeviceDelegateProvider(deviceQueue: .main, delegate: self)
+        configuration.supportsSaveRestore = false
+        return configuration
+    }
+
+    func customVirtioConfiguration(_ configuration: VZCustomVirtioDeviceConfiguration, didCreateDevice device: VZCustomVirtioDevice) {
+        self.device = device
+        device.delegate = self
+        log("framebuffer observer created; testing host RAM mapping without a guest driver")
+    }
+
+    func customVirtioDevice(_ device: VZCustomVirtioDevice, didReceiveNotificationFor queue: VZVirtioQueue) {
+        // This diagnostic has no guest protocol. Do not serve an accidental queue as a device of another kind.
+        device.requestReset()
+    }
+
+    func install(on view: NSView) {
+        overlay.frame = view.bounds
+        overlay.autoresizingMask = [.width, .height]
+        overlay.imageScaling = .scaleProportionallyUpOrDown
+        overlay.wantsLayer = true
+        overlay.layer?.backgroundColor = NSColor.black.cgColor
+        overlay.isHidden = true
+        view.addSubview(overlay)
+    }
+
+    private func value(stage: UInt8, in bytes: Data) -> UInt64? {
+        let name = String(format: "VMRProbe-%02X", stage) + "\0"
+        guard let encoded = name.data(using: .utf16LittleEndian),
+            let range = bytes.range(of: encoded, options: .backwards), range.lowerBound >= 24,
+            range.upperBound <= bytes.count - 8 else { return nil }
+        let guid: [UInt8] = [0x8a, 0xe2, 0xb4, 0xd1, 0x41, 0x06, 0xdc, 0x44, 0x8a, 0xee, 0x65, 0x43, 0x12, 0x99, 0x30, 0x26]
+        guard Array(bytes[(range.lowerBound - 16)..<range.lowerBound]) == guid,
+            Array(bytes[(range.lowerBound - 20)..<(range.lowerBound - 16)]) == [8, 0, 0, 0] else { return nil }
+        return (0..<8).reduce(UInt64(0)) { $0 | UInt64(bytes[range.upperBound + $1]) << ($1 * 8) }
+    }
+
+    func update(variableStore: URL) {
+        guard let device,
+            let attributes = try? FileManager.default.attributesOfItem(atPath: variableStore.path),
+            let fileSize = attributes[.size] as? NSNumber, fileSize.intValue <= 1 << 20,
+            let variables = try? Data(contentsOf: variableStore), variables.count >= 32,
+            let address = value(stage: 5, in: variables), address != 0,
+            let dimensions = value(stage: 4, in: variables) else { return }
+        let width = Int(dimensions >> 32)
+        let height = Int(dimensions & 0xffffffff)
+        guard (640...1920).contains(width), (480...1200).contains(height) else { return }
+        let count = width * height * 4
+        guard address <= UInt64.max - UInt64(count),
+            let mapping = device.guestMemoryMapping(atPhysicalAddress: address, length: count), mapping.length >= count else {
+            if !refusedMapping { log("framebuffer RAM mapping refused"); refusedMapping = true }
+            return
+        }
+        // Copy only this bounded guest framebuffer. No mapping is retained across updates or shutdown/reboot.
+        let pixels = Data(bytes: mapping.mutableBytes, count: count)
+        if pixels == previous { return }
+        let bitmap = CGBitmapInfo.byteOrder32Little.union(CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue))
+        guard let provider = CGDataProvider(data: pixels as CFData),
+            let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmap,
+                provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { return }
+        overlay.image = NSImage(cgImage: image, size: NSSize(width: width, height: height))
+        overlay.isHidden = false
+        previous = pixels
+        frames += 1
+        if !announced {
+            log("live framebuffer mirror active: \(width)x\(height), guest RAM 0x\(String(address, radix: 16)); no frame files saved")
+            announced = true
+        }
+        if frames == 1 || frames % 25 == 0 { log("framebuffer changes displayed=\(frames)") }
+    }
+}

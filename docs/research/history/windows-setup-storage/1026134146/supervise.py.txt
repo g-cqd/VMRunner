@@ -1,0 +1,67 @@
+import json, os, shutil, struct, subprocess, time
+from pathlib import Path
+os.umask(0o077)
+root = Path('/tmp/vmr-windows-storage-1026134146')
+notes = Path('/tmp/vmr-windows-storage-notes-1026134146')
+iso = Path.home() / 'Downloads/Windows11_Client_arm64_en-us_26300_9457.iso'
+expected = '8992f2d2cfd2fa647e579e9eb31fc21f34da8333c29b6170fde17d2ed6623e9c'
+if (notes / 'iso-before.sha256').read_text().split()[0] != expected:
+    raise SystemExit('ISO mismatch; no launch')
+def helpers():
+    text = subprocess.check_output(['ps', '-ax', '-o', 'pid=,command='], text=True)
+    return [s.strip() for s in text.splitlines() if '/Virtualization.framework/' in s
+            and 'Virtualization.VirtualMachine.xpc/Contents/MacOS/' in s]
+if helpers():
+    raise SystemExit('Existing virtualization helper; no launch')
+if (notes / 'download.exit').read_text().strip() != '0' or not (root / 'Driver-fat.img.cdr').is_file():
+    raise SystemExit('Verified driver disc not ready; no launch')
+for name in ['BootProbe.swift', 'LiveFrameView.swift', 'FramebufferBoot.c', 'makeboot.py', 'fetch-drivers.py', 'supervise.py']:
+    shutil.copyfile(root / name, notes / (name + '.txt'))
+guest = root / 'guest'
+guest.mkdir(mode=0o700)
+start = time.monotonic()
+with (notes / 'run.log.txt').open('w') as log:
+    process = subprocess.Popen([str(root / 'boot-probe'), '--bootstrap'], cwd=root,
+        env=dict(os.environ, VMR_PROBE_ROOT=str(guest)), stdin=subprocess.DEVNULL,
+        stdout=log, stderr=subprocess.STDOUT)
+    (notes / 'app.pid').write_text(str(process.pid) + '\n')
+    (notes / 'started.txt').write_text(time.strftime('%Y-%m-%d %H:%M:%S %Z') + '\n')
+    reason = 'normal probe exit'
+    while process.poll() is None:
+        fs = os.statvfs(root)
+        elapsed = time.monotonic() - start
+        if elapsed >= 630 or fs.f_bavail * fs.f_frsize < 8 * (1 << 30):
+            reason = 'independent time or free-space guard'
+            process.terminate()
+            try: process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill(); process.wait()
+            break
+        time.sleep(0.5)
+    status = process.wait()
+(notes / 'exit.txt').write_text(f'exit={status}; {reason}; elapsed={time.monotonic()-start:.1f}s\n')
+for _ in range(20):
+    if not helpers(): break
+    time.sleep(0.5)
+(notes / 'helpers-after.txt').write_text('\n'.join(helpers()) + '\n')
+records = []
+store = guest / 'EFIVariables.fd'
+if store.exists() and store.stat().st_size <= (1 << 20):
+    data = store.read_bytes()
+    for stage in range(1,17):
+        name = (f'VMRProbe-{stage:02X}' + '\0').encode('utf-16le'); position = 0
+        while (position := data.find(name, position)) >= 0:
+            if position >= 24 and position + len(name) + 8 <= len(data):
+                if struct.unpack_from('<I',data,position-20)[0] == 8:
+                    records.append({'stage':stage,'value':hex(struct.unpack_from('<Q',data,position+len(name))[0])})
+            position += len(name)
+(notes / 'stages.json').write_text(json.dumps(records,indent=2)+'\n')
+for key,args in [
+    ('iso-after.sha256',['shasum','-a','256',str(iso)]),
+    ('iso-after.stat',['stat','-f','%z %m %Sp',str(iso)]),
+    ('preferences-after.stat',['stat','-f','%z %m',str(Path.home()/'Library/Preferences/com.example.VMRunner.plist')])]:
+    (notes/key).write_text(subprocess.check_output(args,text=True))
+if root.is_symlink() or root.stat().st_uid != os.getuid():
+    raise SystemExit('Scratch identity changed; removal refused')
+shutil.rmtree(root)
+(notes/'complete.txt').write_text('Run stopped; scratch binaries, headers, disks and EFI stores removed. Small observation notes retained.\n')

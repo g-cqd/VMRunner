@@ -1,0 +1,178 @@
+import AppKit
+import Foundation
+import Virtualization
+
+@MainActor
+final class BootProbe: NSObject, NSApplicationDelegate, VZVirtualMachineDelegate {
+    var machine: VZVirtualMachine?
+    var window: NSWindow?
+    var serialOutput: FileHandle?
+    var frameMirror: FrameMirror?
+    let root = URL(filePath: ProcessInfo.processInfo.environment["VMR_PROBE_ROOT"] ?? "/tmp/vmr-windows-boot-1026132606")
+
+    func log(_ text: String) {
+        let time = ISO8601DateFormatter().string(from: Date())
+        FileHandle.standardOutput.write(Data("\(time) \(text)\n".utf8))
+    }
+
+    func set(_ setterName: String, getter getterName: String, on object: VZGenericPlatformConfiguration) throws {
+        typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
+        typealias Getter = @convention(c) (AnyObject, Selector) -> Bool
+        let setterSelector = NSSelectorFromString(setterName)
+        let getterSelector = NSSelectorFromString(getterName)
+        guard let setterMethod = class_getInstanceMethod(VZGenericPlatformConfiguration.self, setterSelector),
+            let getterMethod = class_getInstanceMethod(VZGenericPlatformConfiguration.self, getterSelector),
+            let setterType = method_getTypeEncoding(setterMethod),
+            let getterType = method_getTypeEncoding(getterMethod),
+            String(cString: setterType).filter({ !$0.isNumber }) == "v@:B",
+            String(cString: getterType).filter({ !$0.isNumber }) == "B@:"
+        else { throw NSError(domain: "BootProbe.contract", code: 1) }
+        let set = unsafeBitCast(method_getImplementation(setterMethod), to: Setter.self)
+        let get = unsafeBitCast(method_getImplementation(getterMethod), to: Getter.self)
+        set(object, setterSelector, true)
+        guard get(object, getterSelector) else { throw NSError(domain: "BootProbe.readback", code: 1) }
+        log("enabled and read back: \(setterName)")
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        do {
+            let disk = root.appending(path: "Disk.img")
+            guard !FileManager.default.fileExists(atPath: disk.path) else {
+                throw NSError(domain: "BootProbe.existingDisk", code: 1)
+            }
+            guard FileManager.default.createFile(atPath: disk.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
+                throw NSError(domain: "BootProbe.disk", code: 1)
+            }
+            let handle = try FileHandle(forWritingTo: disk)
+            try handle.truncate(atOffset: 64 << 30)
+            try handle.close()
+            let variables = try VZEFIVariableStore(
+                creatingVariableStoreAt: root.appending(path: "EFIVariables.fd"), options: [.allowOverwrite])
+            let platform = VZGenericPlatformConfiguration()
+            platform.machineIdentifier = VZGenericMachineIdentifier()
+            // Test the newly identified pair only in this disposable probe. Production remains blocked.
+            try set("_setPerformanceMonitoringUnitEmulationEnabled:", getter: "_performanceMonitoringUnitEmulationEnabled", on: platform)
+            try set("_setFineGrainedTrapsEmulationEnabled:", getter: "_fineGrainTrapsEmulationEnabled", on: platform)
+            let configuration = VZVirtualMachineConfiguration()
+            configuration.platform = platform
+            configuration.cpuCount = 4
+            configuration.memorySize = 8192 << 20
+            let boot = VZEFIBootLoader()
+            boot.variableStore = variables
+            configuration.bootLoader = boot
+            let graphics = VZVirtioGraphicsDeviceConfiguration()
+            graphics.scanouts = [VZVirtioGraphicsScanoutConfiguration(widthInPixels: 1920, heightInPixels: 1200)]
+            configuration.graphicsDevices = [graphics]
+            configuration.keyboards = [VZUSBKeyboardConfiguration()]
+            configuration.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
+            let mainDisk = try VZDiskImageStorageDeviceAttachment(url: disk, readOnly: false)
+            configuration.storageDevices = [VZNVMExpressControllerDeviceConfiguration(attachment: mainDisk)]
+            if CommandLine.arguments.contains("--bootstrap") {
+                let attachment = try VZDiskImageStorageDeviceAttachment(
+                    url: URL(filePath: "/tmp/vmr-windows-boot-1026132606/Boot-fat.img"), readOnly: true)
+                configuration.storageDevices.append(VZUSBMassStorageDeviceConfiguration(attachment: attachment))
+                let serialPath = root.appending(path: "serial.log")
+                _ = FileManager.default.createFile(atPath: serialPath.path, contents: nil, attributes: [.posixPermissions: 0o600])
+                let output = try FileHandle(forWritingTo: serialPath)
+                self.serialOutput = output
+                let port = VZVirtioConsoleDeviceSerialPortConfiguration()
+                port.attachment = VZFileHandleSerialPortAttachment(fileHandleForReading: nil, fileHandleForWriting: output)
+                configuration.serialPorts = [port]
+            }
+            if !CommandLine.arguments.contains("--no-installer") {
+                let iso = URL(filePath: "~/Downloads/Windows11_Client_arm64_en-us_26300_9457.iso")
+                let installer = try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)
+                configuration.storageDevices.append(VZUSBMassStorageDeviceConfiguration(attachment: installer))
+            }
+            let network = VZVirtioNetworkDeviceConfiguration()
+            network.attachment = VZNATNetworkDeviceAttachment()
+            configuration.networkDevices = [network]
+            configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
+            configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
+            configuration.socketDevices = [VZVirtioSocketDeviceConfiguration()]
+            let mirror = FrameMirror(log: { [weak self] in self?.log($0) })
+            self.frameMirror = mirror
+            configuration.customVirtioDevices = [mirror.configuration()]
+            try configuration.validate()
+            log("configuration valid; 4 CPUs, 8192 MiB, 64 GiB sparse disk; storage devices=\(configuration.storageDevices.count)")
+            let machine = VZVirtualMachine(configuration: configuration)
+            machine.delegate = self
+            self.machine = machine
+            let view = VZVirtualMachineView(frame: NSRect(x: 0, y: 0, width: 960, height: 600))
+            view.virtualMachine = machine
+            let window = NSWindow(contentRect: view.frame, styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.title = "Windows boot diagnostic — PMU and fine-grained traps"
+            window.contentView = view
+            window.initialFirstResponder = view
+            mirror.install(on: view)
+            window.center()
+            window.orderBack(nil)
+            self.window = window
+            machine.start { result in
+                switch result {
+                case .success: self.log("running")
+                case .failure(let error):
+                    self.log("start failed: \(error)")
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+            Task { @MainActor in
+                while self.machine?.state == .starting || self.machine?.state == .running || self.machine?.state == .stopped {
+                    if machine.state == .running {
+                        mirror.update(variableStore: self.root.appending(path: "EFIVariables.fd"))
+                    }
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+            }
+            Task { @MainActor in
+                let clock = ContinuousClock()
+                let deadline = clock.now.advanced(by: .seconds(180))
+                while clock.now < deadline {
+                    let next = min(clock.now.advanced(by: .seconds(10)), deadline)
+                    try? await Task.sleep(until: next, clock: clock)
+                    self.log("state=\(machine.state.rawValue)")
+                }
+                self.log("180-second runtime limit reached")
+                if machine.canStop {
+                    machine.stop { result in
+                        self.log("stop result: \(String(describing: result))")
+                        NSApplication.shared.terminate(nil)
+                    }
+                } else {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+        } catch {
+            log("preparation failed: \(error)")
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    nonisolated func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: Error) {
+        let message = String(describing: error)
+        Task { @MainActor in
+            self.log("guest stopped unexpectedly: \(message)")
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    nonisolated func guestDidStop(_ virtualMachine: VZVirtualMachine) {
+        Task { @MainActor in
+            self.log("guest stopped")
+            NSApplication.shared.terminate(nil)
+        }
+    }
+}
+
+@main
+@MainActor
+struct BootMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = BootProbe()
+        app.delegate = delegate
+        app.setActivationPolicy(.regular)
+        app.run()
+        withExtendedLifetime(delegate) {}
+    }
+}

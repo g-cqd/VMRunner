@@ -1,0 +1,30 @@
+2026-10-26T12:31:32Z enabled and read back: _setPerformanceMonitoringUnitEmulationEnabled:
+2026-10-26T12:31:32Z enabled and read back: _setFineGrainedTrapsEmulationEnabled:
+2026-10-26T12:31:32Z configuration valid; 4 CPUs, 8192 MiB, 64 GiB sparse disk; storage devices=3
+2026-10-26T12:31:32Z framebuffer observer created; testing host RAM mapping without a guest driver
+2026-10-26T12:31:33Z running
+2026-10-26T12:31:34Z live framebuffer mirror active: 1920x1200, guest RAM 0x26d850000; no frame files saved
+2026-10-26T12:31:34Z framebuffer changes displayed=1
+2026-10-26T12:31:43Z state=1
+2026-10-26T12:31:49Z framebuffer changes displayed=25
+2026-10-26T12:31:53Z state=1
+2026-10-26T12:31:58Z framebuffer changes displayed=50
+2026-10-26T12:32:03Z state=1
+2026-10-26T12:32:13Z state=1
+2026-10-26T12:32:16Z framebuffer changes displayed=75
+2026-10-26T12:32:23Z state=1
+2026-10-26T12:32:33Z state=1
+2026-10-26T12:32:43Z state=1
+2026-10-26T12:32:53Z state=1
+2026-10-26T12:33:03Z state=1
+2026-10-26T12:33:13Z state=1
+2026-10-26T12:33:23Z state=1
+2026-10-26T12:33:33Z state=1
+2026-10-26T12:33:44Z state=1
+2026-10-26T12:33:54Z state=1
+2026-10-26T12:34:04Z state=1
+2026-10-26T12:34:14Z state=1
+2026-10-26T12:34:24Z state=1
+2026-10-26T12:34:33Z state=1
+2026-10-26T12:34:33Z 180-second runtime limit reached
+2026-10-26T12:34:33Z stop result: nil

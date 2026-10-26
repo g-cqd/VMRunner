@@ -1,0 +1,1 @@
+Run stopped; scratch binaries, headers, disks and EFI stores removed. Small observation notes retained.

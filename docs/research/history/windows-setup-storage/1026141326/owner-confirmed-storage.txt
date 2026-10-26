@@ -1,0 +1,6 @@
+Owner-supplied screenshots, read directly from their Desktop on 2026-10-26:
+- Screenshot 2026-10-26 at 14.31.08.png: PCI\VEN_1AF4&DEV_1042&SUBSYS_00421AF4&REV_01 instance; Red Hat VirtIO SCSI controller; Class SCSIAdapter; Manufacturer Red Hat, Inc.; Status Started; Driver Name oem0.inf.
+- Screenshot 2026-10-26 at 14.31.19.png: unknown framebuffer-observer device 1AF4:10BF and display controller 1AF4:1050; these are separate from the storage controller.
+- Screenshot 2026-10-26 at 14.31.41.png: DiskPart list disk shows Disk 0 Online 33 MB / 960 KB free / GPT; Disk 1 Online 8133 MB / 8133 MB free; Disk 2 Online 32 MB / 1920 KB free / GPT; Disk 3 Online 64 GB / 64 GB free.
+
+This establishes that Windows has started the Virtio storage driver and sees the temporary target disk. It does not establish that Setup's drive list has refreshed, a completed installation, or compliance with all installer hardware requirements. The exact mechanism/timing by which oem0.inf was installed has not been established from these screenshots. No owner screenshots were copied into the repository and no screenshot was taken by the agent.

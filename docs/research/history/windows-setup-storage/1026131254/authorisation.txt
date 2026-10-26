@@ -1,0 +1,2 @@
+Owner approved the three-minute owner-observed test: "go ahead, continue".
+2026-10-26; 4 CPUs / 8192 MiB / 64 GiB sparse disk; original read-only ISO. No generated input or capture.

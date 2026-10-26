@@ -1,0 +1,40 @@
+import hashlib, json, os, time, urllib.parse, urllib.request
+from pathlib import Path
+os.umask(0o077)
+root = Path('/tmp/vmr-windows-storage-1026134146')
+notes = Path('/tmp/vmr-windows-storage-notes-1026134146')
+url = 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso'
+expected = '303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d'
+size = 877373440
+class SafeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urllib.parse.urlsplit(newurl)
+        if parsed.scheme != 'https' or parsed.hostname != 'fedorapeople.org':
+            raise ValueError('Unapproved redirect')
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+start = time.monotonic()
+try:
+    digest = hashlib.sha256(); total = 0
+    with urllib.request.build_opener(SafeRedirect).open(url, timeout=30) as response:
+        if response.status != 200 or int(response.headers.get('Content-Length', '0')) != size:
+            raise ValueError('Unexpected download status or size')
+        with (root / 'drivers.iso.partial').open('xb') as output:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk: break
+                total += len(chunk)
+                if total > size or time.monotonic() - start > 240:
+                    raise ValueError('Download exceeds size or time cap')
+                digest.update(chunk); output.write(chunk)
+    if total != size or digest.hexdigest() != expected:
+        raise ValueError('Driver ISO checksum mismatch')
+    (root / 'drivers.iso.partial').rename(root / 'drivers.iso')
+    (notes / 'drivers.json').write_text(json.dumps({'url':url,'bytes':total,'sha256':digest.hexdigest(),
+        'pin_source':'published in immutable source revision e4c623c3fa1f81f9f9befc6cdc16f54b86b6ef47; not a vendor ISO signature',
+        'catalog_signature':'Windows must verify the actual driver during Load driver; not yet tested'},indent=2)+'\n')
+    (notes / 'download.exit').write_text('0\n')
+except Exception as error:
+    (notes / 'download.exit').write_text('1\n')
+    (notes / 'download.error').write_text(str(error)+'\n')
+    (root / 'drivers.iso.partial').unlink(missing_ok=True)
+    raise

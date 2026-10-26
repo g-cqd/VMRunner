@@ -1,0 +1,1 @@
+Guest stopped. Scratch disks, firmware, binaries, headers and sources removed; only these small notes remain.

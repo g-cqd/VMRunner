@@ -1,0 +1,21 @@
+{
+  "url": "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso",
+  "method": "bounded HTTP ranges; each file checked against hashes from the previously full-ISO-verified package",
+  "files": [
+    {
+      "name": "viostor.inf",
+      "bytes": 2997,
+      "sha256": "a9005e9b3affdb161df22e1f9c6db0433c6f48b765fe8ba71e7915adb86238bb"
+    },
+    {
+      "name": "viostor.sys",
+      "bytes": 75416,
+      "sha256": "a1cabcb4fdea38edc47e3b7f9414bd3cfe248f4c2ad2c38844201cf10b4cfec8"
+    },
+    {
+      "name": "viostor.cat",
+      "bytes": 12082,
+      "sha256": "9264ff0e8069c82041e018420f198d257f760d70d55ac2be95b3bd49091468d9"
+    }
+  ]
+}

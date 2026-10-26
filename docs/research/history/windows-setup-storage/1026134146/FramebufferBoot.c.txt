@@ -1,0 +1,350 @@
+// Disposable UEFI framebuffer/chainload diagnostic. No installer changes or Setup automation.
+// Uses the UEFI interfaces from the pinned BSD-2-Clause-Patent EDK II headers.
+#include <Uefi.h>
+#include <Protocol/GraphicsOutput.h>
+#include <Protocol/LoadedImage.h>
+#include <Protocol/SimpleFileSystem.h>
+#include <Protocol/DevicePath.h>
+#include <Protocol/SerialIo.h>
+#include <Guid/FileInfo.h>
+
+#define LIMIT_X 1920U
+#define LIMIT_Y 1200U
+#define MAX_OUTPUTS 8U
+
+static EFI_GUID GraphicsGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+static EFI_GUID ImageGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+static EFI_GUID PathGuid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+static EFI_GUID FilesystemGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+static EFI_BOOT_SERVICES *Services;
+static EFI_SYSTEM_TABLE *System;
+static EFI_SERIAL_IO_PROTOCOL *Serial;
+static VOID Trace(UINTN stage, UINT64 value) {
+    EFI_GUID diagnosticGuid = {0xd1b4e28a, 0x0641, 0x44dc, {0x8a, 0xee, 0x65, 0x43, 0x12, 0x99, 0x30, 0x26}};
+    CHAR16 name[] = L"VMRProbe-00";
+    const CHAR16 hex[] = L"0123456789ABCDEF";
+    name[9] = hex[(stage >> 4) & 15];
+    name[10] = hex[stage & 15];
+    System->RuntimeServices->SetVariable(name, &diagnosticGuid,
+        EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS, sizeof(value), &value);
+}
+static VOID Note(CHAR16 *text) {
+    System->ConOut->OutputString(System->ConOut, text);
+    if (Serial) {
+        CHAR8 bytes[160];
+        UINTN count = 0;
+        while (text[count] && count < sizeof(bytes)) { bytes[count] = (CHAR8)text[count]; ++count; }
+        Serial->Write(Serial, &count, bytes);
+    }
+}
+static VOID ListFiles(EFI_HANDLE volume, const CHAR16 *directory, CHAR16 *variableName) {
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *filesystem;
+    EFI_FILE_PROTOCOL *root, *folder;
+    if (EFI_ERROR(Services->HandleProtocol(volume, &FilesystemGuid, (VOID **)&filesystem))) return;
+    if (EFI_ERROR(filesystem->OpenVolume(filesystem, &root))) return;
+    EFI_STATUS result = root->Open(root, &folder, (CHAR16 *)directory, EFI_FILE_MODE_READ, 0);
+    root->Close(root);
+    if (EFI_ERROR(result)) return;
+    VOID *entry;
+    if (EFI_ERROR(Services->AllocatePool(EfiBootServicesData, 4096, &entry))) { folder->Close(folder); return; }
+    CHAR16 names[1024];
+    UINTN used = 0;
+    for (UINTN i = 0; i < 64 && used < 1000; ++i) {
+        UINTN size = 4096;
+        result = folder->Read(folder, &size, entry);
+        if (EFI_ERROR(result) || size < OFFSET_OF(EFI_FILE_INFO, FileName) + sizeof(CHAR16)) break;
+        EFI_FILE_INFO *information = entry;
+        UINTN maximum = (size - OFFSET_OF(EFI_FILE_INFO, FileName)) / sizeof(CHAR16);
+        for (UINTN c = 0; c < maximum && c < 255 && information->FileName[c] && used < 1022; ++c)
+            names[used++] = information->FileName[c];
+        names[used++] = L'\n';
+    }
+    names[used] = 0;
+    EFI_GUID guid = {0xd1b4e28a, 0x0641, 0x44dc, {0x8a, 0xee, 0x65, 0x43, 0x12, 0x99, 0x30, 0x26}};
+    System->RuntimeServices->SetVariable(variableName, &guid,
+        EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS, (used + 1) * sizeof(CHAR16), names);
+    Services->FreePool(entry);
+    folder->Close(folder);
+}
+static EFI_GRAPHICS_OUTPUT_PROTOCOL *Hardware;
+static UINT32 *Pixels;
+static UINT32 *Previous;
+static UINTN PixelBytes;
+static UINT32 Width, Height;
+static BOOLEAN DisplayActive;
+
+typedef struct {
+    EFI_GRAPHICS_OUTPUT_PROTOCOL Interface;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE Mode;
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION Information;
+} OUTPUT;
+static OUTPUT Outputs[MAX_OUTPUTS];
+
+void *memcpy(void *destination, const void *source, UINTN count) {
+    UINT8 *out = destination;
+    const UINT8 *in = source;
+    for (UINTN i = 0; i < count; ++i) out[i] = in[i];
+    return destination;
+}
+void *memset(void *destination, int value, UINTN count) {
+    UINT8 *out = destination;
+    for (UINTN i = 0; i < count; ++i) out[i] = (UINT8)value;
+    return destination;
+}
+static VOID CopyPixels(UINT32 *out, const UINT32 *in, UINTN count) {
+    if ((UINTN)out > (UINTN)in && (UINTN)out - (UINTN)in < count * sizeof(UINT32)) {
+        while (count) { --count; out[count] = in[count]; }
+    } else {
+        for (UINTN i = 0; i < count; ++i) out[i] = in[i];
+    }
+}
+static BOOLEAN Rectangle(UINTN x, UINTN y, UINTN width, UINTN height) {
+    return x <= Width && y <= Height && width <= Width - x && height <= Height - y;
+}
+static VOID Push(UINTN firstRow, UINTN rows) {
+    if (!DisplayActive || !rows) return;
+    Hardware->Blt(Hardware, (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *)Pixels, EfiBltBufferToVideo,
+        0, firstRow, 0, firstRow, Width, rows, (UINTN)Width * sizeof(UINT32));
+}
+static VOID EFIAPI Tick(EFI_EVENT event, VOID *context) {
+    (void)event; (void)context;
+    if (!DisplayActive) return;
+    UINTN start = Height;
+    for (UINTN row = 0; row < Height; ++row) {
+        UINTN offset = row * Width;
+        BOOLEAN changed = FALSE;
+        for (UINTN x = 0; x < Width; ++x) {
+            if (Pixels[offset + x] != Previous[offset + x]) { changed = TRUE; break; }
+        }
+        if (changed) {
+            CopyPixels(Previous + offset, Pixels + offset, Width);
+            if (start == Height) start = row;
+        } else if (start != Height) {
+            Push(start, row - start);
+            start = Height;
+        }
+    }
+    if (start != Height) Push(start, Height - start);
+}
+static VOID EFIAPI LeavingBootServices(EFI_EVENT event, VOID *context) {
+    (void)event; (void)context;
+    DisplayActive = FALSE;
+}
+static EFI_STATUS EFIAPI Query(EFI_GRAPHICS_OUTPUT_PROTOCOL *self, UINT32 mode, UINTN *size,
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION **information) {
+    if (mode != 0 || !size || !information) return EFI_INVALID_PARAMETER;
+    EFI_STATUS status = Services->AllocatePool(EfiBootServicesData, sizeof(**information), (VOID **)information);
+    if (EFI_ERROR(status)) return status;
+    memcpy(*information, self->Mode->Info, sizeof(**information));
+    *size = sizeof(**information);
+    return EFI_SUCCESS;
+}
+static EFI_STATUS EFIAPI Set(EFI_GRAPHICS_OUTPUT_PROTOCOL *self, UINT32 mode) {
+    (void)self;
+    if (mode != 0) return EFI_UNSUPPORTED;
+    memset(Pixels, 0, PixelBytes);
+    memset(Previous, 0, PixelBytes);
+    Push(0, Height);
+    return EFI_SUCCESS;
+}
+static EFI_STATUS EFIAPI Blit(EFI_GRAPHICS_OUTPUT_PROTOCOL *self, EFI_GRAPHICS_OUTPUT_BLT_PIXEL *buffer,
+    EFI_GRAPHICS_OUTPUT_BLT_OPERATION operation, UINTN sx, UINTN sy, UINTN dx, UINTN dy,
+    UINTN width, UINTN height, UINTN delta) {
+    (void)self;
+    if (width == 0 || height == 0 || width > Width || height > Height) return EFI_INVALID_PARAMETER;
+    if (operation >= EfiGraphicsOutputBltOperationMax) return EFI_INVALID_PARAMETER;
+    if (operation != EfiBltVideoToVideo && !buffer) return EFI_INVALID_PARAMETER;
+    if (operation != EfiBltVideoToBltBuffer && !Rectangle(dx, dy, width, height)) return EFI_INVALID_PARAMETER;
+    if ((operation == EfiBltVideoToBltBuffer || operation == EfiBltVideoToVideo) &&
+        !Rectangle(sx, sy, width, height)) return EFI_INVALID_PARAMETER;
+    if (!delta) delta = width * sizeof(UINT32);
+    if (delta % sizeof(UINT32)) return EFI_INVALID_PARAMETER;
+    UINTN stride = delta / sizeof(UINT32);
+    if ((operation == EfiBltBufferToVideo || operation == EfiBltVideoToBltBuffer) && height > (~(UINTN)0 / delta))
+        return EFI_INVALID_PARAMETER;
+    if (operation == EfiBltBufferToVideo && (sx > stride || width > stride - sx || sy > (~(UINTN)0 / delta) - height))
+        return EFI_INVALID_PARAMETER;
+    if (operation == EfiBltVideoToBltBuffer && (dx > stride || width > stride - dx || dy > (~(UINTN)0 / delta) - height))
+        return EFI_INVALID_PARAMETER;
+    for (UINTN index = 0; index < height; ++index) {
+        UINTN row = (operation == EfiBltVideoToVideo && dy > sy) ? height - 1 - index : index;
+        UINT32 *target = operation == EfiBltVideoToBltBuffer ? NULL : Pixels + (dy + row) * Width + dx;
+        const UINT32 *source = (operation == EfiBltVideoToBltBuffer || operation == EfiBltVideoToVideo)
+            ? Pixels + (sy + row) * Width + sx : NULL;
+        if (operation == EfiBltVideoFill) {
+            UINT32 color;
+            memcpy(&color, buffer, sizeof(color));
+            for (UINTN x = 0; x < width; ++x) target[x] = color;
+        } else if (operation == EfiBltBufferToVideo) {
+            CopyPixels(target, (UINT32 *)((UINT8 *)buffer + (sy + row) * delta) + sx, width);
+        } else if (operation == EfiBltVideoToBltBuffer) {
+            CopyPixels((UINT32 *)((UINT8 *)buffer + (dy + row) * delta) + dx, source, width);
+        } else {
+            CopyPixels(target, source, width);
+        }
+    }
+    if (operation != EfiBltVideoToBltBuffer) Push(dy, height);
+    return EFI_SUCCESS;
+}
+static EFI_DEVICE_PATH_PROTOCOL *AppendFile(EFI_HANDLE volume, const CHAR16 *name) {
+    EFI_DEVICE_PATH_PROTOCOL *path;
+    if (EFI_ERROR(Services->HandleProtocol(volume, &PathGuid, (VOID **)&path))) return NULL;
+    UINTN base = 0;
+    for (UINTN nodes = 0; nodes < 64; ++nodes) {
+        EFI_DEVICE_PATH_PROTOCOL *node = (VOID *)((UINT8 *)path + base);
+        UINTN size = node->Length[0] | ((UINTN)node->Length[1] << 8);
+        if (size < sizeof(*node) || size > 4096 - base) return NULL;
+        if (node->Type == END_DEVICE_PATH_TYPE) break;
+        base += size;
+        if (nodes == 63) return NULL;
+    }
+    UINTN characters = 0;
+    while (name[characters] && characters < 255) ++characters;
+    if (characters == 255) return NULL;
+    UINTN fileSize = sizeof(EFI_DEVICE_PATH_PROTOCOL) + (characters + 1) * sizeof(CHAR16);
+    UINT8 *allocation;
+    if (EFI_ERROR(Services->AllocatePool(EfiBootServicesData, base + fileSize + sizeof(EFI_DEVICE_PATH_PROTOCOL),
+        (VOID **)&allocation))) return NULL;
+    memcpy(allocation, path, base);
+    EFI_DEVICE_PATH_PROTOCOL *file = (VOID *)(allocation + base);
+    file->Type = MEDIA_DEVICE_PATH;
+    file->SubType = MEDIA_FILEPATH_DP;
+    file->Length[0] = (UINT8)fileSize;
+    file->Length[1] = (UINT8)(fileSize >> 8);
+    memcpy(file + 1, name, (characters + 1) * sizeof(CHAR16));
+    EFI_DEVICE_PATH_PROTOCOL *end = (VOID *)(allocation + base + fileSize);
+    end->Type = END_DEVICE_PATH_TYPE;
+    end->SubType = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+    end->Length[0] = sizeof(*end);
+    end->Length[1] = 0;
+    return (VOID *)allocation;
+}
+EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *system) {
+    System = system;
+    Services = system->BootServices;
+    Trace(1, 0);
+    EFI_GUID serialGuid = EFI_SERIAL_IO_PROTOCOL_GUID;
+    Services->LocateProtocol(&serialGuid, NULL, (VOID **)&Serial);
+    Note(L"VMRunner framebuffer boot diagnostic\r\n");
+    EFI_HANDLE *handles = NULL;
+    UINTN count = 0;
+    EFI_STATUS status = Services->LocateHandleBuffer(ByProtocol, &GraphicsGuid, NULL, &count, &handles);
+    Trace(2, count);
+    if (EFI_ERROR(status) || !count || count > MAX_OUTPUTS) return EFI_UNSUPPORTED;
+    for (UINTN i = 0; i < count; ++i) {
+        EFI_GRAPHICS_OUTPUT_PROTOCOL *candidate;
+        VOID *devicePath;
+        if (!EFI_ERROR(Services->HandleProtocol(handles[i], &GraphicsGuid, (VOID **)&candidate)) &&
+            !EFI_ERROR(Services->HandleProtocol(handles[i], &PathGuid, &devicePath))) {
+            Hardware = candidate;
+            break;
+        }
+    }
+    if (!Hardware || !Hardware->Mode || !Hardware->Mode->Info) return EFI_UNSUPPORTED;
+    Trace(3, Hardware->Mode->Info->PixelFormat);
+    Width = Hardware->Mode->Info->HorizontalResolution;
+    Height = Hardware->Mode->Info->VerticalResolution;
+    Trace(4, ((UINT64)Width << 32) | Height);
+    if (!Width || !Height || Width > LIMIT_X || Height > LIMIT_Y) return EFI_UNSUPPORTED;
+    PixelBytes = (UINTN)Width * Height * sizeof(UINT32);
+    EFI_PHYSICAL_ADDRESS address = 0;
+    status = Services->AllocatePages(AllocateAnyPages, EfiReservedMemoryType, EFI_SIZE_TO_PAGES(PixelBytes), &address);
+    if (EFI_ERROR(status)) return status;
+    Trace(5, address);
+    Pixels = (VOID *)(UINTN)address;
+    status = Services->AllocatePool(EfiBootServicesData, PixelBytes, (VOID **)&Previous);
+    if (EFI_ERROR(status)) return status;
+    memset(Pixels, 0, PixelBytes);
+    memset(Previous, 0, PixelBytes);
+    for (UINTN i = 0; i < count; ++i) {
+        EFI_GRAPHICS_OUTPUT_PROTOCOL *original;
+        if (EFI_ERROR(Services->HandleProtocol(handles[i], &GraphicsGuid, (VOID **)&original))) return EFI_UNSUPPORTED;
+        OUTPUT *output = &Outputs[i];
+        output->Information = *Hardware->Mode->Info;
+        output->Information.PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
+        memset(&output->Information.PixelInformation, 0, sizeof(output->Information.PixelInformation));
+        output->Information.PixelsPerScanLine = Width;
+        output->Mode.MaxMode = 1;
+        output->Mode.Mode = 0;
+        output->Mode.Info = &output->Information;
+        output->Mode.SizeOfInfo = sizeof(output->Information);
+        output->Mode.FrameBufferBase = address;
+        output->Mode.FrameBufferSize = PixelBytes;
+        output->Interface.QueryMode = Query;
+        output->Interface.SetMode = Set;
+        output->Interface.Blt = Blit;
+        output->Interface.Mode = &output->Mode;
+        Trace(6, i);
+        status = Services->ReinstallProtocolInterface(handles[i], &GraphicsGuid, original, &output->Interface);
+        if (EFI_ERROR(status)) return status;
+    }
+    Services->FreePool(handles);
+    Trace(7, 0);
+    Note(L"RAM-backed graphics protocols installed.\r\n");
+    EFI_EVENT timer, exiting;
+    DisplayActive = TRUE;
+    status = Services->CreateEvent(EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_CALLBACK, Tick, NULL, &timer);
+    if (EFI_ERROR(status)) return status;
+    status = Services->CreateEvent(EVT_SIGNAL_EXIT_BOOT_SERVICES, TPL_NOTIFY, LeavingBootServices, NULL, &exiting);
+    if (EFI_ERROR(status)) return status;
+    status = Services->SetTimer(timer, TimerPeriodic, 1000000);
+    if (EFI_ERROR(status)) return status;
+    Trace(8, 0);
+    EFI_LOADED_IMAGE_PROTOCOL *loaded;
+    status = Services->HandleProtocol(image, &ImageGuid, (VOID **)&loaded);
+    if (EFI_ERROR(status)) return status;
+    EFI_HANDLE ownVolume = loaded->DeviceHandle;
+    EFI_HANDLE *volumes = NULL;
+    count = 0;
+    status = Services->LocateHandleBuffer(ByProtocol, &FilesystemGuid, NULL, &count, &volumes);
+    Trace(9, count);
+    if (EFI_ERROR(status) || count > 64) return EFI_NOT_FOUND;
+    for (UINTN i = 0; i < count; ++i) {
+        if (volumes[i] != ownVolume) {
+            ListFiles(volumes[i], L"\\", L"VMRFiles-0");
+            ListFiles(volumes[i], L"\\EFI\\Microsoft\\Boot\\", L"VMRFiles-1");
+        }
+    }
+    const CHAR16 *candidates[] = {
+        L"\\bootmgr.efi", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi",
+        L"\\EFI\\Microsoft\\Boot\\cdboot_noprompt.efi", L"\\EFI\\BOOT\\BOOTAA64.EFI"
+    };
+    for (UINTN path = 0; path < sizeof(candidates) / sizeof(candidates[0]); ++path) {
+        for (UINTN i = 0; i < count; ++i) {
+            if (volumes[i] == ownVolume) continue;
+            EFI_DEVICE_PATH_PROTOCOL *file = AppendFile(volumes[i], candidates[path]);
+            if (!file) continue;
+            EFI_HANDLE next;
+            Trace(10, (path << 32) | i);
+            status = Services->LoadImage(FALSE, image, file, NULL, 0, &next);
+            Services->FreePool(file);
+            if (EFI_ERROR(status)) continue;
+            Trace(11, path);
+            EFI_HANDLE targetVolume = volumes[i];
+            Services->FreePool(volumes);
+            Note(L"Starting the supplied installer; no Setup changes.\r\n");
+            for (UINTN attempt = 0; attempt < 60; ++attempt) {
+                Trace(12, (attempt << 32) | path);
+                status = Services->StartImage(next, NULL, NULL);
+                Trace(13, status);
+                if (status != EFI_TIMEOUT) break;
+                Trace(15, attempt + 1);
+                Note(L"Media boot timed out; retrying. No keyboard input is generated.\r\n");
+                Services->UnloadImage(next);
+                Services->Stall(2000000);
+                EFI_DEVICE_PATH_PROTOCOL *retry = AppendFile(targetVolume, candidates[path]);
+                if (!retry) break;
+                status = Services->LoadImage(FALSE, image, retry, NULL, 0, &next);
+                Services->FreePool(retry);
+                if (EFI_ERROR(status)) { Trace(16, status); break; }
+            }
+            Note(L"Installer returned to the diagnostic; waiting for the host stop.\r\n");
+            // The protocol and timer point into this image. Do not unload it on return from the installer.
+            for (;;) Services->Stall(1000000);
+        }
+    }
+    Services->FreePool(volumes);
+    Trace(14, 0);
+    Note(L"Installer boot file not found on another filesystem.\r\n");
+    for (;;) Services->Stall(1000000);
+}

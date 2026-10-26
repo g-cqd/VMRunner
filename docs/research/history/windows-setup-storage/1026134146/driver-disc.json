@@ -1,0 +1,14 @@
+{
+  "volume_label": "VMRDRIVERS",
+  "controller": "Virtio block",
+  "driver_directory": "viostor/w11/ARM64",
+  "driver": "viostor.sys",
+  "pe_machine": "0xaa64",
+  "inf_hardware_ids": [
+    "PCI\\VEN_1AF4&DEV_1001",
+    "PCI\\VEN_1AF4&DEV_1042"
+  ],
+  "packaged_hashes_match_source": true,
+  "setup_verification": "Windows must verify catalog and bind a compatible device; not yet observed",
+  "automatic_folder": "$WinPEDriver$/viostor; documented for Server; client auto-loading is an experiment, not assumed"
+}

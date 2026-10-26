@@ -1,0 +1,6 @@
+Owner report after seeing Windows begin installation (recorded during follow-up on 2026-10-26):
+"not fast at all though, and it does not show any drive i can install on"
+
+The owner reports poor responsiveness and no installable drive. No screenshot, exact Setup error wording, DiskPart result or device enumeration has yet been supplied. This is not evidence that the NVMe driver is specifically missing; controller/driver compatibility and other causes remain to be diagnosed.
+
+The scratch run ended at 13:34:33 CET by its 180-second timer and automatic cleanup completed. The agent subsequently clarified that diagnostic commands should not be typed elsewhere now the window has closed, and requested permission for a new ten-minute run. No requirement check is bypassed and no Windows installation completed.

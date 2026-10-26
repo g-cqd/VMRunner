@@ -5,7 +5,7 @@ feeds: [roadmap 0015, ADR-0059]
 ---
 # Windows boot: trap emulation, a real framebuffer and media handoff
 
-**Status: boot remains unverified; disposable diagnostic progress only.** The app's known-crashing PMU guard remains in place. Nothing in this study changes the Windows ISO, Setup requirements, TPM support, or production private-API scope.
+**Historical status after the initial probes: boot remained unverified.** The [follow-up Setup/storage study](windows-setup-storage-2026-10.md) records later owner-observed Windows startup and a visible Virtio target; the results below describe the earlier six runs only. The app's known-crashing PMU guard remains in place. Nothing in this study changes the Windows ISO, Setup requirements, TPM support, or production private-API scope.
 
 This follows the [first crash comparison](windows-pmu-crash-2026-10.md) and [firmware/display design](windows-framebuffer-shim-2026-10.md). The owner explicitly asked to fix Windows boot rather than stop at crash containment. Their previously authorised 4 CPU / 8192 MiB / 64 GiB sparse-disk exception and read-only ISO reference were retained. Each real probe was disposable, used no existing user machine, generated no keys/clicks and captured no screen.
 

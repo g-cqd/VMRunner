@@ -1,0 +1,24 @@
+2026-10-26T12:16:39Z enabled and read back: _setPerformanceMonitoringUnitEmulationEnabled:
+2026-10-26T12:16:39Z enabled and read back: _setFineGrainedTrapsEmulationEnabled:
+2026-10-26T12:16:39Z configuration valid; 4 CPUs, 8192 MiB, 64 GiB sparse disk; storage devices=3
+2026-10-26T12:16:39Z running
+2026-10-26T12:16:49Z state=1
+2026-10-26T12:17:00Z state=1
+2026-10-26T12:17:10Z state=1
+2026-10-26T12:17:21Z state=1
+2026-10-26T12:17:31Z state=1
+2026-10-26T12:17:42Z state=1
+2026-10-26T12:17:52Z state=1
+2026-10-26T12:18:03Z state=1
+2026-10-26T12:18:13Z state=1
+2026-10-26T12:18:24Z state=1
+2026-10-26T12:18:34Z state=1
+2026-10-26T12:18:44Z state=1
+2026-10-26T12:18:55Z state=1
+2026-10-26T12:19:05Z state=1
+2026-10-26T12:19:15Z state=1
+2026-10-26T12:19:26Z state=1
+2026-10-26T12:19:36Z state=1
+2026-10-26T12:19:39Z state=1
+2026-10-26T12:19:39Z 180-second runtime limit reached
+2026-10-26T12:19:39Z stop result: nil

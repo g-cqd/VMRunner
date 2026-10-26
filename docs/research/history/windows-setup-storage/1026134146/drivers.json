@@ -1,0 +1,7 @@
+{
+  "url": "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso",
+  "bytes": 877373440,
+  "sha256": "303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d",
+  "pin_source": "published in immutable source revision e4c623c3fa1f81f9f9befc6cdc16f54b86b6ef47; not a vendor ISO signature",
+  "catalog_signature": "Windows must verify the actual driver during Load driver; not yet tested"
+}
