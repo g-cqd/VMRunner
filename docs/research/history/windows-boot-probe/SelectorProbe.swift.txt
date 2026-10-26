@@ -1,0 +1,34 @@
+import Foundation
+import Virtualization
+
+let hostClass = VZGenericPlatformConfiguration.self
+let configuration = VZGenericPlatformConfiguration()
+typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
+typealias Getter = @convention(c) (AnyObject, Selector) -> Bool
+
+func check(_ setterName: String, _ getterName: String) throws {
+    let setterSelector = NSSelectorFromString(setterName)
+    let getterSelector = NSSelectorFromString(getterName)
+    guard let setterMethod = class_getInstanceMethod(hostClass, setterSelector),
+        let getterMethod = class_getInstanceMethod(hostClass, getterSelector),
+        let setterType = method_getTypeEncoding(setterMethod),
+        let getterType = method_getTypeEncoding(getterMethod)
+    else { throw NSError(domain: "SelectorProbe", code: 1) }
+    let setterEncoding = String(cString: setterType)
+    let getterEncoding = String(cString: getterType)
+    print("\(setterName) \(setterEncoding); \(getterName) \(getterEncoding)")
+    guard setterEncoding.filter({ !$0.isNumber }) == "v@:B",
+        getterEncoding.filter({ !$0.isNumber }) == "B@:"
+    else { throw NSError(domain: "SelectorProbe", code: 2) }
+    let set = unsafeBitCast(method_getImplementation(setterMethod), to: Setter.self)
+    let get = unsafeBitCast(method_getImplementation(getterMethod), to: Getter.self)
+    let before = get(configuration, getterSelector)
+    set(configuration, setterSelector, true)
+    let enabled = get(configuration, getterSelector)
+    set(configuration, setterSelector, before)
+    let restored = get(configuration, getterSelector) == before
+    print("before=\(before) enabled=\(enabled) restored=\(restored)")
+    guard enabled && restored else { throw NSError(domain: "SelectorProbe", code: 3) }
+}
+try check("_setFineGrainedTrapsEmulationEnabled:", "_fineGrainTrapsEmulationEnabled")
+print("Contract probe only; no virtual machine created or started.")

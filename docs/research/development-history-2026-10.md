@@ -12,6 +12,7 @@ The former sibling development board is now tracked in this repository at [histo
 ## Evidence to start with
 
 - [Windows real-guest run and helper crash diagnosis](history/board/realguest-windows-report.md): a start was accepted, then the helper failed; Windows Setup was not observed.
+- [PMU crash comparison](windows-pmu-crash-2026-10.md) and the later [boot-display investigation](windows-boot-display-2026-10.md), with [reproducible diagnostic sources and logs](history/windows-boot-probe/README.md). No successful Windows boot is claimed.
 - [Linux real-guest run](history/board/realguest-report.md).
 - [macOS real-guest run](history/board/realguest-macos-report.md).
 - [Provisioning run](history/board/realguest-seed-report.md), [second run](history/board/realguest-seed-report-2.md), and [third run](history/board/realguest-seed-report-3.md).

@@ -24,6 +24,11 @@ application; this contains the observed crash path, not the unresolved Windows b
 
 The [development history](../research/development-history-2026-10.md) indexes the imported planning and guest-run evidence.
 
+2026-10-26 continued: a [boot-display investigation](../research/windows-boot-display-2026-10.md) verified the second trap switch,
+measured the firmware's Blt-only GOP and tested a disposable RAM-backed replacement. The media EFI entry returned a timeout;
+keeping the diagnostic resident avoided its later failure. No Windows screen or successful boot was observed. An owner-observed
+media handoff is needed before any production bootstrap or private-capability change; the app guard remains.
+
 ## Windows items
 
 1. A guest kind of its own for Windows, with the machine of ADR-0059 item 5: generic platform, EFI, Secure Boot off, NVMe main

@@ -1,0 +1,81 @@
+"""Create a disposable raw GPT disk with one EFI System Partition and a minimal FAT16 filesystem."""
+from pathlib import Path
+import struct
+import uuid
+import zlib
+
+root = Path('/tmp/vmr-windows-boot-1026120537')
+firmware = (root / 'BOOTAA64.EFI').read_bytes()
+assert 0 < len(firmware) < 1024 * 1024
+sector = 512
+start = 2048
+volume_sectors = 65536
+disk_sectors = start + volume_sectors + 33
+fat_sectors = 128
+root_sectors = 32
+cluster_size = 1024
+data_sector = 1 + 2 * fat_sectors + root_sectors
+image = bytearray(disk_sectors * sector)
+# Protective MBR.
+image[446:462] = struct.pack('<B3sB3sII', 0, b'\x00\x02\x00', 0xEE, b'\xff\xff\xff', 1, disk_sectors - 1)
+image[510:512] = b'\x55\xaa'
+entries = bytearray(128 * 128)
+esp = uuid.UUID('c12a7328-f81f-11d2-ba4b-00a0c93ec93b').bytes_le
+entries[:128] = struct.pack('<16s16sQQQ72s', esp, uuid.uuid4().bytes_le,
+    start, start + volume_sectors - 1, 0, 'VMRunner boot diagnostic'.encode('utf-16le').ljust(72, b'\0'))
+disk_guid = uuid.uuid4().bytes_le
+
+def gpt_header(current, backup, table_lba):
+    header = bytearray(struct.pack('<8sIIIIQQQQ16sQIII', b'EFI PART', 0x10000, 92, 0, 0,
+        current, backup, 34, disk_sectors - 34, disk_guid, table_lba, 128, 128, zlib.crc32(entries)))
+    struct.pack_into('<I', header, 16, zlib.crc32(header))
+    return header.ljust(sector, b'\0')
+
+image[sector:2 * sector] = gpt_header(1, disk_sectors - 1, 2)
+image[2 * sector:2 * sector + len(entries)] = entries
+backup_lba = disk_sectors - 33
+image[backup_lba * sector:backup_lba * sector + len(entries)] = entries
+image[-sector:] = gpt_header(disk_sectors - 1, 1, backup_lba)
+base = start * sector
+boot = bytearray(sector)
+boot[:11] = b'\xeb\x3c\x90VMRBOOT '
+struct.pack_into('<HBHBHHBHHHII', boot, 11, 512, 2, 1, 2, 512, 0, 0xF8,
+    fat_sectors, 32, 64, start, volume_sectors)
+struct.pack_into('<BBBI11s8s', boot, 36, 0x80, 0, 0x29, 0x564D5231, b'VMRBOOT    ', b'FAT16   ')
+boot[510:512] = b'\x55\xaa'
+image[base:base + sector] = boot
+fat = bytearray(fat_sectors * sector)
+struct.pack_into('<HHHH', fat, 0, 0xFFF8, 0xFFFF, 0xFFFF, 0xFFFF)
+file_clusters = (len(firmware) + cluster_size - 1) // cluster_size
+for cluster in range(4, 4 + file_clusters):
+    struct.pack_into('<H', fat, cluster * 2, cluster + 1 if cluster + 1 < 4 + file_clusters else 0xFFFF)
+for offset in (1, 1 + fat_sectors):
+    image[base + offset * sector:base + offset * sector + len(fat)] = fat
+
+def directory_entry(name, attribute, cluster, size=0):
+    entry = bytearray(32)
+    entry[:11] = name
+    entry[11] = attribute
+    struct.pack_into('<H', entry, 26, cluster)
+    struct.pack_into('<I', entry, 28, size)
+    return entry
+
+def cluster_offset(cluster):
+    return base + data_sector * sector + (cluster - 2) * cluster_size
+
+root_offset = base + (1 + 2 * fat_sectors) * sector
+image[root_offset:root_offset + 32] = directory_entry(b'EFI        ', 0x10, 2)
+for cluster, parent, child_name, child_cluster in [(2, 0, b'BOOT       ', 3), (3, 2, b'BOOTAA64EFI', 4)]:
+    offset = cluster_offset(cluster)
+    image[offset:offset + 32] = directory_entry(b'.          ', 0x10, cluster)
+    image[offset + 32:offset + 64] = directory_entry(b'..         ', 0x10, parent)
+    image[offset + 64:offset + 96] = directory_entry(child_name, 0x10 if cluster == 2 else 0x20,
+        child_cluster, 0 if cluster == 2 else len(firmware))
+for index in range(file_clusters):
+    chunk = firmware[index * cluster_size:(index + 1) * cluster_size]
+    offset = cluster_offset(index + 4)
+    image[offset:offset + len(chunk)] = chunk
+output = root / 'Boot-fat.img'
+output.write_bytes(image)
+output.chmod(0o600)
+print(f'{output}: {len(image)} bytes; ESP type; FAT16; EFI/BOOT/BOOTAA64.EFI {len(firmware)} bytes')

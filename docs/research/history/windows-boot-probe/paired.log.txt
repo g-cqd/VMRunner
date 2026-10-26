@@ -1,0 +1,5 @@
+2026-10-26T11:07:57Z enabled and read back: _setFineGrainedTrapsEmulationEnabled:
+2026-10-26T11:07:57Z enabled and read back: _setPerformanceMonitoringUnitEmulationEnabled:
+2026-10-26T11:07:57Z configuration valid; 4 CPUs, 8192 MiB, 64 GiB sparse disk, stock read-only ISO
+2026-10-26T11:07:57Z running
+2026-10-26T11:07:58Z guest stopped unexpectedly: Error Domain=VZErrorDomain Code=1 "The virtual machine stopped unexpectedly." UserInfo={NSLocalizedFailure=Internal Virtualization error., NSLocalizedFailureReason=The virtual machine stopped unexpectedly.}

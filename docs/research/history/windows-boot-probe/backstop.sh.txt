@@ -1,0 +1,12 @@
+#!/bin/bash
+root=/tmp/vmr-windows-boot-1026120537
+pid=$1
+sleep 240
+if kill -0 "$pid" 2>/dev/null && ps -o command= -p "$pid" | grep -Fq "$root/boot-probe"; then
+  echo "240-second backstop: TERM $pid" >> "$root/backstop.log"
+  kill -TERM "$pid"
+  sleep 10
+  if kill -0 "$pid" 2>/dev/null && ps -o command= -p "$pid" | grep -Fq "$root/boot-probe"; then
+    kill -KILL "$pid"
+  fi
+fi

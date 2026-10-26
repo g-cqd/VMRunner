@@ -1,0 +1,5 @@
+2026-10-26T11:08:59Z enabled and read back: _setPerformanceMonitoringUnitEmulationEnabled:
+2026-10-26T11:08:59Z enabled and read back: _setFineGrainedTrapsEmulationEnabled:
+2026-10-26T11:08:59Z configuration valid; 4 CPUs, 8192 MiB, 64 GiB sparse disk; storage devices=1
+2026-10-26T11:09:00Z running
+2026-10-26T11:09:00Z guest stopped
