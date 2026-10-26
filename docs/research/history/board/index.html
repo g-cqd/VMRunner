@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>VMRunner work board</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c1e21;--mute:#6b7280;--line:#e5e7eb;--todo:#9ca3af;--running:#2563eb;--done:#16a34a;--owner:#d97706;--verify:#7c3aed;--deferred:#6b7280}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--ink:#e6e8eb;--mute:#9aa3af;--line:#262b36}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 20px}
+h1{margin:0 0 6px;font-size:18px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bar{flex:1;min-width:200px;height:10px;background:var(--line);border-radius:6px;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}.mute{color:var(--mute)}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:3px 10px;cursor:pointer;font-size:12px}
+.chip.on{background:var(--ink);color:var(--bg)}input[type=search]{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:5px 9px;min-width:200px}
+main{padding:14px 20px 60px;max-width:980px;margin:0 auto}
+section{margin:18px 0}section>h2{font-size:15px;margin:0;cursor:pointer;display:flex;gap:8px;align-items:baseline}
+section>p{margin:2px 0 8px;color:var(--mute);font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--todo);border-radius:8px;padding:9px 12px;margin:7px 0}
+.card.running{border-left-color:var(--running)}.card.done{border-left-color:var(--done)}.card.owner{border-left-color:var(--owner)}.card.verify{border-left-color:var(--verify)}.card.deferred{border-left-color:var(--deferred)}
+.top{display:flex;gap:8px;align-items:center}.title{font-weight:600;flex:1}
+.pill{font-size:11px;border-radius:999px;padding:2px 8px;color:#fff;background:var(--todo);white-space:nowrap}
+.pill.running{background:var(--running)}.pill.done{background:var(--done)}.pill.owner{background:var(--owner)}.pill.verify{background:var(--verify)}.pill.deferred{background:var(--deferred)}
+.pill.running::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#fff;margin-right:5px;animation:p 1s infinite}@keyframes p{50%{opacity:.25}}
+.id{font:11px ui-monospace,Menlo,monospace;color:var(--mute)}.what{margin:3px 0;color:var(--mute)}
+.note{margin-top:4px;font-size:12px;border-top:1px dashed var(--line);padding-top:4px}.note b{color:var(--ink)}
+details{margin-top:4px}summary{cursor:pointer;font-size:12px;color:var(--running)}ol{margin:4px 0 2px 18px;padding:0}li{margin:2px 0}
+code{font:12px ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+label.mine{font-size:12px;color:var(--mute);display:flex;gap:5px;align-items:center;cursor:pointer;white-space:nowrap}
+a{color:var(--running);text-decoration:none}.flash{animation:f 1.6s}@keyframes f{from{background:#fde68a55}to{background:var(--card)}}
+.hide{display:none}.stale{color:#dc2626}
+</style></head><body>
+<header>
+ <h1>VMRunner work board <span class="mute" id="upd"></span></h1>
+ <div class="row"><div class="bar" id="bar"></div><span id="counts" class="mute"></span></div>
+ <div class="row" style="margin-top:8px" id="filters"></div>
+</header>
+<main id="main"></main>
+<script>
+const REPO="~/Developer/g-cqd/VMRunner";
+const LABEL={todo:"To do",running:"In progress",done:"Done",owner:"Needs you",verify:"Confirm on a guest",deferred:"Deferred"};
+const ORDER=["owner","verify","running","todo","done","deferred"];
+let filter="all",query="",data=null,seen={},mine=JSON.parse(localStorage.getItem("mine")||"{}"),closed=JSON.parse(localStorage.getItem("closed")||"{}"),lastLoad=Date.now();
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mdcode=s=>esc(s).replace(/`([^`]+)`/g,"<code>$1</code>");
+function cardHTML(s){
+ const steps=s.check&&s.check.length?`<details ${["owner","verify"].includes(s.status)?"open":""}><summary>How to check (${s.check.length})</summary><ol>${s.check.map(c=>`<li>${mdcode(c)}</li>`).join("")}</ol></details>`:"";
+ const rm=s.roadmap?` · <a href="file://${REPO}/docs/roadmap/" title="docs/roadmap/${s.roadmap}-*.md">roadmap ${s.roadmap}</a>`:"";
+ const note=s.note?`<div class="note"><b>${esc(s.updated)}</b> ${esc(s.note)}</div>`:"";
+ return `<div class="top"><span class="title">${esc(s.title)}</span><label class="mine"><input type="checkbox" data-mine="${s.id}" ${mine[s.id]?"checked":""}> checked by me</label><span class="pill ${s.status}">${LABEL[s.status]}</span></div>
+ <div class="id">${s.id}${rm}</div>${s.what?`<div class="what">${esc(s.what)}</div>`:""}${steps}${note}`}
+function render(){
+ if(!data)return;
+ const steps=data.steps,main=document.getElementById("main");
+ const q=query.toLowerCase();
+ const visible=s=>(filter==="all"||(filter==="open"?!["done","deferred"].includes(s.status):s.status===filter))&&(!q||(s.title+s.what+s.id+s.roadmap+(s.note||"")).toLowerCase().includes(q));
+ for(const ph of data.phases){
+  let sec=document.getElementById("ph-"+ph.id);
+  const list=steps.filter(s=>s.phase===ph.id);
+  if(!sec){sec=document.createElement("section");sec.id="ph-"+ph.id;sec.innerHTML=`<h2></h2><p>${esc(ph.intro)}</p><div class="cards"></div>`;main.appendChild(sec);
+   sec.querySelector("h2").onclick=()=>{closed[ph.id]=!closed[ph.id];localStorage.setItem("closed",JSON.stringify(closed));render()}}
+  const done=list.filter(s=>s.status==="done").length;
+  sec.querySelector("h2").innerHTML=`${closed[ph.id]?"▸":"▾"} ${esc(ph.title)} <span class="mute" style="font-size:12px;font-weight:400">${done}/${list.length} done</span>`;
+  const box=sec.querySelector(".cards");box.classList.toggle("hide",!!closed[ph.id]);
+  for(const s of list){
+   let el=document.getElementById("c-"+s.id);const sig=JSON.stringify([s.status,s.note,s.title,s.what,s.check,s.updated]);
+   if(!el){el=document.createElement("div");el.id="c-"+s.id;box.appendChild(el)}
+   if(seen[s.id]!==sig){const wasOpen=el.querySelector("details")?el.querySelector("details").open:null;
+    el.className="card "+s.status+(seen[s.id]?" flash":"");el.innerHTML=cardHTML(s);
+    if(wasOpen!==null&&el.querySelector("details"))el.querySelector("details").open=wasOpen;seen[s.id]=sig}
+   el.classList.toggle("hide",!visible(s));
+  }
+  sec.classList.toggle("hide",!list.some(visible));
+ }
+ const n={};for(const s of steps)n[s.status]=(n[s.status]||0)+1;
+ const tot=steps.length,bar=document.getElementById("bar");
+ bar.innerHTML=ORDER.map(k=>`<i style="width:${(n[k]||0)/tot*100}%;background:var(--${k})" title="${LABEL[k]}: ${n[k]||0}"></i>`).join("");
+ document.getElementById("counts").textContent=ORDER.filter(k=>n[k]).map(k=>`${n[k]} ${LABEL[k].toLowerCase()}`).join(" · ");
+ const f=document.getElementById("filters");
+ if(!f.dataset.built){f.dataset.built=1;
+  const opts=[["all","All"],["open","Open"],...ORDER.filter(k=>k!=="deferred").map(k=>[k,LABEL[k]])];
+  f.innerHTML=opts.map(([k,l])=>`<button class="chip" data-f="${k}">${l}</button>`).join("")+`<input type="search" id="q" placeholder="Search steps">`;
+  f.onclick=e=>{if(e.target.dataset.f){filter=e.target.dataset.f;render()}};
+  f.querySelector("#q").oninput=e=>{query=e.target.value;render()}}
+ f.querySelectorAll(".chip").forEach(c=>c.classList.toggle("on",c.dataset.f===filter));
+ document.getElementById("upd").textContent="updated "+data.updated;
+}
+document.addEventListener("change",e=>{const id=e.target.dataset&&e.target.dataset.mine;if(id){mine[id]=e.target.checked;localStorage.setItem("mine",JSON.stringify(mine))}});
+function poll(){const old=document.getElementById("feed");const s=document.createElement("script");s.id="feed";s.src="status.js?t="+Date.now();
+ s.onload=()=>{lastLoad=Date.now();data=window.BOARD;render();if(old)old.remove()};s.onerror=()=>{if(old)old.remove()};document.body.appendChild(s);}
+poll();setInterval(poll,2000);
+setInterval(()=>{const u=document.getElementById("upd");u.classList.toggle("stale",Date.now()-lastLoad>8000)},2000);
+</script></body></html>

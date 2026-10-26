@@ -1,0 +1,335 @@
+From 5476182461c627bdfc0326fc3135f3a7af36dae3 Mon Sep 17 00:00:00 2001
+From: Gigi <42325924+g-cqd@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 08:54:46 +0100
+Subject: [PATCH] Hold an activity while a container runs and log where a stop
+ spends its time
+
+A stop of a running container took 72 s in the first real run, where the
+design says a stop line, SIGTERM at 10 s and SIGKILL at 15 s. The stop
+escalation is carried by timers on the main actor, and an app macOS thinks
+idle (no window, never frontmost) gets App Nap, which coalesces timers. A
+container workload held no activity, unlike a virtual machine.
+
+The workload now begins a user-initiated activity once its runner started and
+ends it when the runner ends or the workload is released. It is not
+latency-critical and does not keep the Mac awake. A start that throws holds
+nothing.
+
+The process now logs, with the runner pid and no path or container text, the
+stop line, the SIGTERM and SIGKILL of the escalation (with whether the runner
+still ran), a kill, the runner exit with the state of its streams, the drain
+wait running out, and the report of the run. The next real run can then show
+which step lost the time.
+---
+ .../Engine/Container/ContainerProcess.swift   |  31 +++++-
+ .../Engine/Container/ContainerWorkload.swift  |  32 +++++-
+ .../VMRunner/Help/HelpContent+Machines.swift  |   2 +
+ Sources/VMRunner/Model/Log.swift              |   1 +
+ .../ContainerActivityTests.swift              | 103 ++++++++++++++++++
+ 5 files changed, 165 insertions(+), 4 deletions(-)
+ create mode 100644 Tests/VMRunnerTests/ContainerActivityTests.swift
+
+diff --git a/Sources/VMRunner/Engine/Container/ContainerProcess.swift b/Sources/VMRunner/Engine/Container/ContainerProcess.swift
+index f31c820..a2a900d 100644
+--- a/Sources/VMRunner/Engine/Container/ContainerProcess.swift
++++ b/Sources/VMRunner/Engine/Container/ContainerProcess.swift
+@@ -1,4 +1,5 @@
+ import Foundation
++import os
+ 
+ /// How a runner process ended.
+ struct ContainerExit: Equatable, Sendable {
+@@ -121,6 +122,9 @@ isolated deinit {
+ 
+     var isRunning: Bool { handle != nil && exit == nil }
+ 
++    /// The runner's process identifier for the log; 0 before the start.
++    private var runnerPid: Int32 { handle?.process.processIdentifier ?? 0 }
++
+     /// The descriptors this run holds open: none before the start and after the end.
+     var openDescriptorCount: Int { ledger.count }  // @dw:accept:this referenced-only-by-tests -- a test reads it
+ 
+@@ -181,19 +185,25 @@ func stop() {
+         guard let handle, exit == nil, !stopRequested else { return }
+         stopRequested = true
+         handle.requestStop()
++        let pid = handle.process.processIdentifier
++        let grace = timing.stopGrace.components.seconds
++        Log.container.info("Stop line written to runner \(pid, privacy: .public); SIGTERM due after \(grace, privacy: .public) s")
+         tasks.append(
+             Task { [clock, timing] in
+                 guard (try? await clock.sleep(for: timing.stopGrace)) != nil else { return }
++                Log.container.info("SIGTERM to runner \(pid, privacy: .public), running \(handle.isRunning, privacy: .public)")
+                 handle.terminate()
+                 guard (try? await clock.sleep(for: timing.terminateGrace)) != nil else { return }
++                Log.container.info("SIGKILL to runner \(pid, privacy: .public), running \(handle.isRunning, privacy: .public)")
+                 handle.forceKill()
+             })
+     }
+ 
+     /// SIGKILL at once. Does nothing when the run is not started or ended.
+     func kill() {
+-        guard exit == nil else { return }
+-        handle?.forceKill()
++        guard exit == nil, let handle else { return }
++        Log.container.info("Runner \(handle.process.processIdentifier, privacy: .public) killed at once")
++        handle.forceKill()
+     }
+ 
+     /// Returns the exit, waiting for the run to end when it has not. A process that was never started has no run to wait for: it
+@@ -244,9 +254,12 @@ private func apply(_ input: Input) -> Bool {
+             break
+         case .terminated(let exit):
+             terminated = exit
++            logTermination(exit)
+             if !(stdoutEnded && stderrEnded) { armDrainTimer() }
+         case .drainExpired:
+-            guard !rearmDrainTimer() else { return false }
++            let rearmed = rearmDrainTimer()
++            Log.container.info("Drain wait for runner \(self.runnerPid, privacy: .public) ran out, rearmed \(rearmed, privacy: .public)")
++            guard !rearmed else { return false }
+             drainExpired = true
+         }
+         guard let terminated, (stdoutEnded && stderrEnded) || drainExpired else { return false }
+@@ -260,6 +273,17 @@ private func applyLine(_ line: [UInt8]) {
+         onEvent?(event)
+     }
+ 
++    /// Says where the run stands when the process ended: its status and which of its streams had ended.
++    private func logTermination(_ result: ContainerExit) {
++        let pid = runnerPid
++        let outEnded = stdoutEnded
++        let errEnded = stderrEnded
++        Log.container.info(
++            "Runner \(pid, privacy: .public): status \(result.status, privacy: .public), signaled \(result.signaled, privacy: .public)")
++        Log.container.info(
++            "Runner \(pid, privacy: .public): stdout ended \(outEnded, privacy: .public), stderr ended \(errEnded, privacy: .public)")
++    }
++
+     /// Waits for the output to end, after the process did, for `Timing.drainGrace`.
+     private func armDrainTimer() {
+         tasks.append(
+@@ -297,6 +321,7 @@ private func beginClosing(with result: ContainerExit) {
+     /// Reports the run once every reader has closed its descriptor; true when it did.
+     private func reportIfClosed(_ result: ContainerExit) -> Bool {
+         guard closedReaders == readers.count else { return false }
++        Log.container.info("Run of runner \(self.runnerPid, privacy: .public) reported")
+         continuation?.finish()
+         continuation = nil
+         exit = result
+diff --git a/Sources/VMRunner/Engine/Container/ContainerWorkload.swift b/Sources/VMRunner/Engine/Container/ContainerWorkload.swift
+index 88f1547..af7ff59 100644
+--- a/Sources/VMRunner/Engine/Container/ContainerWorkload.swift
++++ b/Sources/VMRunner/Engine/Container/ContainerWorkload.swift
+@@ -1,4 +1,5 @@
+ import Foundation
++import os
+ 
+ /// A container machine's workload: one container runner process, followed through its events.
+ ///
+@@ -6,6 +7,10 @@
+ /// the container printed or ended first; a runner that ends before that fails the start with what it said. After that the
+ /// runner's end is reported as the machine stopping: cleanly when the runner passed or was stopped, with a message when the
+ /// container or the runner failed. A stop the app asked for is never an error, whatever signal ended the runner.
++///
++/// While the runner lives the app holds an activity. An app macOS thinks idle (no window, never frontmost) gets App Nap, which
++/// coalesces timers, and the timers carry the stop's time limits (SIGTERM, then SIGKILL): a stop could take far longer than
++/// they say. The activity is user-initiated and not latency-critical, and it does not keep the Mac awake.
+ @MainActor
+ final class ContainerWorkload: Workload {
+     /// The runner's exit statuses that are not failures: it passed, or it was stopped before the command ended.
+@@ -13,15 +18,27 @@ final class ContainerWorkload: Workload {
+     /// The runner's exit status for "the container ran and its result was wrong".
+     private static let failedStatus: Int32 = 1
+ 
++    /// What the app asks of the system while the runner lives: no App Nap, and the Mac still sleeps when idle.
++    static let activityOptions: ProcessInfo.ActivityOptions = .userInitiatedAllowingIdleSystemSleep
++    static let activityReason = "A container is running and its stop must keep to its time limits"
++
+     private let process: ContainerProcess
+     private let scratch: URL
++    private let host: any ActivityHost
+     private var starting: CheckedContinuation<Void, any Error>?
+     private var stopAsked = false
+     private var killed = false
++    /// Held from the runner's start to its end, or to the release of the workload.
++    private var activity: (any NSObjectProtocol)?
+ 
+-    init(process: ContainerProcess, scratch: URL) {
++    init(process: ContainerProcess, scratch: URL, host: any ActivityHost = ProcessInfo.processInfo) {
+         self.process = process
+         self.scratch = scratch
++        self.host = host
++    }
++
++    isolated deinit {
++        endActivity()
+     }
+ 
+     var capabilities: WorkloadCapabilities { [] }
+@@ -36,6 +53,7 @@ func start() async throws {
+         process.onEvent = { [weak self] in self?.apply($0) }
+         process.onExit = { [weak self] in self?.ended($0) }
+         try process.start()
++        activity = host.beginActivity(options: Self.activityOptions, reason: Self.activityReason)
+         // No event or exit can be applied before this suspends: they run on this actor.
+         try await withCheckedThrowingContinuation { starting = $0 }
+     }
+@@ -75,8 +93,20 @@ private func becomeReady() {
+         pending?.resume()
+     }
+ 
++    private func endActivity() {
++        guard let held = activity else { return }
++        activity = nil
++        host.endActivity(held)
++    }
++
+     private func ended(_ exit: ContainerExit) {
++        endActivity()
+         let failure = failure(of: exit)
++        let failed = failure != nil
++        let asked = stopAsked
++        let forced = killed
++        Log.container.info(
++            "Run ended: failure \(failed, privacy: .public), stop asked \(asked, privacy: .public), killed \(forced, privacy: .public)")
+         if let pending = starting {
+             starting = nil
+             if let failure {
+diff --git a/Sources/VMRunner/Help/HelpContent+Machines.swift b/Sources/VMRunner/Help/HelpContent+Machines.swift
+index b2b5ca4..6a63102 100644
+--- a/Sources/VMRunner/Help/HelpContent+Machines.swift
++++ b/Sources/VMRunner/Help/HelpContent+Machines.swift
+@@ -244,6 +244,8 @@ extension HelpCatalog {
+                 "Limits: an image reference up to 255 bytes without whitespace; 1 to 16 CPU cores; 128 to 16384 MiB of memory; "
+                     + "up to 64 command words of up to 4096 bytes each; up to 64 environment settings, each name once. The "
+                     + "log keeps the most recent 1 MiB of output.",
++                "While a container's helper runs, the app holds a user-initiated activity (not latency-critical, so the Mac "
++                    + "still sleeps when it is idle), so that macOS does not slow the app down and delay the stop's time limits.",
+                 "An organisation can forbid containers with the managed setting `AllowContainers` set to false: the New "
+                     + "Machine sheet then offers no Container kind, a container machine does not start, and its settings are "
+                     + "locked.",
+diff --git a/Sources/VMRunner/Model/Log.swift b/Sources/VMRunner/Model/Log.swift
+index 0b24f69..68e8e9a 100644
+--- a/Sources/VMRunner/Model/Log.swift
++++ b/Sources/VMRunner/Model/Log.swift
+@@ -16,6 +16,7 @@ enum Log {
+     static let input = Logger(subsystem: subsystem, category: "input")
+     static let display = Logger(subsystem: subsystem, category: "display")
+     static let control = Logger(subsystem: subsystem, category: "control")
++    static let container = Logger(subsystem: subsystem, category: "container")
+ }
+ 
+ extension Error {
+diff --git a/Tests/VMRunnerTests/ContainerActivityTests.swift b/Tests/VMRunnerTests/ContainerActivityTests.swift
+new file mode 100644
+index 0000000..0fd742c
+--- /dev/null
++++ b/Tests/VMRunnerTests/ContainerActivityTests.swift
+@@ -0,0 +1,103 @@
++import Foundation
++import TestKit
++import Testing
++
++@testable import VMRunner
++
++/// Stands in for the process: records which activities began and ended instead of telling the system.
++private final class SpyHost: ActivityHost {
++    private(set) var begun: [ProcessInfo.ActivityOptions] = []
++    private(set) var ended = 0
++
++    func beginActivity(options: ProcessInfo.ActivityOptions, reason: String) -> any NSObjectProtocol {
++        begun.append(options)
++        return NSObject()
++    }
++
++    func endActivity(_ activity: any NSObjectProtocol) { ended += 1 }
++}
++
++/// A runner stand-in: the shell script `body` in a scratch folder of its own. Nothing here starts a container or the real runner.
++private func writeRunner(_ body: String) throws -> URL {
++    let script = try scratchDirectory().appending(path: "runner.sh")
++    try Data(("#!/bin/sh\n" + body + "\n").utf8).write(to: script)
++    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
++    return script
++}
++
++private let readyLine = #"echo '{"event":"phase","name":"run","seconds":0}'"#
++/// Says it is ready, then waits for a `stop` line (exit 75) or the end of its input (exit 76).
++private let waitsForStop = readyLine + "\nread line || exit 76\n[ \"$line\" = stop ] && exit 75\nexit 1"
++
++/// The activity a container machine holds while its runner lives (App Nap would coalesce the timers that carry the stop's
++/// time limits).
++@MainActor
++@Suite(.timeLimit(.minutes(1)))
++struct ContainerActivityTests {
++    private let host = SpyHost()
++
++    /// A workload on the runner `script`, with its own registry and a test clock, so no real timer runs.
++    private func makeWorkload(_ script: URL) -> ContainerWorkload {
++        let process = ContainerProcess(
++            executable: script, arguments: [], environment: ["PATH": "/usr/bin:/bin"], clock: TestClock(),
++            registry: ContainerProcesses())
++        return ContainerWorkload(process: process, scratch: script.deletingLastPathComponent().appending(path: "scratch"), host: host)
++    }
++
++    @Test func theActivityIsUserInitiatedAndDoesNotKeepTheMacAwakeOrAskForLatency() {
++        let options = ContainerWorkload.activityOptions
++        #expect(options.contains(.userInitiatedAllowingIdleSystemSleep))
++        #expect(!options.contains(.latencyCritical))
++        #expect(!options.contains(.idleSystemSleepDisabled))
++    }
++
++    @Test func aRunningContainerHoldsOneActivityUntilItsRunnerEnds() async throws {
++        let script = try writeRunner(waitsForStop)
++        defer { try? FileManager.default.removeItem(at: script.deletingLastPathComponent()) }
++        let workload = makeWorkload(script)
++        let stopped = AsyncEventProbe<String>()
++        workload.onGuestStopped = { stopped.record("stopped") }
++
++        try await workload.start()
++        #expect(host.begun == [ContainerWorkload.activityOptions])
++        #expect(host.ended == 0)
++
++        try workload.requestStop()
++        _ = try await stopped.wait(forAtLeast: 1)
++        #expect(host.begun.count == 1)
++        #expect(host.ended == 1)
++    }
++
++    @Test func aStartThatThrowsHoldsNothing() async throws {
++        let script = try writeRunner("exit 0")
++        defer { try? FileManager.default.removeItem(at: script.deletingLastPathComponent()) }
++        let workload = makeWorkload(script.deletingLastPathComponent().appending(path: "absent"))
++
++        await #expect(throws: ContainerProcessError.self) { try await workload.start() }
++        #expect(host.begun.isEmpty)
++        #expect(host.ended == 0)
++    }
++
++    @Test func aRunnerThatFailsBeforeItIsReadyEndsTheActivityItBegan() async throws {
++        let script = try writeRunner(#"echo '{"event":"error","message":"pull failed"}'"# + "\nexit 70")
++        defer { try? FileManager.default.removeItem(at: script.deletingLastPathComponent()) }
++        let workload = makeWorkload(script)
++
++        await #expect(throws: ContainerProcessError(reason: "pull failed")) { try await workload.start() }
++        #expect(host.begun.count == 1)
++        #expect(host.ended == 1)
++    }
++
++    @Test func aWorkloadReleasedWhileItsRunnerRunsEndsItsActivity() async throws {
++        let script = try writeRunner(waitsForStop)
++        defer { try? FileManager.default.removeItem(at: script.deletingLastPathComponent()) }
++        var workload: ContainerWorkload? = makeWorkload(script)
++        try await workload?.start()
++        #expect(host.begun.count == 1)
++        #expect(host.ended == 0)
++
++        // The process goes with the workload, and its release kills the runner.
++        workload = nil
++        #expect(host.ended == 1)
++    }
++}
+-- 
+2.56.0
+

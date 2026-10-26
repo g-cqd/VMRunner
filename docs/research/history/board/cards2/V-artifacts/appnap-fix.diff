@@ -1,0 +1,40 @@
+diff --git a/Sources/VMRunner/Engine/Container/ContainerWorkload.swift b/Sources/VMRunner/Engine/Container/ContainerWorkload.swift
+index 88f1547..a0c15f3 100644
+--- a/Sources/VMRunner/Engine/Container/ContainerWorkload.swift
++++ b/Sources/VMRunner/Engine/Container/ContainerWorkload.swift
+@@ -18,10 +18,15 @@ final class ContainerWorkload: Workload {
+     private var starting: CheckedContinuation<Void, any Error>?
+     private var stopAsked = false
+     private var killed = false
++    private let host: any ActivityHost
++    /// Held while the runner lives: an app macOS thinks idle (no window, not frontmost) is App Nap'd and its timers, which
++    /// carry the stop escalation, are coalesced for tens of seconds. It does not keep the Mac awake.
++    private var activity: (any NSObjectProtocol)?
+ 
+-    init(process: ContainerProcess, scratch: URL) {
++    init(process: ContainerProcess, scratch: URL, host: any ActivityHost = ProcessInfo.processInfo) {
+         self.process = process
+         self.scratch = scratch
++        self.host = host
+     }
+ 
+     var capabilities: WorkloadCapabilities { [] }
+@@ -36,6 +41,7 @@ func start() async throws {
+         process.onEvent = { [weak self] in self?.apply($0) }
+         process.onExit = { [weak self] in self?.ended($0) }
+         try process.start()
++        activity = host.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "A container runner is running")
+         // No event or exit can be applied before this suspends: they run on this actor.
+         try await withCheckedThrowingContinuation { starting = $0 }
+     }
+@@ -76,6 +82,10 @@ private func becomeReady() {
+     }
+ 
+     private func ended(_ exit: ContainerExit) {
++        if let held = activity {
++            host.endActivity(held)
++            activity = nil
++        }
+         let failure = failure(of: exit)
+         if let pending = starting {
+             starting = nil

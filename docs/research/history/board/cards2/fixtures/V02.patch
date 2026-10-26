@@ -1,0 +1,978 @@
+From 70d262f0010cc53b0c93ab3d0b4a35d9261f1eb8 Mon Sep 17 00:00:00 2001
+From: Gigi <42325924+g-cqd@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 09:08:55 +0100
+Subject: [PATCH] Keep each container run's output in a private, bounded file
+ in the machine's folder
+
+The output of a container lived only in the log pane, so it was gone when the
+app quit and no other reader could have it. Each container machine now also
+keeps what its log shows, filtered the same way, in container-output.log in
+its folder, with one previous file of the same size. A copy made with
+Duplicate starts with no log, and deleting the machine removes it.
+
+The file is written off the main actor: bytes wait in a bounded buffer, and a
+drain on a queue shared by all files, so two runs never write at once, opens
+the file, writes and closes it, so no descriptor stays open between drains and
+the main actor never waits for the disk. When the disk is slower than the
+container, new bytes are dropped and the next drain says how many; the note is
+kept within the limit by cutting the oldest waiting bytes, never by losing
+itself. The file is created exclusively with mode 0600, opened without
+waiting (a pipe planted at the path cannot hold the writer) and never followed
+through a link; a file that is not a regular file of this user, has another
+name or is open to others is left alone, and each kind of refusal is logged
+once per file. When a write would pass the limit, the file becomes the
+previous one, replacing the older.
+
+The log writes a marker line when the run starts and when the container and
+the runner end, and the runner's own diagnostics stay out of the file. A
+reader for the last bytes of both files, at a character boundary, is part of
+the file type.
+---
+ .../Engine/Container/ContainerLog.swift       |  27 +-
+ .../Container/ContainerMachineFactory.swift   |   4 +-
+ .../Container/ContainerOutputFile.swift       | 322 ++++++++++++++++
+ .../VMRunner/Help/HelpContent+Machines.swift  |   7 +-
+ Sources/VMRunner/Model/Storage.swift          |  10 +
+ Sources/VMRunner/Model/VMLibrary.swift        |   1 +
+ .../VMRunnerTests/ContainerMachineTests.swift |  38 ++
+ .../ContainerOutputFileTests.swift            | 364 ++++++++++++++++++
+ .../ContainerWorkloadTests.swift              |  26 +-
+ 9 files changed, 792 insertions(+), 7 deletions(-)
+ create mode 100644 Sources/VMRunner/Engine/Container/ContainerOutputFile.swift
+ create mode 100644 Tests/VMRunnerTests/ContainerOutputFileTests.swift
+
+diff --git a/Sources/VMRunner/Engine/Container/ContainerLog.swift b/Sources/VMRunner/Engine/Container/ContainerLog.swift
+index 84affef..67bf0d8 100644
+--- a/Sources/VMRunner/Engine/Container/ContainerLog.swift
++++ b/Sources/VMRunner/Engine/Container/ContainerLog.swift
+@@ -1,3 +1,4 @@
++import Foundation
+ import GuestConsole
+ import Observation
+ 
+@@ -77,6 +78,9 @@ mutating func pass(_ bytes: [UInt8]) -> [UInt8] {
+ /// What a container run has said, for the log view: the container's output (bounded, and passed through the console filter
+ /// because the container is untrusted), the runner's phases, the container's and the runner's exit statuses and the errors the
+ /// runner reported, and the runner's own diagnostics from its standard error.
++///
++/// With a file, the same displayable text is also kept there, between marker lines that say when the run started and how the
++/// container and the runner ended. The diagnostics are not: they are the runner's, not the container's.
+ @MainActor @Observable
+ final class ContainerLog {
+     static let defaultLimit = 1024 * 1024
+@@ -112,8 +116,13 @@ struct Phase: Equatable, Sendable {
+     @ObservationIgnored private var strippers: [ContainerStream: EscapeSequenceStripper] = [:]
+     @ObservationIgnored private var diagnosticsStripper = EscapeSequenceStripper()
+ 
+-    init(limit: Int = ContainerLog.defaultLimit) {
++    /// Where the output is also kept, when it is.
++    let file: ContainerOutputFile?
++
++    init(limit: Int = ContainerLog.defaultLimit, file: ContainerOutputFile? = nil) {
+         output = BoundedText(limit: limit)
++        self.file = file
++        note("[run started \(Date().ISO8601Format())]\n")
+     }
+ 
+     func apply(_ event: ContainerEvent) {
+@@ -124,19 +133,29 @@ func apply(_ event: ContainerEvent) {
+         case .output(let stream, let text):
+             var filter = filters[stream] ?? ConsoleOutputFilter()
+             var stripper = strippers[stream] ?? EscapeSequenceStripper()
+-            output.append(Self.displayable(stripper.pass(filter.pass(Array(text.utf8)[...]))))
++            let shown = Self.displayable(stripper.pass(filter.pass(Array(text.utf8)[...])))
++            output.append(shown)
++            file?.append(shown)
+             filters[stream] = filter
+             strippers[stream] = stripper
+         case .exited(let status):
+             containerStatus = status
++            note("[the container exited with status \(status)]\n")
+         case .error(let message):
+-            guard errors.count < Self.maxErrors else { return }
+-            errors.append(String(Self.plain(message).prefix(Self.maxErrorCharacters)))
++            let plain = String(Self.plain(message).prefix(Self.maxErrorCharacters))
++            note("[runner error] \(plain)\n")
++            if errors.count < Self.maxErrors { errors.append(plain) }
+         case .finished(let status):
+             finishedStatus = status
++            note("[the container runner finished with status \(status)]\n")
+         }
+     }
+ 
++    /// Adds a marker line to the file, when there is one.
++    private func note(_ line: String) {
++        file?.append(Array(line.utf8))
++    }
++
+     /// What the runner wrote to its standard error.
+     func appendDiagnostics(_ bytes: [UInt8]) {
+         diagnostics.append(Self.displayable(diagnosticsStripper.pass(diagnosticsFilter.pass(bytes[...]))))
+diff --git a/Sources/VMRunner/Engine/Container/ContainerMachineFactory.swift b/Sources/VMRunner/Engine/Container/ContainerMachineFactory.swift
+index 6b3eb8b..ebbb1fa 100644
+--- a/Sources/VMRunner/Engine/Container/ContainerMachineFactory.swift
++++ b/Sources/VMRunner/Engine/Container/ContainerMachineFactory.swift
+@@ -31,7 +31,9 @@ func prepare(
+             throw ContainerProcessError(reason: "“\(config.name)” has no container settings.")
+         }
+         let scratch = bundle.containerScratch
+-        let process = ContainerProcess(executable: runner, arguments: ContainerRunnerArguments.make(for: spec, scratch: scratch))
++        let process = ContainerProcess(
++            executable: runner, arguments: ContainerRunnerArguments.make(for: spec, scratch: scratch),
++            log: ContainerLog(file: ContainerOutputFile(bundle: bundle)))
+         return PreparedMachine(
+             machine: ContainerWorkload(process: process, scratch: scratch), network: nil,
+             suspend: .unavailable(reason: "A container can't be suspended."))
+diff --git a/Sources/VMRunner/Engine/Container/ContainerOutputFile.swift b/Sources/VMRunner/Engine/Container/ContainerOutputFile.swift
+new file mode 100644
+index 0000000..c4b53a0
+--- /dev/null
++++ b/Sources/VMRunner/Engine/Container/ContainerOutputFile.swift
+@@ -0,0 +1,322 @@
++import Darwin
++import Foundation
++import Synchronization
++import os
++
++/// Which file an open descriptor is: two descriptors of the same file have the same identity.
++private struct FileIdentity: Equatable {
++    let device: Int64
++    let inode: UInt64
++}
++
++/// An output file that passed the checks, open.
++private struct OpenedOutput {
++    let descriptor: Int32
++    let size: Int
++    let identity: FileIdentity
++}
++
++/// What the checks on an output file found.
++private enum OutputFileInspection {
++    case accepted(size: Int, identity: FileIdentity)
++    case refused(String)
++
++    /// Looks at the open descriptor: a regular file, owned by this user, with no other name and closed to other users.
++    /// Whatever sits at the path, a planted link or a file someone else owns included, is never written or read.
++    init(_ descriptor: Int32) {
++        var status = stat()
++        // `status` is a local that outlives the call, which fills it.
++        guard unsafe fstat(descriptor, &status) == 0 else {
++            self = .refused("it could not be inspected")
++            return
++        }
++        if status.st_mode & S_IFMT != S_IFREG {
++            self = .refused("it is not a regular file")
++        } else if status.st_uid != geteuid() {
++            self = .refused("it belongs to another user")
++        } else if status.st_nlink != 1 {
++            self = .refused("it has more than one name")
++        } else if status.st_mode & 0o077 != 0 {
++            self = .refused("it is open to other users")
++        } else {
++            self = .accepted(size: Int(status.st_size), identity: FileIdentity(device: Int64(status.st_dev), inode: status.st_ino))
++        }
++    }
++}
++
++/// What opening an output file came to. `failed` holds a sentence without the path, the same for every file it happens to.
++private enum OutputOpening {
++    case opened(OpenedOutput)
++    case missing
++    case failed(String)
++}
++
++/// Opens an output file for reading or appending, with the checks above. Never waits: a pipe planted at the path would hold
++/// an ordinary open until another process opened its other end, before the checks could refuse it.
++private func openOutputFile(_ url: URL, flags: Int32) -> OutputOpening {
++    // `open` gets a NUL-terminated copy of the path that outlives the call; O_NOFOLLOW makes it fail with ELOOP on a link.
++    let descriptor = unsafe open(url.path, flags | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
++    guard descriptor >= 0 else {
++        let code = errno
++        switch code {
++        case ENOENT: return .missing
++        case ELOOP: return .failed("it is a link")
++        default: return .failed("it could not be opened (error \(code))")
++        }
++    }
++    switch OutputFileInspection(descriptor) {
++    case .accepted(let size, let identity):
++        return .opened(OpenedOutput(descriptor: descriptor, size: size, identity: identity))
++    case .refused(let reason):
++        _ = Darwin.close(descriptor)
++        return .failed(reason)
++    }
++}
++
++/// Where a container machine's output is kept: a file in the machine's folder that every run appends to, and a second one
++/// that holds what the first held before it grew past its limit. Together they are the most recent output, at most twice the
++/// limit.
++///
++/// Appending never waits for the disk. The bytes go into a bounded buffer and a drain writes them on a queue shared by all
++/// files, so two runs of one machine never write at the same time; a drain opens the file, writes, and closes it, so no
++/// descriptor stays open between drains. When the disk is slower than the container the buffer fills, new bytes are dropped
++/// and counted, and the next drain says how many.
++///
++/// The files are private (mode 0600) and are never followed through a link: a file that is not a regular file of this user,
++/// that has another name, or that is open to others is left alone and what would have been written to it is dropped. Each
++/// kind of refusal or failure is logged once per file object, without the path.
++final class ContainerOutputFile: Sendable {
++    static let defaultLimit = 1 << 20
++
++    /// The queue the drains of every file run on, one at a time.
++    private static let drains = DispatchQueue(label: "container-output-file", qos: .utility)  // swiftlint:disable:this no_dispatch_queue
++
++    private struct State {
++        var bytes: [UInt8] = []
++        var dropped = 0
++        var scheduled = false
++        /// The kinds of failure already logged.
++        var reported: Set<String> = []
++    }
++
++    private let current: URL
++    private let previous: URL
++    private let limit: Int
++    private let pendingLimit: Int
++    private let queue: DispatchQueue  // swiftlint:disable:this no_dispatch_queue
++    private let state = Mutex(State())
++
++    /// `queue` runs the drains one at a time; by default the queue every file shares. A test passes a queue it holds back to
++    /// decide when the drains run.
++    init(
++        current: URL, previous: URL, limit: Int = defaultLimit, pendingLimit: Int = defaultLimit,
++        queue: DispatchQueue? = nil  // swiftlint:disable:this no_dispatch_queue
++    ) {
++        self.current = current
++        self.previous = previous
++        self.limit = limit
++        self.pendingLimit = pendingLimit
++        self.queue = queue ?? Self.drains
++    }
++
++    convenience init(bundle: VMBundle) {
++        self.init(current: bundle.containerOutput, previous: bundle.previousContainerOutput)
++    }
++
++    /// Queues `bytes` to be written. Returns at once. Once `pendingLimit` bytes wait, whatever is appended is dropped whole
++    /// and counted.
++    func append(_ bytes: [UInt8]) {
++        guard !bytes.isEmpty else { return }
++        let mustSchedule = state.withLock { state -> Bool in
++            if state.bytes.count < pendingLimit { state.bytes += bytes } else { state.dropped += bytes.count }
++            guard !state.scheduled else { return false }
++            state.scheduled = true
++            return true
++        }
++        if mustSchedule { queue.async { self.drain() } }
++    }
++
++    /// Returns when every drain that was queued before the call has finished.
++    func drained() async {  // @dw:accept:this referenced-only-by-tests -- tests wait for the queued writes
++        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
++            queue.async { continuation.resume() }
++        }
++    }
++
++    // MARK: Writing
++
++    private func drain() {
++        while let batch = takeBatch() { store(batch) }
++    }
++
++    /// The note that says how much was dropped.
++    private static func droppedNote(_ count: Int) -> [UInt8] {
++        Array("[dropped \(count) bytes: the disk was slower than the container]\n".utf8)
++    }
++
++    /// The most room the note can take.
++    private static let noteReserve = droppedNote(Int.max).count
++
++    /// Everything waiting; nil, with the drain marked as done, when nothing waits. When bytes were dropped it is led by the
++    /// note, and the waiting bytes are cut at their start, at a character boundary, to leave the note room within the limit:
++    /// the note must not be what the limit cuts off. What that cut removes is counted as dropped too.
++    private func takeBatch() -> [UInt8]? {
++        state.withLock { state -> [UInt8]? in
++            guard !state.bytes.isEmpty || state.dropped > 0 else {
++                state.scheduled = false
++                return nil
++            }
++            var batch = state.bytes
++            if state.dropped > 0 {
++                let room = max(limit - Self.noteReserve, 0)
++                var start = max(batch.count - room, 0)
++                while start < batch.count, batch[start] & 0xC0 == 0x80 { start += 1 }
++                state.dropped += start
++                batch = Self.droppedNote(state.dropped) + batch[start...]
++            }
++            state.bytes = []
++            state.dropped = 0
++            return batch
++        }
++    }
++
++    /// Writes `batch` at the end of the current file, which becomes the previous one first when it would grow past the limit.
++    private func store(_ batch: [UInt8]) {
++        let bytes = Self.lastBytes(of: batch, limit: limit)
++        guard var file = openForAppending() else { return }
++        if file.size + bytes.count > limit {
++            _ = Darwin.close(file.descriptor)
++            // The rename replaces the older previous file in one step, and a link planted there goes without being followed.
++            guard unsafe rename(current.path, previous.path) == 0 else {
++                report("it could not be rotated (error \(errno))")
++                return
++            }
++            guard let fresh = create() else { return }
++            file = fresh
++        }
++        defer { _ = Darwin.close(file.descriptor) }
++        if let failure = Self.writeAll(file.descriptor, bytes) { report(failure) }
++    }
++
++    /// Logs a kind of failure, the first time this file meets it.
++    private func report(_ kind: String) {
++        guard state.withLock({ $0.reported.insert(kind).inserted }) else { return }
++        Log.container.error("The container output file: \(kind, privacy: .public)")
++    }
++
++    /// The last `limit` bytes of `bytes`, cut forward to the start of a character.
++    private static func lastBytes(of bytes: [UInt8], limit: Int) -> ArraySlice<UInt8> {
++        guard bytes.count > limit else { return bytes[...] }
++        var start = bytes.count - limit
++        while start < bytes.count, bytes[start] & 0xC0 == 0x80 { start += 1 }
++        return bytes[start...]
++    }
++
++    /// The current file open for appending, made when it is missing. A refused or unopenable file is logged and left as it is.
++    private func openForAppending() -> OpenedOutput? {
++        switch openOutputFile(current, flags: O_WRONLY | O_APPEND) {
++        case .opened(let file):
++            return file
++        case .missing:
++            return create()
++        case .failed(let kind):
++            report("was refused: \(kind)")
++            return nil
++        }
++    }
++
++    /// Makes the current file, private, and never over a name that exists.
++    private func create() -> OpenedOutput? {
++        // `open` gets a NUL-terminated copy of the path that outlives the call; O_EXCL makes it fail when the name exists (a
++        // link or a pipe included) and O_NOFOLLOW when the last component is a link.
++        let descriptor = unsafe open(current.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0o600)
++        guard descriptor >= 0 else {
++            let code = errno
++            report("could not be created (error \(code))")
++            return nil
++        }
++        // The umask may have taken permissions away from the 0600 asked for, never given any; this settles it.
++        _ = fchmod(descriptor, 0o600)
++        guard case .accepted(_, let identity) = OutputFileInspection(descriptor) else {
++            _ = Darwin.close(descriptor)
++            report("could not be inspected after it was created")
++            return nil
++        }
++        return OpenedOutput(descriptor: descriptor, size: 0, identity: identity)
++    }
++
++    /// Writes all of `bytes`; the sentence for what went wrong, or nil.
++    private static func writeAll(_ descriptor: Int32, _ bytes: ArraySlice<UInt8>) -> String? {
++        bytes.withUnsafeBytes { buffer -> String? in
++            guard let base = buffer.baseAddress else { return nil }
++            var offset = 0
++            while offset < buffer.count {
++                let count = unsafe write(descriptor, base + offset, buffer.count - offset)
++                if count > 0 {
++                    offset += count
++                    continue
++                }
++                let code = errno
++                if count < 0, code == EINTR { continue }
++                return count < 0 ? "could not be written (error \(code))" : "took no more bytes"
++            }
++            return nil
++        }
++    }
++
++    // MARK: Reading
++
++    /// The file open for reading when it passes the checks, nil otherwise (missing included). Reading says nothing in the log:
++    /// whoever asks for the tail gets an empty one.
++    private static func openForReading(_ url: URL) -> OpenedOutput? {
++        guard case .opened(let file) = openOutputFile(url, flags: O_RDONLY) else { return nil }
++        return file
++    }
++
++    /// The last `limit` bytes of the previous file followed by the current one, as text cut forward to the start of a
++    /// character, and whether there was more. A missing file reads as empty, and so does one that fails the checks of the
++    /// writer. Reads no more than `limit` bytes, whatever the files hold. The current file is opened first: a rotation in
++    /// between would show the same file as the previous one too, and then it is read once.
++    static func tail(current: URL, previous: URL, limit: Int) -> (text: String, truncated: Bool) {
++        let newest = openForReading(current)
++        let older = openForReading(previous)
++        defer {
++            for file in [newest, older].compactMap({ $0 }) { _ = Darwin.close(file.descriptor) }
++        }
++        let files = [older.flatMap { $0.identity == newest?.identity ? nil : $0 }, newest].compactMap { $0 }
++        let total = files.reduce(0) { $0 + $1.size }
++        guard limit > 0, total > 0 else { return ("", total > 0) }
++        var skip = total - min(limit, total)
++        var bytes: [UInt8] = []
++        for file in files {
++            guard skip < file.size else {
++                skip -= file.size
++                continue
++            }
++            bytes += readBytes(file.descriptor, from: skip, count: file.size - skip)
++            skip = 0
++        }
++        let truncated = total > limit
++        var start = 0
++        if truncated { while start < bytes.count, bytes[start] & 0xC0 == 0x80 { start += 1 } }
++        return (String(decoding: bytes[start...], as: UTF8.self), truncated)  // swiftlint:disable:this optional_data_string_conversion
++    }
++
++    /// Up to `count` bytes of the file from `offset`; fewer when the file is shorter than it was.
++    private static func readBytes(_ descriptor: Int32, from offset: Int, count: Int) -> [UInt8] {
++        unsafe [UInt8](unsafeUninitializedCapacity: count) { buffer, filled in
++            filled = 0
++            guard let base = buffer.baseAddress else { return }
++            while filled < count {
++                let got = unsafe pread(descriptor, base + filled, count - filled, off_t(offset + filled))
++                if got > 0 {
++                    filled += got
++                } else if got < 0, errno == EINTR {
++                    continue
++                } else {
++                    return
++                }
++            }
++        }
++    }
++}
+diff --git a/Sources/VMRunner/Help/HelpContent+Machines.swift b/Sources/VMRunner/Help/HelpContent+Machines.swift
+index 6a63102..218ca7b 100644
+--- a/Sources/VMRunner/Help/HelpContent+Machines.swift
++++ b/Sources/VMRunner/Help/HelpContent+Machines.swift
+@@ -229,7 +229,9 @@ extension HelpCatalog {
+                     + "machine's folder.",
+                 "• **Output.** What the container prints is filtered before it is shown ("
+                     + "the log removes control sequences and colour codes, and format characters) and bounded: the oldest output is "
+-                    + "dropped, with a note of how much.",
++                    + "dropped, with a note of how much. The same output is also kept in `container-output.log` in the machine's "
++                    + "folder (mode 0600): the most recent output, in the current file and one previous file, each at most 1 MiB, "
++                    + "filtered the same way. Deleting the machine removes them; Duplicate does not copy them.",
+                 "• **Stopping.** Stop sends the helper a stop line. If it has not ended after 10 seconds it gets SIGTERM, and "
+                     + "after 5 more seconds SIGKILL. Quitting the app stops every running container.",
+                 "A container has no pause, suspend, snapshots or disk of its own, and this app's network policy, filtered "
+@@ -244,6 +246,9 @@ extension HelpCatalog {
+                 "Limits: an image reference up to 255 bytes without whitespace; 1 to 16 CPU cores; 128 to 16384 MiB of memory; "
+                     + "up to 64 command words of up to 4096 bytes each; up to 64 environment settings, each name once. The "
+                     + "log keeps the most recent 1 MiB of output.",
++                "Each run adds marker lines to `container-output.log`: `[run started <time>]` first, then `[the container exited "
++                    + "with status N]`, `[the container runner finished with status N]` and `[runner error] <message>` as the "
++                    + "helper reports them. The helper's own standard error is not written to the file.",
+                 "While a container's helper runs, the app holds a user-initiated activity (not latency-critical, so the Mac "
+                     + "still sleeps when it is idle), so that macOS does not slow the app down and delay the stop's time limits.",
+                 "An organisation can forbid containers with the managed setting `AllowContainers` set to false: the New "
+diff --git a/Sources/VMRunner/Model/Storage.swift b/Sources/VMRunner/Model/Storage.swift
+index 50ab87f..b2924b6 100644
+--- a/Sources/VMRunner/Model/Storage.swift
++++ b/Sources/VMRunner/Model/Storage.swift
+@@ -142,6 +142,10 @@ init(id: UUID, in machinesDirectory: URL) {
+     var ephemeralMachineIdentifier: URL { url.appending(path: "MachineIdentifier.ephemeral") }
+     /// The folder a container machine's runner works in: the kernel and image cache it downloads.
+     var containerScratch: URL { url.appending(path: "container-scratch", directoryHint: .isDirectory) }
++    /// What the container machine's runs printed, filtered as the log pane shows it: the file the next run appends to.
++    var containerOutput: URL { url.appending(path: "container-output.log") }
++    /// What `containerOutput` held before it grew past its limit: one older file is kept.
++    var previousContainerOutput: URL { url.appending(path: "container-output.1.log") }
+     var snapshots: URL { url.appending(path: "Snapshots", directoryHint: .isDirectory) }
+     /// The folder the host-information share serves to the guest, read-only. No directory hint: the path has no trailing
+     /// slash, so a link planted here is removed itself, never followed.
+@@ -202,6 +206,12 @@ func discardSavedState() {
+         discardStagedSavedState()
+     }
+ 
++    /// Removes both container output files: a copy of a machine starts with no log of the original's runs.
++    func discardContainerOutput() {
++        remove(containerOutput)
++        remove(previousContainerOutput)
++    }
++
+     /// Removes the image a suspend was writing, or a crash interrupted. It is never a usable image: only `savedState` is.
+     func discardStagedSavedState() {
+         remove(savedStateStaging)
+diff --git a/Sources/VMRunner/Model/VMLibrary.swift b/Sources/VMRunner/Model/VMLibrary.swift
+index b34e707..9f23029 100644
+--- a/Sources/VMRunner/Model/VMLibrary.swift
++++ b/Sources/VMRunner/Model/VMLibrary.swift
+@@ -275,6 +275,7 @@ func duplicate(_ id: UUID) throws {
+             let staged = VMBundle(url: staging)
+             staged.discardSavedState()
+             staged.discardEphemeral()
++            staged.discardContainerOutput()
+             // A container machine's bundle holds its configuration, and later its container-scratch folder: no identifier to renew.
+             if copy.workload == .vm {
+                 let identifier =
+diff --git a/Tests/VMRunnerTests/ContainerMachineTests.swift b/Tests/VMRunnerTests/ContainerMachineTests.swift
+index 787431e..6497cd7 100644
+--- a/Tests/VMRunnerTests/ContainerMachineTests.swift
++++ b/Tests/VMRunnerTests/ContainerMachineTests.swift
+@@ -227,6 +227,44 @@ @Test func duplicatingAContainerMachineKeepsItsWorkloadAndSpec() throws {
+         #expect(stored.workload == .container && stored.container == spec)
+     }
+ 
++    /// A machine whose runs filled the output file past its limit, so both files exist.
++    private func leaveOutput(in bundle: VMBundle) async {
++        let file = ContainerOutputFile(current: bundle.containerOutput, previous: bundle.previousContainerOutput, limit: 8)
++        for text in ["aaaaaaa\n", "bbbbbbb\n"] {
++            file.append(Array(text.utf8))
++            await file.drained()
++        }
++    }
++
++    @Test func aContainerMachinesOutputFilesGoWithItsBundle() async throws {
++        let directory = try scratchDirectory()
++        defer { try? FileManager.default.removeItem(at: directory) }
++        let library = makeLibrary(in: directory)
++        let config = VMConfig.newContainer(name: "box", container: spec)
++        try library.add(config)
++        await leaveOutput(in: library.bundle(config.id))
++        #expect(try names(in: library.bundle(config.id)) == ["config.json", "container-output.1.log", "container-output.log"])
++
++        library.delete(config.id)
++
++        #expect(!FileManager.default.fileExists(atPath: library.bundle(config.id).url.path))
++    }
++
++    @Test func duplicatingAContainerMachineDoesNotCopyItsOutput() async throws {
++        let directory = try scratchDirectory()
++        defer { try? FileManager.default.removeItem(at: directory) }
++        let library = makeLibrary(in: directory)
++        let original = VMConfig.newContainer(name: "box", container: spec)
++        try library.add(original)
++        await leaveOutput(in: library.bundle(original.id))
++
++        try library.duplicate(original.id)
++
++        let copy = try #require(library.machines.first { $0.id != original.id })
++        #expect(try names(in: library.bundle(copy.id)) == ["config.json"])
++        #expect(try names(in: library.bundle(original.id)) == ["config.json", "container-output.1.log", "container-output.log"])
++    }
++
+     @Test func aContainerMachineIsNotSetUpAsAVirtualMachine() async throws {
+         let directory = try scratchDirectory()
+         defer { try? FileManager.default.removeItem(at: directory) }
+diff --git a/Tests/VMRunnerTests/ContainerOutputFileTests.swift b/Tests/VMRunnerTests/ContainerOutputFileTests.swift
+new file mode 100644
+index 0000000..a4fc55f
+--- /dev/null
++++ b/Tests/VMRunnerTests/ContainerOutputFileTests.swift
+@@ -0,0 +1,364 @@
++import Foundation
++import Testing
++
++@testable import VMRunner
++
++/// A scratch folder with the two paths of a container output file.
++private struct Folder {
++    let url: URL
++    var current: URL { url.appending(path: "container-output.log") }
++    var previous: URL { url.appending(path: "container-output.1.log") }
++
++    init() throws { url = try scratchDirectory() }
++
++    func remove() { try? FileManager.default.removeItem(at: url) }
++
++    func file(limit: Int = ContainerOutputFile.defaultLimit, pendingLimit: Int = ContainerOutputFile.defaultLimit)
++        -> ContainerOutputFile
++    {
++        ContainerOutputFile(current: current, previous: previous, limit: limit, pendingLimit: pendingLimit)
++    }
++
++    func text(_ file: URL) -> String? { (try? Data(contentsOf: file)).flatMap { String(bytes: $0, encoding: .utf8) } }
++
++    func mode(_ file: URL) throws -> Int {
++        try #require(FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int)
++    }
++
++    /// Makes a file as it would be if something else made it.
++    func plant(_ text: String, at file: URL, mode: Int = 0o600) throws {
++        try Data(text.utf8).write(to: file)
++        try FileManager.default.setAttributes([.posixPermissions: mode], ofItemAtPath: file.path)
++    }
++
++    func names() throws -> [String] { try FileManager.default.contentsOfDirectory(atPath: url.path).sorted() }
++}
++
++private func bytes(_ text: String) -> [UInt8] { Array(text.utf8) }
++
++/// The file that keeps a container's output: written off the main actor, bounded, private, and never through a link.
++struct ContainerOutputFileTests {
++    @Test func theFileIsCreatedPrivate() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let file = folder.file()
++
++        file.append(bytes("hello\n"))
++        await file.drained()
++
++        #expect(folder.text(folder.current) == "hello\n")
++        #expect(try folder.mode(folder.current) == 0o600)
++        #expect(try folder.names() == ["container-output.log"])
++    }
++
++    @Test func aSecondRunAppendsToWhatTheFirstLeft() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let first = folder.file()
++        first.append(bytes("one\n"))
++        await first.drained()
++
++        let second = folder.file()
++        second.append(bytes("two\n"))
++        second.append(bytes("three\n"))
++        await second.drained()
++
++        #expect(folder.text(folder.current) == "one\ntwo\nthree\n")
++        #expect(try folder.mode(folder.current) == 0o600)
++    }
++
++    @Test func rotationKeepsExactlyOnePreviousFile() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let file = folder.file(limit: 20)
++
++        file.append(bytes("aaaaaaaaaa\n"))
++        await file.drained()
++        #expect(try folder.names() == ["container-output.log"], "11 bytes fit in 20")
++        file.append(bytes("bbbbbbbbbb\n"))
++        await file.drained()
++        #expect(folder.text(folder.previous) == "aaaaaaaaaa\n" && folder.text(folder.current) == "bbbbbbbbbb\n")
++
++        file.append(bytes("cccccccccc\n"))
++        await file.drained()
++        #expect(try folder.names() == ["container-output.1.log", "container-output.log"])
++        #expect(folder.text(folder.previous) == "bbbbbbbbbb\n")
++        #expect(folder.text(folder.current) == "cccccccccc\n")
++        #expect(try folder.mode(folder.previous) == 0o600 && folder.mode(folder.current) == 0o600)
++    }
++
++    @Test func aLinkAtThePathIsRefusedAndItsTargetIsLeftAlone() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let target = folder.url.appending(path: "target.txt")
++        try folder.plant("keep\n", at: target)
++        try FileManager.default.createSymbolicLink(at: folder.current, withDestinationURL: target)
++        let file = folder.file()
++
++        file.append(bytes("written\n"))
++        await file.drained()
++
++        #expect(folder.text(target) == "keep\n")
++        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: folder.current.path) == target.path)
++    }
++
++    @Test func aLinkWhereTheOldFileGoesIsReplacedNotFollowed() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let missing = folder.url.appending(path: "absent.txt")
++        try FileManager.default.createSymbolicLink(at: folder.previous, withDestinationURL: missing)
++        try folder.plant("12345678", at: folder.current)
++        let file = folder.file(limit: 10)
++
++        file.append(bytes("abcdef"))
++        await file.drained()
++
++        #expect(folder.text(folder.previous) == "12345678")
++        #expect(folder.text(folder.current) == "abcdef")
++        #expect(!FileManager.default.fileExists(atPath: missing.path), "the link's target was never created")
++    }
++
++    @Test func aFileOpenToOthersIsRefusedAndUnchanged() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("old\n", at: folder.current, mode: 0o644)
++        let file = folder.file()
++
++        file.append(bytes("new\n"))
++        await file.drained()
++
++        #expect(folder.text(folder.current) == "old\n")
++        #expect(try folder.mode(folder.current) == 0o644)
++    }
++
++    @Test func aFileWithASecondNameIsRefusedAndUnchanged() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("old\n", at: folder.current)
++        let other = folder.url.appending(path: "other-name")
++        try FileManager.default.linkItem(at: folder.current, to: other)
++        let file = folder.file()
++
++        file.append(bytes("new\n"))
++        await file.drained()
++
++        #expect(folder.text(folder.current) == "old\n")
++        #expect(folder.text(other) == "old\n")
++    }
++
++    @Test func oneAppendBiggerThanTheLimitKeepsItsLastBytesFromACharacterBoundary() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let file = folder.file(limit: 9)
++
++        // 22 bytes; the last 9 start inside a character, so the cut moves forward to the next one: 8 bytes.
++        file.append(bytes("ab" + String(repeating: "é", count: 10)))
++        await file.drained()
++
++        #expect(folder.text(folder.current) == "éééé")
++    }
++
++    @Test func pastThePendingLimitNewBytesAreDroppedAndTheNextDrainSaysHowMany() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        // A held queue decides when the drains run, so what is pending does not depend on timing.
++        let queue = DispatchQueue(label: "output-file-test")  // swiftlint:disable:this no_dispatch_queue
++        queue.suspend()
++        let file = ContainerOutputFile(current: folder.current, previous: folder.previous, pendingLimit: 5, queue: queue)
++
++        file.append(bytes("12345"))
++        file.append(bytes("6789"))
++        file.append(bytes("abc"))
++        queue.resume()
++        await file.drained()
++
++        #expect(folder.text(folder.current) == "[dropped 7 bytes: the disk was slower than the container]\n12345")
++        file.append(bytes("more\n"))
++        await file.drained()
++        #expect(folder.text(folder.current)?.hasSuffix("12345more\n") == true)
++    }
++
++    @Test func theDroppedNoteSurvivesTheDefaultLimits() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let queue = DispatchQueue(label: "output-file-test")  // swiftlint:disable:this no_dispatch_queue
++        queue.suspend()
++        let file = ContainerOutputFile(current: folder.current, previous: folder.previous, queue: queue)
++
++        // The first append fills what may wait; the line after it is dropped, and the note must lead what is written.
++        let limit = ContainerOutputFile.defaultLimit
++        file.append(bytes(String(repeating: "a", count: limit)))
++        file.append(bytes("last line\n"))
++        queue.resume()
++        await file.drained()
++
++        let kept = try #require(folder.text(folder.current))
++        #expect(kept.hasPrefix("[dropped "))
++        let note = kept.prefix { $0 != "\n" }
++        let count = try #require(Int(note.dropFirst("[dropped ".count).prefix { $0.isNumber }))
++        #expect(kept.utf8.count <= limit)
++        #expect(count + kept.utf8.count - note.utf8.count - 1 == limit + 10, "every byte is either kept or counted")
++    }
++
++    @Test func twoRunsWritingAtOnceLoseNothingAcrossARotation() async throws {
++        for _ in 0..<25 {
++            let folder = try Folder()
++            defer { folder.remove() }
++            let older = folder.file(limit: 15)
++            let newer = folder.file(limit: 15)
++
++            // Each batch fills the file, so the second one rotates it: the drains of two file objects must not overlap.
++            older.append(bytes("aaaaaaaaaa\n"))
++            newer.append(bytes("bbbbbbbbbb\n"))
++            await newer.drained()
++
++            #expect(folder.text(folder.previous) == "aaaaaaaaaa\n")
++            #expect(folder.text(folder.current) == "bbbbbbbbbb\n")
++        }
++    }
++
++    @Test func filesOnTheSamePathsWriteInTheOrderTheyWereAppendedTo() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let queue = DispatchQueue(label: "output-file-test")  // swiftlint:disable:this no_dispatch_queue
++        queue.suspend()
++        let older = ContainerOutputFile(current: folder.current, previous: folder.previous, limit: 40, queue: queue)
++        let newer = ContainerOutputFile(current: folder.current, previous: folder.previous, limit: 40, queue: queue)
++
++        older.append(bytes("a1 first run\n"))
++        older.append(bytes("a2 first run\n"))
++        newer.append(bytes("b1 second run\n"))
++        newer.append(bytes("b2 second run\n"))
++        queue.resume()
++        await older.drained()
++        await newer.drained()
++
++        let all = (folder.text(folder.previous) ?? "") + (folder.text(folder.current) ?? "")
++        #expect(all == "a1 first run\na2 first run\nb1 second run\nb2 second run\n")
++        #expect(folder.text(folder.previous) != nil, "the second run rotated the first's output")
++    }
++
++    @Test func aPipeAtThePathIsLeftAloneAndNeverHoldsTheWriter() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let made = unsafe mkfifo(folder.current.path, 0o600)
++        #expect(made == 0)
++        let file = folder.file()
++
++        file.append(bytes("written\n"))
++        await file.drained()
++
++        var status = stat()
++        let looked = unsafe lstat(folder.current.path, &status)
++        #expect(looked == 0 && status.st_mode & S_IFMT == S_IFIFO)
++        #expect(try folder.names() == ["container-output.log"])
++    }
++
++    // MARK: Reading the tail
++
++    @Test func filesThatAreMissingReadAsEmpty() {
++        let nowhere = URL(filePath: "/nonexistent-\(UUID().uuidString)")
++        let tail = ContainerOutputFile.tail(current: nowhere, previous: nowhere, limit: 100)
++        #expect(tail.text.isEmpty && !tail.truncated)
++    }
++
++    @Test func theTailIsAtMostTheLimitAndSaysWhenThereWasMore() throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("0123456789", at: folder.current)
++
++        let short = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 4)
++        #expect(short.text == "6789" && short.truncated)
++        let exact = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 10)
++        #expect(exact.text == "0123456789" && !exact.truncated)
++        let roomy = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 100)
++        #expect(roomy.text == "0123456789" && !roomy.truncated)
++    }
++
++    @Test func theTailCrossesIntoThePreviousFile() throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("abcdef", at: folder.previous)
++        try folder.plant("ghij", at: folder.current)
++
++        let part = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 7)
++        #expect(part.text == "defghij" && part.truncated)
++        let all = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 10)
++        #expect(all.text == "abcdefghij" && !all.truncated)
++    }
++
++    @Test func theTailStartsAtACharacter() throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("xéé", at: folder.current)
++
++        // The last 3 bytes begin in the middle of the first é; the tail starts at the second one.
++        let tail = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 3)
++        #expect(tail.text == "é" && tail.truncated)
++    }
++
++    @Test func aFileThatFailsTheChecksReadsAsEmpty() throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("secret\n", at: folder.current, mode: 0o644)
++        let target = folder.url.appending(path: "target.txt")
++        try folder.plant("linked\n", at: target)
++        try FileManager.default.createSymbolicLink(at: folder.previous, withDestinationURL: target)
++
++        let tail = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 100)
++        #expect(tail.text.isEmpty && !tail.truncated)
++    }
++
++    @Test func aHugeFileIsReadOnlyAsFarAsTheLimit() throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        try folder.plant("", at: folder.current)
++        let handle = try FileHandle(forWritingTo: folder.current)
++        try handle.truncate(atOffset: 256 << 20)
++        try handle.seek(toOffset: (256 << 20) - 5)
++        try handle.write(contentsOf: Data("end!\n".utf8))
++        try handle.close()
++
++        let tail = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 16)
++        #expect(tail.text.utf8.count == 16 && tail.text.hasSuffix("end!\n") && tail.truncated)
++    }
++
++    @Test func aPipeAtThePathReadsAsEmptyWithoutWaiting() throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let made = unsafe mkfifo(folder.current.path, 0o600)
++        #expect(made == 0)
++        try folder.plant("old\n", at: folder.previous)
++
++        let tail = ContainerOutputFile.tail(current: folder.current, previous: folder.previous, limit: 100)
++        #expect(tail.text == "old\n" && !tail.truncated)
++    }
++
++    // MARK: Through the log
++
++    @MainActor
++    @Test func aLogWithAFileKeepsTheFilteredTextAndTheMarkers() async throws {
++        let folder = try Folder()
++        defer { folder.remove() }
++        let file = folder.file()
++        let log = ContainerLog(file: file)
++
++        log.apply(.phase(name: "boot", seconds: 1))
++        log.apply(.output(stream: .stdout, text: "hi \u{1B}[31mred\u{1B}[0m\n"))
++        log.appendDiagnostics(bytes("runner noise\n"))
++        log.apply(.exited(status: 3))
++        log.apply(.error(message: "boom\u{1B}[1m"))
++        log.apply(.finished(status: 1))
++        await file.drained()
++
++        let content = try #require(folder.text(folder.current))
++        let marker = content.prefix { $0 != "\n" }
++        #expect(marker.hasPrefix("[run started 20") && marker.hasSuffix("Z]"))
++        #expect(
++            content.dropFirst(marker.count + 1)
++                == "hi red\n[the container exited with status 3]\n[runner error] boom\n"
++                + "[the container runner finished with status 1]\n")
++        #expect(log.output.text == "hi red\n")
++        #expect(!content.contains("noise"))
++    }
++}
+diff --git a/Tests/VMRunnerTests/ContainerWorkloadTests.swift b/Tests/VMRunnerTests/ContainerWorkloadTests.swift
+index f938b25..b8e6fc6 100644
+--- a/Tests/VMRunnerTests/ContainerWorkloadTests.swift
++++ b/Tests/VMRunnerTests/ContainerWorkloadTests.swift
+@@ -303,8 +303,32 @@ @Test func aContainerMachineStartsShowsItsLogAndStopsOnRequest() async throws {
+         #expect(output == expectedArguments)
+         #expect(shown.phases.map(\.name) == ["boot", "run"])
+         // None of a virtual machine's start happened: the configuration is as it was and the bundle holds no disk or state.
++        // What it holds besides the configuration and the working folder is the file that keeps the output.
+         #expect(machine.library.machine(machine.id) == machine.config)
+-        #expect(try machine.names() == ["config.json", "container-scratch"])
++        await shown.file?.drained()
++        #expect(try machine.names() == ["config.json", "container-output.log", "container-scratch"])
++    }
++
++    @Test func aContainerRunLeavesItsFilteredOutputInTheMachinesFolder() async throws {
++        let script = try Script(
++            "echo '\(Script.boot)'\nprintf '{\"event\":\"output\",\"stream\":\"stdout\",\"text\":\"hello\\\\n\"}\\n'\n"
++                + "echo '\(Script.ready)'\nread line || exit 76\n[ \"$line\" = stop ] && exit 75\nexit 1")
++        defer { script.remove() }
++        let machine = try Machine(runner: script)
++        defer { machine.remove() }
++
++        #expect(await machine.library.startAndWait(machine.id) == .done(.running))
++        let workload = try #require(machine.controller.guest as? ContainerWorkload)
++        let file = try #require(workload.workloadLog?.file)
++        let stops = try machine.watchStops()
++        machine.controller.requestStop()
++        _ = try await stops.wait(forAtLeast: 1)
++        await file.drained()
++
++        let kept = try String(contentsOf: machine.bundle.containerOutput, encoding: .utf8)
++        #expect(kept.hasPrefix("[run started ") && kept.hasSuffix("]\nhello\n"))
++        let permissions = try FileManager.default.attributesOfItem(atPath: machine.bundle.containerOutput.path)[.posixPermissions]
++        #expect(permissions as? Int == 0o600)
+     }
+ 
+     @Test func aRunnerThatFailsBeforeTheContainerRunsLeavesTheMachineStoppedWithItsMessage() async throws {
+-- 
+2.56.0
+

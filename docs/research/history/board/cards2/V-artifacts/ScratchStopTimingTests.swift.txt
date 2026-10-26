@@ -1,0 +1,110 @@
+import Foundation
+import TestKit
+import Testing
+
+@testable import VMRunner
+
+@MainActor
+@Suite(.serialized, .timeLimit(.minutes(2)))
+struct ScratchStopTimingTests {
+    private func script(_ body: String) throws -> (URL, URL) {
+        let dir = try scratchDirectory()
+        let exe = dir.appending(path: "runner.sh")
+        try Data("#!/bin/sh\n\(body)\n".utf8).write(to: exe)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: exe.path)
+        return (dir, exe)
+    }
+    private static let ready = #"echo '{"event":"phase","name":"run","seconds":0}'"#
+
+    private func time(_ label: String, _ body: String) async throws {
+        let (dir, exe) = try script(body)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let process = ContainerProcess(executable: exe, arguments: [], environment: ["PATH": "/usr/bin:/bin"], registry: ContainerProcesses())
+        let workload = ContainerWorkload(process: process, scratch: dir.appending(path: "scratch"))
+        var stoppedAt: ContinuousClock.Instant?
+        workload.onGuestStopped = { stoppedAt = .now }
+        workload.onStoppedWithError = { _ in stoppedAt = .now }
+        try await workload.start()
+        let t0 = ContinuousClock.now
+        try workload.requestStop()
+        _ = await process.waitForExit()
+        let waited = t0.duration(to: .now)
+        print("TIMING \(label): exit=\(String(describing: process.exit)) waitForExit=\(waited) onGuestStopped=\(stoppedAt.map { t0.duration(to: $0) }.map(String.init(describing:)) ?? "never")")
+    }
+
+    @Test func exitsOnStopLine() async throws {
+        try await time("exits-on-stop", "\(Self.ready)\nread line; exit 75")
+    }
+    @Test func ignoresStopLine() async throws {
+        try await time("ignores-stop-line", "\(Self.ready)\nexec sleep 60")
+    }
+    @Test func ignoresTerm() async throws {
+        try await time("ignores-term", "trap '' TERM\n\(Self.ready)\nexec sleep 60")
+    }
+    /// Ignores stop line; a background child (the "VM") keeps the pipes open after SIGTERM kills the shell.
+    @Test func ignoresStopAndChildHoldsPipes() async throws {
+        try await time("ignores-stop+child-holds-pipes", "\(Self.ready)\nsleep 20 &\nwait")
+    }
+}
+
+@MainActor
+@Suite(.serialized, .timeLimit(.minutes(2)))
+struct ScratchDescriptorTests {
+    private func fds() -> Int { (try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd").count) ?? -1 }
+    private func run(_ body: String, stop: Bool, kill: Bool = false) async throws {
+        let dir = try scratchDirectory()
+        let exe = dir.appending(path: "runner.sh")
+        try Data("#!/bin/sh\n\(body)\n".utf8).write(to: exe)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: exe.path)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let timing = ContainerProcess.Timing(stopGrace: .milliseconds(200), terminateGrace: .milliseconds(200), drainGrace: .milliseconds(200))
+        let process = ContainerProcess(executable: exe, arguments: [], environment: ["PATH": "/usr/bin:/bin"], timing: timing, registry: ContainerProcesses())
+        let workload = ContainerWorkload(process: process, scratch: dir.appending(path: "scratch"))
+        try await workload.start()
+        if stop { try workload.requestStop() }
+        if kill { try await workload.stop() }
+        _ = await process.waitForExit()
+        precondition(process.openDescriptorCount == 0)
+    }
+    @Test func noGrowth() async throws {
+        let ready = #"echo '{"event":"phase","name":"run","seconds":0}'"#
+        // warm up one of each, then measure
+        for _ in 0..<1 { try await run("\(ready)\nexit 0", stop: false) }
+        let before = fds()
+        for _ in 0..<5 {
+            try await run("\(ready)\nexit 0", stop: false)
+            try await run("\(ready)\nread l; exit 75", stop: true)
+            try await run("\(ready)\nexec sleep 30", stop: true)
+            try await run("trap '' TERM\n\(ready)\nexec sleep 30", stop: true)
+            try await run("\(ready)\nexec sleep 30", stop: false, kill: true)
+        }
+        try await Task.sleep(for: .milliseconds(500))
+        print("FDS before=\(before) after=\(fds())")
+    }
+}
+
+@MainActor
+private final class SpyHost: ActivityHost {
+    var begun = 0, ended = 0
+    func beginActivity(options: ProcessInfo.ActivityOptions, reason: String) -> any NSObjectProtocol { begun += 1; return NSObject() }
+    func endActivity(_ activity: any NSObjectProtocol) { ended += 1 }
+}
+
+@MainActor
+struct ScratchActivityTests {
+    @Test func aContainerHoldsAnActivityWhileItsRunnerLives() async throws {
+        let dir = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let exe = dir.appending(path: "runner.sh")
+        try Data("#!/bin/sh\necho '{\"event\":\"phase\",\"name\":\"run\",\"seconds\":0}'\nread l; exit 75\n".utf8).write(to: exe)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: exe.path)
+        let process = ContainerProcess(executable: exe, arguments: [], environment: ["PATH": "/usr/bin:/bin"], registry: ContainerProcesses())
+        let spy = SpyHost()
+        let workload = ContainerWorkload(process: process, scratch: dir.appending(path: "s"), host: spy)
+        try await workload.start()
+        #expect(spy.begun == 1 && spy.ended == 0)
+        try workload.requestStop()
+        _ = await process.waitForExit()
+        #expect(spy.begun == 1 && spy.ended == 1)
+    }
+}

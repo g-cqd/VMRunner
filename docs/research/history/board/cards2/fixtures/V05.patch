@@ -1,0 +1,190 @@
+From 48d0703e87d073d00822bf455d25c059b10edb7e Mon Sep 17 00:00:00 2001
+From: Gigi <42325924+g-cqd@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 09:44:25 +0100
+Subject: [PATCH] Say what the first run of a container from the app showed and
+ what was added after it
+
+The first run of a container machine from the built app started and stopped two
+containers, and showed a stop that took 72 s where the decision gives 15 s at
+most. ADR-0057 and ADR-0056 each get a dated note, without touching what they
+decide: the first says what was and was not seen, the candidate cause that is
+still unproven, the activity a running container now holds, the output file and
+the log method; the second says that a method and a capability were added, and
+that an older app accepts no token while a token file lists the new capability.
+
+Roadmap 0024 says what the run showed and what was added, and keeps as open
+items the stop timing to run again, the quit through the menu, the growth of the
+app's descriptors and the placeholder bundle identifier. The order of remaining
+work no longer says that no container was started from the app. The diary entry
+lists each claim with how it was checked, and what is still unverified.
+---
+ ...e-off-by-default-with-capability-tokens.md |  9 +++
+ ...d-runner-the-app-drives-over-json-lines.md | 15 +++++
+ docs/diary/2026-10-25-04.md                   | 56 +++++++++++++++++++
+ docs/roadmap/0024-containers.md               | 30 +++++++---
+ docs/roadmap/0036-order-of-remaining-work.md  |  2 +-
+ 5 files changed, 104 insertions(+), 8 deletions(-)
+ create mode 100644 docs/diary/2026-10-25-04.md
+
+diff --git a/docs/adr/0056-scripts-and-agents-control-machines-through-a-local-service-off-by-default-with-capability-tokens.md b/docs/adr/0056-scripts-and-agents-control-machines-through-a-local-service-off-by-default-with-capability-tokens.md
+index 9d71f73..24fbd4e 100644
+--- a/docs/adr/0056-scripts-and-agents-control-machines-through-a-local-service-off-by-default-with-capability-tokens.md
++++ b/docs/adr/0056-scripts-and-agents-control-machines-through-a-local-service-off-by-default-with-capability-tokens.md
+@@ -83,3 +83,12 @@ links this library and the console's and which the app does not link: an agent r
+ and its checks. The client now keeps its read buffer across answers, bounds an answer's size and nesting, and checks the
+ socket's user before it sends a token. The library's API stays `public`; moving it to `package` is still open. Neither
+ has run against the app yet; the status stays proposed.)
++
++(Update 2026-10-25: a method, `machines.log`, and a capability, `log`, were added for container machines. The method reads
++the end of a container's output log, at most 64 KiB, as `id`, `text` and `truncated`; it is read-only, takes the same
++parameters as `machines.state` (strings and booleans only, and no size), passes the same checks in the same order (token,
++capability, the token's machines, whether the machine exists, its agent access), and refuses a machine that is not a
++container. An older app cannot load a `tokens.json` that lists `log`: it does not know the capability, so the store's
++initialiser throws that the list cannot be read, the file is left untouched, and the older app accepts no token until it is
++upgraded. The exposure summary of a container with agent access on says that a token with this capability can read what the
++container printed.)
+diff --git a/docs/adr/0057-containers-run-in-a-separate-signed-runner-the-app-drives-over-json-lines.md b/docs/adr/0057-containers-run-in-a-separate-signed-runner-the-app-drives-over-json-lines.md
+index 6600dee..96343f5 100644
+--- a/docs/adr/0057-containers-run-in-a-separate-signed-runner-the-app-drives-over-json-lines.md
++++ b/docs/adr/0057-containers-run-in-a-separate-signed-runner-the-app-drives-over-json-lines.md
+@@ -74,3 +74,18 @@ The pinned package stays what ADR-0017 says: exact version 0.52.1, three library
+ Whether the app links the library at all; running the runner under a sandbox helper; networking beyond `none` and `loopback`
+ (the user-mode stack in a container is ADR-0017's open point, not closed here); an image cache shared between machines and the
+ tools to clear it; a macOS container.
++
++(Update 2026-10-25, after the first run from the app: a debug build of the app, started with a scratch data folder and driven
++only through the control service, started two container machines of the Alpine image. Seen: a start reaches `running` (cold
++about 63 s, the download of the runner's kernel archive, about 290 MB for each machine, and of the image included; warm 3 to
++9 s); a container whose command ended is stopped by itself; a stopped container leaves no runner and no virtual machine
++process; a forced stop answers in 0.44 s and the runner is gone at 0.60 s; ending the app with SIGTERM while a container ran
++left no runner. Not seen: the container's output in the app's window (an app that was never activated shows no window to
++automation), and the quit through the menu (the app stayed up behind a confirmation that could not be read). A stop that asks,
++decision 3, took 72 s to reach `stopped`, where the decision gives 15 s at most; the cause is not known. The best-supported
++candidate, unproven, is that macOS slows an app it thinks idle (no window shown, never active: App Nap) and so coalesces the
++timers that carry the escalation. A running container therefore holds a user-initiated activity from the start of its runner
++to its end, not latency-critical, so that the Mac still sleeps when idle; and the stop path logs each step with the runner's
++process identifier (category `container`), so that the next run can show where the time went. The output of each run is now
++also kept in `container-output.log` in the machine's folder, the most recent 1 MiB and one previous file, and a token with the
++log capability can read its last 64 KiB through the control service (ADR-0056). None of this has been run on a real guest yet.)
+diff --git a/docs/diary/2026-10-25-04.md b/docs/diary/2026-10-25-04.md
+new file mode 100644
+index 0000000..68ce37f
+--- /dev/null
++++ b/docs/diary/2026-10-25-04.md
+@@ -0,0 +1,56 @@
++# Diary — 2026-10-25 (4)
++
++## A running container holds an activity, keeps its output in a file, and a token can read it
++
++The first run of a container machine from the built app (a debug build, a scratch data folder, driven only through the control
++service) worked but showed a defect and left questions. Five commits follow from it. Each was gated (8/8) on its own tree before
++it was made; the first three were rebuilt after a review and gated again. No virtual machine was started for them and the real
++runner was never run: everything marked TESTED below comes from tests with fake runner scripts, scratch folders and local
++sockets. The rows marked SEEN come from the real run of the same day, which is not reproducible from the repository.
++
++| # | Claim | Probe | Verdict |
++|---|---|---|---|
++| 1 | A container machine starts from the built app, reaches `running` and ends `stopped` with no runner left | the real run: two machines, driven by the control client | SEEN |
++| 2 | Costs: cold about 63 s (a kernel archive of about 290 MB for each machine, and the image), warm 3 to 9 s | the same run | SEEN |
++| 3 | A forced stop answers in 0.44 s and the runner is gone at 0.60 s; ending the app with SIGTERM leaves no runner | the same run | SEEN |
++| 4 | A stop that asks takes 72 s to reach `stopped`, not 15 s at most | the same run | SEEN (the defect) |
++| 5 | That is App Nap coalescing the timers of the stop escalation | no run with the change; only a candidate | NOT RUN |
++| 6 | A running container holds one user-initiated activity, not latency-critical, from the start of its runner to its end, and one that is released early ends it | a spy in place of the process: start, stop, a start that throws, a runner that fails before it is ready, a workload released while it runs | TESTED |
++| 7 | The stop path logs each step with the runner's process identifier | the lines are written by the code the tests run; no test reads the log | NOT RUN |
++| 8 | A run's output is kept in a private file of the machine's folder, bounded to 1 MiB with one previous file, filtered as the pane is | scratch folders: creation with mode 0600, two runs appending, rotation, an append bigger than the limit, a cut at a character | TESTED |
++| 9 | A link, a file open to others, a file with a second name or a pipe at the path is left alone and never holds the writer; reading them gives nothing | the same tests with each of them planted | TESTED |
++| 10 | The note of dropped bytes survives the default limits, and two runs writing at once lose nothing across a rotation | a held queue; two file objects on the same paths | TESTED |
++| 11 | Duplicate does not copy the output, deleting the machine removes it | the library with a container machine | TESTED |
++| 12 | `machines.log` needs the log capability and the usual checks, answers at most 64 KiB, and only for a container with agent access on | the dispatcher, the app's adapter with a container and a virtual machine, an organisation that keeps the service off | TESTED |
++| 13 | A 64 KiB tail of the characters that grow most under JSON escaping arrives exactly and fits what the client accepts | a connection and a client over a pair of sockets | TESTED |
++| 14 | `vmr control log` and the MCP tool `machines_log` return the log | the built `vmr` against a service on a socket; an MCP session over pipes | TESTED |
++| 15 | The control listener closes every connection it accepts and leaves no descriptor open | seven ways a connection ends, then 128 mixed connections and a count of the descriptors | TESTED |
++| 16 | The app's own descriptors do not grow | 44 at rest, 54 after a container ran and was stopped, unexplained | NOT SEEN |
++| 17 | The container's output appears in the app's window | the window cannot be reached by automation in an app that was never activated | NOT SEEN |
++| 18 | The quit through the menu with a container running stops and kills the runner | the app stayed up behind a confirmation that could not be read | NOT SEEN |
++| 19 | An older app refuses a token file that lists `log` | read from the code (the capability is unknown, so the list cannot be read); not run | NOT RUN |
++
++### What was built
++
++- The workload holds an activity while its runner lives, and the process logs the steps of a stop (category `container`).
++- Each container machine keeps its output in `container-output.log` and `container-output.1.log` in its folder. A drain on one
++  queue shared by all files writes it; the app's main actor never waits for the disk.
++- The control service has a read-only method `machines.log` and a capability `log`; the app reads the end of the files off the
++  main actor; `vmr control log MACHINE [--bytes N] [--json]` and the fifth MCP tool print or return it. A container's exposure
++  summary says so when agent access is on.
++- A test that every path of the control listener closes the connection it accepted.
++
++### Not verified
++
++- Whether the activity shortens the stop. Nothing was run with it, and App Nap is a candidate, not a finding.
++- Anything on a real guest after these changes: the output file with a real run, the stop with its logs.
++- The log lines themselves: no test reads them.
++- Why the app's descriptors grew from 44 to 54; the listener is not the explanation the tests can rule in.
++- The output in the window and the menu quit, which automation could not reach.
++- The placeholder bundle identifier is shared with an installed copy of the app (the defaults and data-directory override
++  domains); the run wrote only the override domain. That is an owner decision, not a code defect.
++
++### Next
++
++Run the stop again with a build that has the activity and the logs, and read the log; look at the quit alert with the app
++active, by the owner; take a breakdown of the app's descriptors before and after a container run.
+diff --git a/docs/roadmap/0024-containers.md b/docs/roadmap/0024-containers.md
+index 322e633..ca31b16 100644
+--- a/docs/roadmap/0024-containers.md
++++ b/docs/roadmap/0024-containers.md
+@@ -56,16 +56,32 @@ The app does not link the container library. It runs the runner as a separate si
+ 
+ ## Left
+ 
+-1. **The real-guest run from the app.** The pieces that start a runner are tested with fake runners, the rest by pure tests;
+-   nothing has started a container from the app yet. The owner-authorised run: build the app, make a container machine, start it,
+-   read the log, stop it, quit with it running, and look for the runner and for anything outside the machine's bundle afterwards.
+-2. **Networking beyond `none` and `loopback`.** The user-mode stack is now library targets of the root package (ADR-0047), but
++1. **The real-guest run from the app: done once, with gaps.** A debug build of the app, with a scratch data folder and driven
++   through the control service, started two container machines (2026-10-25). Seen: a start reaches `running` (cold about 63 s,
++   with a kernel archive of about 290 MB downloaded for each machine; warm 3 to 9 s); a stopped container leaves no runner and no
++   virtual machine process; a forced stop took 0.6 s; ending the app with SIGTERM left no runner. Not seen: the container's
++   output in the window, and the quit through the menu. The stop that asks took 72 s, not the 15 s at most that ADR-0057 gives.
++   Added since, none of it run on a real guest: a running container holds an activity, the stop path logs each step, the output
++   is kept in `container-output.log` in the machine's folder, and a token with the log capability can read its last 64 KiB
++   (`machines.log`, `vmr control log`, the MCP tool `machines_log`).
++2. **The stop timing, run again.** Measure a stop that asks, with the activity and the logs of the app in place, and read the log
++   to see which step takes the time. The App Nap candidate (an app that is not active has its timers coalesced) is unproven; if
++   the stop is still slow, the logs name the step.
++3. **The quit through the menu.** With a container running, the app stayed up and showed a window that could not be read: the
++   confirmation about running containers is out of reach of automation when the app was never activated. Whether the runners
++   are stopped and killed on that path has not been seen; the quit by SIGTERM has.
++4. **The app's descriptors.** The count of the app's open descriptors went from 44 at rest to 54 after a container ran and was
++   stopped, and stayed there. The control listener closes every connection it accepts (a test now proves it); the growth of
++   the app is not explained and no breakdown was taken.
++5. **The placeholder bundle identifier.** The app's bundle identifier is a placeholder shared with an installed copy of the
++   app, so both use the same defaults domain and the same data-directory override domain. A decision for the owner.
++6. **Networking beyond `none` and `loopback`.** The user-mode stack is now library targets of the root package (ADR-0047), but
+    the container's interface is not plugged into it, and the nested package cannot reach those targets yet (the study lists
+    what that takes).
+-3. **Image cache management.** Each container machine's folder keeps its own kernel (a 290 MB archive) and image store; nothing
++7. **Image cache management.** Each container machine's folder keeps its own kernel (a 290 MB archive) and image store; nothing
+    clears them or shares them between machines. The kernel download should also not leave `~/Library/Caches/ContainerRunner`
+    behind (use a session without a cache).
+-4. **Linking the library later**, if ever: the licence of each of the 29 pins inventoried (`docs/research/containers-2026-10.md`)
++8. **Linking the library later**, if ever: the licence of each of the 29 pins inventoried (`docs/research/containers-2026-10.md`)
+    and an access review of what the app would call (ADR-0057).
+-5. Older follow-ups: try the newer Kata kernel (3.26.0) before moving the pin; run the runner under a sandbox helper (ADR-0016);
++9. Older follow-ups: try the newer Kata kernel (3.26.0) before moving the pin; run the runner under a sandbox helper (ADR-0016);
+    suspend; a command that needs the network from inside the guest; a pull with credentials.
+diff --git a/docs/roadmap/0036-order-of-remaining-work.md b/docs/roadmap/0036-order-of-remaining-work.md
+index ae8e35c..f7e889b 100644
+--- a/docs/roadmap/0036-order-of-remaining-work.md
++++ b/docs/roadmap/0036-order-of-remaining-work.md
+@@ -21,7 +21,7 @@ most three builds run at once.
+ | D | Performance and memory leftovers | 0033 | open |
+ | E | Remaining contributions to the shared library | 0035 | the Base64 patch awaits review; the rest follows the stack package |
+ | F | The rest of the security backlog | 0034 | in flight: signed AlmaLinux, Rocky Linux and Fedora releases, key expiry, the network leftovers, the gate lock, the installer clones and the review follow-ups are done; Debian netboot, the floor opt-in and coverage-guided fuzzing wait for the owner |
+-| G | Features in dependency order: the workload abstraction (after the container and sandbox first runs), managed preferences (0013), the automation server (0005), host information (0011), realism (0012), the VPN probe and kill switch (0010), provisioning (0016), Developer ID and notarization (0021), private interfaces (0029, after the owner tags the packages) | 0005 to 0029 | the app's code starts a container through the workload seam (0024, ADR-0057; tested with fake runners; no real container has been started from the app yet), managed preferences (0013), host information (0011), realism (0012) and the kill switch (0010) built and their review follow-ups done, the owner's checks owed; the in-guest VPN probe waits for an ADR; the rest open |
++| G | Features in dependency order: the workload abstraction (after the container and sandbox first runs), managed preferences (0013), the automation server (0005), host information (0011), realism (0012), the VPN probe and kill switch (0010), provisioning (0016), Developer ID and notarization (0021), private interfaces (0029, after the owner tags the packages) | 0005 to 0029 | the app's code starts a container through the workload seam (0024, ADR-0057; tested with fake runners; a first real run from the app started and stopped containers, and 0024 says what it did not show), managed preferences (0013), host information (0011), realism (0012) and the kill switch (0010) built and their review follow-ups done, the owner's checks owed; the in-guest VPN probe waits for an ADR; the rest open |
+ | H | Deferred: Linux GPU (needs a macOS 27 host), the macOS OCI store, saved-state encryption (after a throughput measurement) | 0014, 0024 | deferred |
+ 
+ Owner-gated: the guest checklist (0030), the sandbox boot run (0025), the real run of a container machine from the app (0024),
+-- 
+2.56.0
+

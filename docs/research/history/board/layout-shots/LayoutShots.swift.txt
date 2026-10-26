@@ -1,0 +1,214 @@
+import AppKit
+import Foundation
+import SwiftUI
+import Testing
+
+@testable import VMRunner
+
+/// Offscreen renders of the editor and the forms it should match, for layout review. Runs only when `VMR_LAYOUT_SHOTS` names
+/// an output folder; `VMR_LAYOUT_PREFIX` (default `shot`) starts each file name. No window is ever shown: each view is laid
+/// out in a borderless window far off screen that is never ordered front, and captured with `cacheDisplay(in:to:)`.
+@MainActor
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["VMR_LAYOUT_SHOTS"] != nil), .serialized)
+struct LayoutShots {
+    private static let output = URL(filePath: ProcessInfo.processInfo.environment["VMR_LAYOUT_SHOTS"] ?? "/tmp")
+    private static let prefix = ProcessInfo.processInfo.environment["VMR_LAYOUT_PREFIX"] ?? "shot"
+    private static let widths: [CGFloat] = [560, 1100]
+
+    @Test(arguments: GuestOS.allCases)
+    func editor(guest: GuestOS) throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = VMLibrary(machinesDirectory: directory, approvalsFile: directory.appending(path: "approvals.json"))
+        var config = VMConfig.new(name: "Sample \(guest.label)", guest: guest)
+        config.extraDisks = [ExtraDisk(path: "/Users/someone/Disks/data.img", readOnly: false)]
+        config.sharedFolders = [SharedFolder(path: "/Users/someone/Projects", readOnly: true)]
+        config.hostInfo.battery = true
+        if guest == .linux { config.installerISO = "/Users/someone/Downloads/debian-13-arm64-netinst.iso" }
+        try library.add(config)
+        let model = ConfigEditorModel(id: config.id, library: library)
+        let tag = guest == .macOS ? "mac" : "linux"
+        for width in Self.widths {
+            try render(ConfigEditor(model: model, config: .constant(config)), "editor-\(tag)-\(Int(width))", width: width, height: 5200)
+        }
+        try renderSections(config, bundle: library.bundle(config.id), tag: tag)
+        // The editor model holds the library unowned, and a form's task may still run after the test: keep both for the process.
+        Self.keptAlive.append(library)
+        Self.keptAlive.append(model)
+    }
+
+    private static var keptAlive: [AnyObject] = []
+
+    /// Each section alone, so a crop is readable at full size.
+    private func renderSections(_ config: VMConfig, bundle: VMBundle, tag: String) throws {
+        let sections: [(String, AnyView)] = [
+            ("general", AnyView(GeneralSection(name: .constant(config.name), guest: config.guest, version: "15.4", allocatedBytes: 12 << 30,
+                                               isSuspended: false))),
+            ("security", AnyView(SecuritySection(config: .constant(config), bundle: bundle))),
+            ("compute", AnyView(ComputeSection(cpuCount: .constant(4), memoryMiB: .constant(8192), nestedVirtualization: .constant(false),
+                                               guest: config.guest))),
+            ("storage", AnyView(StorageSection(diskGiB: config.diskGiB, floorGiB: 32, resize: { _ in },
+                                               caching: .constant(config.diskCaching), sync: .constant(config.diskSync),
+                                               extraDisks: .constant(config.extraDisks), addDisk: {}))),
+            ("display", AnyView(DisplaySection(guest: config.guest, choice: .constant(config.displayChoice), width: .constant(1280),
+                                               height: .constant(800), pixelsPerInch: .constant(144), followsWindow: .constant(true),
+                                               pixelsPerPoint: .constant(1)))),
+            ("input-audio", AnyView(Group {
+                InputSection(guest: config.guest, pointing: .constant(config.pointingDevice), capturesSystemKeys: .constant(true))
+                AudioSection(output: .constant(true), input: .constant(false))
+            })),
+            ("network", AnyView(Group {
+                NetworkSection(config: .constant(config))
+                IdentitySection(config: .constant(config))
+            })),
+            ("sharing-hostinfo", AnyView(Group {
+                SharingSection(guest: config.guest, folders: .constant(config.sharedFolders), clipboard: .constant(true),
+                               rosetta: .constant(false), model: SharingModel(), addFolder: { _ in })
+                HostInfoSection(guest: config.guest, sharing: .constant(config.hostInfo))
+            })),
+            ("devices-automation-boot", AnyView(Group {
+                if config.guest == .macOS {
+                    BootSection(recovery: .constant(false), hasBooted: true, provisioning: .constant(Provisioning()))
+                }
+                DevicesSection(balloon: .constant(true), entropy: .constant(true), vsock: .constant(false), serialConsole: .constant(true),
+                               guest: config.guest)
+                AgentAccessSection(agentAccess: .constant(false))
+            })),
+        ]
+        var all = sections
+        var filtered = config
+        filtered.networkMode = .filtered
+        all.append(("network-filtered", AnyView(NetworkSection(config: .constant(filtered)))))
+        all.append(("display-custom", AnyView(DisplaySection(
+            guest: config.guest, choice: .constant(.custom), width: .constant(1280), height: .constant(800),
+            pixelsPerInch: .constant(144), followsWindow: .constant(true), pixelsPerPoint: .constant(1)))))
+        all.append(("boot-first-account", AnyView(
+            BootSection(recovery: .constant(false), hasBooted: false, provisioning: .constant(Provisioning())))))
+        if config.guest == .linux {
+            all.append(("installer-provisioning", AnyView(Group {
+                InstallerSection(isoPath: config.installerISO, attached: .constant(true), choose: {})
+                ProvisioningSection(specPath: "", installerAttached: true, approved: false, choose: {}, remove: {})
+            })))
+        }
+        for (name, section) in all {
+            for width in Self.widths {
+                try render(EditorForm { section }, "\(tag)-\(name)-\(Int(width))", width: width, height: 1400)
+            }
+        }
+    }
+
+    @Test func comparisons() throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let library = VMLibrary(machinesDirectory: directory, approvalsFile: directory.appending(path: "approvals.json"))
+        try render(NewMachineSheet().environment(library), "newmachine-mac", width: 560, height: 560, crops: false)
+        let defaults = try ScratchDefaults()
+        defer { defaults.cleanUp() }
+        let linux = NewMachineModel(defaults: defaults.defaults)
+        linux.config = VMConfig.new(name: "Linux", guest: .linux)
+        try render(NewMachineLike(model: linux).frame(width: 560, height: 560), "newmachine-linux", width: 560, height: 560, crops: false)
+        try render(SettingsLike(), "settings", width: 560, height: 900)
+    }
+
+    // MARK: Rendering
+
+    private func render(_ view: some View, _ name: String, width: CGFloat, height: CGFloat, crops: Bool = true) throws {
+        let host = NSHostingView(rootView: view.environment(\.colorScheme, .light))
+        let frame = NSRect(x: 0, y: 0, width: width, height: height)
+        let window = NSWindow(
+            contentRect: frame.offsetBy(dx: -20_000, dy: -20_000), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = host
+        host.frame = frame
+        for _ in 0..<6 {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
+        }
+        let rep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: rep)
+        let image = crops ? Self.cropped(rep) : rep
+        let data = try #require(image.representation(using: .png, properties: [:]))
+        try FileManager.default.createDirectory(at: Self.output, withIntermediateDirectories: true)
+        try data.write(to: Self.output.appending(path: "\(Self.prefix)-\(name).png"))
+        window.contentView = nil
+        window.close()
+    }
+
+    /// Cuts the empty background off the bottom of a tall render: the last row that differs from the bottom row, plus a margin.
+    private static func cropped(_ rep: NSBitmapImageRep) -> NSBitmapImageRep {
+        let height = rep.pixelsHigh
+        let width = rep.pixelsWide
+        let background = rep.colorAt(x: width / 2, y: height - 1)
+        var last = height - 1
+        scan: while last > 0 {
+            for x in stride(from: 0, to: width, by: 2) where rep.colorAt(x: x, y: last) != background { break scan }
+            last -= 1
+        }
+        let keep = min(height, last + 24)
+        guard keep < height, let cg = rep.cgImage?.cropping(to: CGRect(x: 0, y: 0, width: width, height: keep)) else { return rep }
+        let result = NSBitmapImageRep(cgImage: cg)
+        result.size = NSSize(width: rep.size.width, height: rep.size.height * CGFloat(keep) / CGFloat(height))
+        return result
+    }
+}
+
+/// The New Machine sheet's form for a Linux draft (the sheet itself always opens on macOS).
+private struct NewMachineLike: View {
+    @Bindable var model: NewMachineModel
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Name", text: $model.config.name)
+                Picker("Guest", selection: $model.config.guest) {
+                    ForEach(GuestOS.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .settingHelp(.guestSystems)
+            }
+            MediaSection(model: model)
+            Section {
+                CoreAndMemorySteppers(cpuCount: $model.config.cpuCount, memoryMiB: $model.config.memoryMiB, memoryStepMiB: 1024)
+                ValueStepper(
+                    title: "Disk", value: $model.config.diskGiB, range: 16...512, step: 8, text: "\(model.config.diskGiB) GiB"
+                )
+                .settingHelp(.diskSize)
+            } header: {
+                Text("Resources")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// The Settings window's form with the same controls, without its model (which reads the app's folders and tokens).
+private struct SettingsLike: View {
+    var body: some View {
+        Form {
+            TextField("Default Mac model for ipsw.me", text: .constant(""), prompt: Text("Mac16,10"))
+            Section {
+                Toggle("Keep macOS restore images after installing", isOn: .constant(false))
+                Text("A restore image is 20–27 GB and only needed once. Duplicate an installed machine instead.")
+                    .font(.caption).foregroundStyle(.secondary)
+                LabeledContent("Downloaded images", value: "4.2 GB")
+                HStack {
+                    Button("Show in Finder") {}
+                    Button("Clear…", role: .destructive) {}
+                }
+                LabeledContent("Machines folder") { Button("Show in Finder") {} }
+            } header: {
+                HelpHeader("Disk space", topic: .settings)
+            }
+            Section {
+                Toggle("Let scripts and AI agents control machines", isOn: .constant(true)).settingHelp(.controlService)
+                Text("A private local socket on this Mac, off by default.").font(.caption).foregroundStyle(.secondary)
+            } header: {
+                HelpHeader("Automation", topic: .controlService)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 520)
+        .padding()
+    }
+}

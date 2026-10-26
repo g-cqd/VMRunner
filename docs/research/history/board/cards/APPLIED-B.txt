@@ -1,0 +1,9 @@
+B1 B3 B4 applied; B2 pass; B5-B9 pending (see REVIEWED-B.md findings 1,2,6-12)
+
+== B5-B9 applied (findings 1, 2, 6-12), anchors re-verified against b-engine worktree at 28ebbb5 ==
+COMMON: base 28ebbb5; gate has 8 steps incl. workflows, chain A merged; "locate by text" rule.
+B5: finding 7 (insert after memoryRangeMiB brace, before Built doc comment), 8 (Data(count: 1 << 20), failing #expect stop); dropped held/CONFLICT-RISK; gate = 8 PASS lines.
+B6: finding 6 (requires B4, grep for bench keys at 94-107, delete 7-line members, dropped held); added JSON validity check; anchors re-verified (benchmarks 19/25-30, ChecksumTests 153).
+B7: finding 1 (ImageStore.swift:22 rawValue->name, :35->:34, stored-shape test, grep checks, new must-not-touch); dropped held; steps renumbered; anchors by symbol.
+B8: finding 2 (guard token == run ... return await prepare(run:)), 12 (re-anchors: MachineState 339-373, VMController 176-204/178-184/207-231/292-311); prepare returns MachineEvent?; dropped sonnet re-anchor sentence and held title.
+B9: findings 9 (TestKit AsyncGate, holdPreparation), 10 (StartPhase doc comment + MachineState.swift in files, explicit commands, deadwood stop), 12 (GuestMachine 45-50, VZGuestMachine 63-70, ControllerRig 11-65); ephemeral clone now referenced by text (was 209-211, now ~210-213).

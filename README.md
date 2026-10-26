@@ -13,7 +13,8 @@ linked into the app.
 - [Roadmap](docs/roadmap/): one unit of work per file, with status, blockers and the decision that governs it.
 - [Diary](docs/diary/): the working log, one file per session, with claims, probes and verdicts.
 - [Research](docs/research/): dated studies that feed the roadmap and the decisions: automation, analysis sandboxes, GPU,
-  MDM, Windows on ARM, provisioning, containers and sandboxing.
+  MDM, Windows on ARM, provisioning, containers and sandboxing. The [development history](docs/research/development-history-2026-10.md)
+  preserves the planning board and real-guest evidence in Git.
 
 ## Build and run
 
