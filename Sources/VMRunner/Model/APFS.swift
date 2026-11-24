@@ -170,7 +170,10 @@ extension VMBundle {
     /// must not travel with a copied bundle. Runs at every stop, at launch for every machine that is not running, and
     /// before a disposable start.
     func discardEphemeral() {
-        let leftovers = [ephemeralDisk, ephemeralAuxiliaryStorage, ephemeralEFIVariables, ephemeralMachineIdentifier, provisioningSeed]
+        let leftovers = [
+            ephemeralDisk, ephemeralAuxiliaryStorage, ephemeralEFIVariables, ephemeralMachineIdentifier, provisioningSeed,
+            windowsBootImage, windowsBootVariables,
+        ]
         for file in leftovers + [hostInfoFolder] {
             remove(file)
         }

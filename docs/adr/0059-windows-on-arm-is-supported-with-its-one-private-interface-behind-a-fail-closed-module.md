@@ -1,9 +1,13 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-25
 supersedes: ADR-0010
+superseded-by: ADR-0060
 ---
 # 0059 — Windows on ARM is supported, with its one private interface behind a fail-closed module
+
+> **Superseded by ADR-0060** ([bounded framebuffer boot and paired capability](0060-windows-boot-uses-a-bounded-framebuffer-and-a-paired-capability.md)).
+> The original decision below is historical; its requirements policy remains, but its one-switch/NVMe/display assumptions changed.
 
 ## Context
 

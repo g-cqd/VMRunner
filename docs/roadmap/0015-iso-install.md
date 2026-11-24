@@ -2,7 +2,7 @@
 status: in-progress
 blocked-by: []
 date: 2026-10-21
-decision: ADR-0059
+decision: ADR-0060
 ---
 # 0015 — Install from any arm64 UEFI ISO; Windows on ARM is experimental
 
@@ -29,22 +29,19 @@ measured the firmware's Blt-only GOP and tested a disposable RAM-backed replacem
 keeping the diagnostic resident avoided its later failure. No Windows screen or successful boot was observed. An owner-observed
 media handoff is needed before any production bootstrap or private-capability change; the app guard remains.
 
+2026-10-26 integration: [ADR-0060](../adr/0060-windows-boot-uses-a-bounded-framebuffer-and-a-paired-capability.md) replaces the one-switch/NVMe assumptions after the owner's [WinPE/storage evidence](../research/windows-setup-storage-2026-10.md). The app gains the owned framebuffer boot medium, paired capability, bounded host RAM display, fixed mode and Virtio defaults. Unit/native sanitizer tests cover binary layout, metadata, policy and framebuffer operations. Native app runtime acceptance and completed installation are recorded separately in the next diary, not inferred from the scratch success. TPM remains paused.
+
 ## Windows items
 
-1. A guest kind of its own for Windows, with the machine of ADR-0059 item 5: generic platform, EFI, Secure Boot off, NVMe main
-   disk, USB keyboard and pointer, virtio network, the PMU capability on. A machine whose capability is unavailable or off
-   does not start and says why; the developer default `WindowsStartsWithoutPMU` lets an owner try anyway.
+1. A Windows guest with generic platform, owned EFI framebuffer bootstrap, Secure Boot off, Virtio main disk, USB input and virtio network. Both checked private switches and the display/media prerequisites are required on the verified build. The legacy diagnostic default cannot relax this path.
 2. The New Machine preset: 4 CPUs, 8 GiB, a 64 GiB sparse disk, NAT, 1920 x 1200, an installer ISO slot (local file, optional
    expected SHA-256) and a read-only driver ISO slot, both attached as USB mass storage.
 3. The requirements panel and the help: private interface in use, the fixed no-TPM wording, no suspend, a licence per
    installation, Insider Preview builds expire, a driver disc is needed for the virtio network device.
 4. A run against a real Windows installer, by the owner: whether the machine boots with the framework's own display, how far
-   Setup gets, and what a first boot shows. First attempts recorded above; a successful boot and Setup remain unverified.
-   Nothing in this item may alter the installer or what Windows Setup checks.
-   The .app display resizer, the uncapped 1920 x 1200 display, the Linux share tag and the generic machine identifier are
-   accepted defaults that are unverified on a real Windows guest.
+   Setup gets, and what a first boot shows. Scratch WinPE and an online Virtio target were owner-observed; completed installation and installed first boot remain unverified. Native integration needs its own runtime acceptance. Nothing may alter the installer or what Setup checks. The RAM display uses fixed 1920 x 1200; no app-driven guest resizing or acceleration is promised.
 
 ## Not in scope
 
 An answer file, an unattended setup, a changed installer, or any way around what Windows Setup checks. A guest-side display
-driver or a firmware shim. Downloads of Windows media or drivers. Acceleration for Windows.
+driver. Downloads of Windows media or drivers. Acceleration for Windows. The owned EFI framebuffer bootstrap is now in scope under ADR-0060.

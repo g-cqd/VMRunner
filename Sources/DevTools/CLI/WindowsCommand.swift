@@ -5,7 +5,7 @@ struct WindowsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "windows",
         abstract: "Helpers for Windows machines.",
-        subcommands: [Drivers.self]
+        subcommands: [Drivers.self, WindowsFirmwareCommand.self]
     )
 
     struct Drivers: AsyncParsableCommand {

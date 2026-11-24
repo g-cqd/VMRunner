@@ -3,34 +3,38 @@ extension HelpCatalog {
         .windowsMachines: HelpEntry(
             area: .start,
             title: "Windows guests (experimental)",
-            summary: "Windows 11 on ARM is an experimental guest, from your installer and licence. It has not been verified to boot.",
+            summary: "Windows ARM with a framebuffer bootstrap, ARM64 storage drivers and explicit hardware limits.",
             paragraphs: [
-                "You can try Windows 11 on ARM as an experimental guest. You bring the installer: "
-                    + "VMRunner never downloads Windows. Pick **Windows** in the New Machine sheet and choose an ARM64 installer ISO "
-                    + "from your Mac.",
-                "• **Installer**: a local ISO. If you type its SHA-256 in *Expected SHA-256*, VMRunner reads the file before it "
-                    + "makes the machine and stops if the digest differs or is not 64 hexadecimal digits. Leave it empty to skip "
-                    + "the check. The SHA-256, when you type one, is checked once, at creation.",
-                "• **Driver disc** (optional): another ISO, attached as a second read-only USB drive. You can add, change or "
-                    + "remove it later in the machine's settings.",
-                "• **Defaults**: 4 processors and 8 GiB of memory (less on a small Mac), a 64 GiB sparse NVMe disk, NAT "
-                    + "networking and a 1920 × 1200 display. Sound is off because Windows has no built-in driver for it; turn it "
-                    + "on in the settings if you add one.",
-                "On macOS 27.0.1 build 26A434, Windows starts are refused because performance-monitoring emulation crashed "
-                    + "Apple's virtualization helper in a real-guest test. Turning it off avoided that early crash but did not "
-                    + "establish a successful Windows boot. There is no automatic fallback.",
+                "Choose **Windows** in New Machine for an experimental guest; supply a Windows 11 ARM64 installer and your licence. "
+                    + "VMRunner never downloads Windows.",
+                "• **Installer**: a local ISO, attached read-only. An optional **Expected SHA-256** is checked before creation; "
+                    + "a mismatch stops creation.",
+                "• **Driver disc**: supply a virtio-win ARM64 disc for storage and networking, attached as a read-only USB drive. "
+                    + "In Setup, use Load driver and select viostor/w11/ARM64. Leave compatibility filtering on; do not use x64 drivers.",
+                "• **Defaults**: 4 processors, 8 GiB memory (less on a small Mac), a 64 GiB sparse Virtio disk, NAT and a fixed "
+                    + "1920 × 1200 display. Sound is off.",
+                "The owner observed Windows startup and a started Virtio storage controller with an online target in the earlier "
+                    + "standalone diagnostic. A completed Windows installation is not verified.",
+                "The app supplies its own small EFI bootstrap because Apple's firmware display has no linear framebuffer. "
+                    + "It uses a bounded RAM display, not graphics acceleration; resizing the window scales the picture, "
+                    + "not the guest resolution.",
                 "Before you start:",
             ] + WindowsRequirements.lines.map { "• " + $0 } + [
-                "The settings show only what a Windows machine has. Shared folders and host information reach the guest only if "
-                    + "you install a virtio file-system driver in it. Snapshots of the disk work while the machine is stopped."
+                "Older machines configured with NVMe must select Virtio in Storage before this boot path can start. "
+                    + "Existing guest disks are never converted or reformatted automatically.",
+                "Shared folders require a Windows virtio file-system driver. Disk snapshots work while stopped. "
+                    + "Windows suspend is unavailable.",
             ],
             advanced: [
-                "The machine is built from the framework's generic platform with an EFI boot loader (Secure Boot off), an NVMe "
-                    + "disk, a USB keyboard and pointer, and virtio graphics and network devices. The installer and the driver disc "
-                    + "are USB mass-storage drives, attached read-only.",
-                "Performance-monitoring emulation is a private interface. If it is unavailable or turned off, the machine does "
-                    + "not start and the message names the reason: the profile, the managed setting, the developer default or the "
-                    + "macOS build. See Private interfaces.",
+                "The boot path requires both checked private switches and the verified owned bootstrap/display. "
+                    + "The standalone PMU guard remains: there is no automatic stock-firmware fallback and no extension "
+                    + "to unverified host builds.",
+                "Cold starts use a separate fresh firmware-variable store, leaving the original EFI store untouched. "
+                    + "Custom persistent UEFI settings are not supported. The bootstrap selects an installed boot manager "
+                    + "from disk before installer media and sets its own BootNext for normal guest reboots.",
+                "The installer may ask you to press a boot key. Only you provide input. If Setup reports missing hardware "
+                    + "or requirements, the app does not change what it checks. A boot failure or missing framebuffer stops "
+                    + "with an error rather than trying the known-unsafe path.",
             ],
             related: [.privateInterfaces, .installerISO, .securityProfiles, .guestSystems, .limits]
         )

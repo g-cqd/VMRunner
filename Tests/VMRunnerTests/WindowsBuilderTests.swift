@@ -64,7 +64,7 @@ struct WindowsBuilderTests {
 
     // MARK: The devices
 
-    @Test func aWindowsMachineIsBuiltFromTheGenericPlatformWithNVMeUSBInputAndVirtioNetwork() throws {
+    @Test func aWindowsMachineIsBuiltFromTheGenericPlatformWithVirtioUSBInputAndVirtioNetwork() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         var config = windows()
@@ -80,7 +80,7 @@ struct WindowsBuilderTests {
         #expect(!platform.isNestedVirtualizationEnabled)
         #expect(vz.bootLoader is VZEFIBootLoader)
         #expect(vz.storageDevices.count == 3)
-        #expect(vz.storageDevices.first is VZNVMExpressControllerDeviceConfiguration)
+        #expect(vz.storageDevices.first is VZVirtioBlockDeviceConfiguration)
         #expect(vz.storageDevices.dropFirst().allSatisfy { $0 is VZUSBMassStorageDeviceConfiguration })
         #expect(vz.storageDevices.dropFirst().allSatisfy { readOnly($0) })
         #expect(vz.keyboards.count == 1 && vz.keyboards.first is VZUSBKeyboardConfiguration)

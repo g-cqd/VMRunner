@@ -127,6 +127,9 @@ struct VMBundle: Sendable {
     var hardwareModel: URL { url.appending(path: "HardwareModel") }
     var machineIdentifier: URL { url.appending(path: "MachineIdentifier") }
     var efiVariables: URL { url.appending(path: "EFIVariables.fd") }
+    /// Owned transient Windows boot prerequisites; the original EFI store is never overwritten.
+    var windowsBootImage: URL { url.appending(path: "WindowsBoot.img") }
+    var windowsBootVariables: URL { url.appending(path: "WindowsBootVariables.fd") }
     var savedState: URL { url.appending(path: "SavedState.vzvmsave") }
     /// Where a suspend writes the memory image before `commitSavedState()` renames it to `savedState`.
     var savedStateStaging: URL { url.appending(path: "SavedState.vzvmsave.tmp") }

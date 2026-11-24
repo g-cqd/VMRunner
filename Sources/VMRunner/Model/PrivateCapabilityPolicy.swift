@@ -73,7 +73,7 @@ extension VMConfig {
     var privateCapabilities: [PrivateCapabilityID] {
         switch guest {
         case .macOS, .linux: []
-        case .windows: [.performanceMonitoringEmulation]
+        case .windows: [.performanceMonitoringEmulation, .fineGrainedTrapsEmulation]
         }
     }
 }

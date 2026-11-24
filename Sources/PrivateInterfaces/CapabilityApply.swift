@@ -9,6 +9,13 @@ extension CapabilityEntry {
     /// nothing is called. An object whose own class gives either selector another type is refused too. If the value read back is
     /// not the value set, the value the switch had is put back and the capability is reported unavailable.
     package func apply(_ value: Bool, to object: NSObject, in context: PrivateCapabilityContext) -> PrivateCapabilityStatus {
+        apply(value, to: object, in: context, originalValue: { _ in })
+    }
+
+    /// The compound boot capability records the original value for rollback if its second switch fails.
+    func apply(
+        _ value: Bool, to object: NSObject, in context: PrivateCapabilityContext, originalValue: (Bool) -> Void
+    ) -> PrivateCapabilityStatus {
         let checked = status(in: context)
         guard checked.isAvailable else { return checked }
         guard let receiver = NSClassFromString(setter.className), object.isKind(of: receiver) else {
@@ -34,6 +41,7 @@ extension CapabilityEntry {
         let get = unsafe unsafeBitCast(method_getImplementation(getMethod), to: Getter.self)
 
         let before = get(object, getSelector)
+        originalValue(before)
         set(object, setSelector, value)
         guard get(object, getSelector) == value else {
             set(object, setSelector, before)

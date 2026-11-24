@@ -67,6 +67,7 @@ enum AppFixture {
             "Resources/VMRunner.entitlements": defaultEntitlements,
             "Resources/VMRunner.hardened.entitlements": hardenedEntitlements,
             "Resources/ContainerRunner.entitlements": runnerEntitlements,
+            "Firmware/WindowsBoot/License.txt": "fixture firmware licence\n",
         ]
     }
 }

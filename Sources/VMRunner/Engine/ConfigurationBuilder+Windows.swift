@@ -4,24 +4,54 @@ import Virtualization
 import os
 
 extension ConfigurationBuilder {
-    /// A Windows guest: the generic platform with the EFI boot loader (Secure Boot off), the framework's graphics device and
-    /// its USB keyboard and pointer. The NVMe main disk, the installer and the driver disc, the network and the sound come from
-    /// the devices every guest shares. It has no serial console, no cloud-init seed and no Rosetta, and no guest agent: the
-    /// clipboard setting is inert for it. Shared folders are not special-cased: they use the shared device and tag, which
-    /// a Windows guest sees only with a virtio file system driver of its own.
-    ///
-    /// Windows is reported to need performance-monitoring emulation. It is turned on through the capability module
-    /// when the policy allows it; when the policy denies it or the capability is unavailable, the start fails with a message
-    /// that names the capability and why, unless the developer default lets the machine start without it.
+    /// ADR-0060: the app uses the owned EFI framebuffer boot medium, both checked switches and the host RAM display.
+    /// The normal graphics device and USB input remain for firmware and owner input. Common storage adds the Virtio target,
+    /// read-only installer/driver media and network. No console, provisioning seed, Rosetta or guest-agent promise is added.
+    /// Only legacy diagnostics without a prepared medium use the independent PMU path and its original unsafe-build guard.
     static func configureWindows(
         _ vz: VZVirtualMachineConfiguration, _ config: VMConfig, _ bundle: VMBundle, _ display: (width: Int, height: Int),
-        settings: WindowsStartSettings
+        settings: WindowsStartSettings, source: (any CustomDisplaySource)? = nil, boot: WindowsBootMedia? = nil
     ) throws {
         let platform = try genericPlatform(for: config, bundle: bundle)
-        try requirePerformanceMonitoring(on: platform, settings: settings)
+        if let boot {
+            guard #available(macOS 27.0, *), let source, source.prefersFrameworkOverlay,
+                config.diskInterface == .virtio, !config.nestedVirtualization
+            else {
+                throw SetupError.requiredCapabilityUnavailable(
+                    guest: .windows, capability: "framebuffer-assisted boot",
+                    reason: "it needs macOS 27, its RAM display, Virtio storage and nested virtualization off")
+            }
+            let reason: String?
+            switch settings.decision {
+            case .denied(let denied): reason = denied.description
+            case .allowed:
+                if case .unavailable(let unavailable) = settings.applyFramebufferBoot(platform) {
+                    reason = unavailable.description
+                } else {
+                    reason = nil
+                }
+            }
+            // The old diagnostic bypass NEVER relaxes prerequisites of the framebuffer boot path.
+            if let reason {
+                throw SetupError.requiredCapabilityUnavailable(guest: .windows, capability: "framebuffer-assisted boot", reason: reason)
+            }
+            vz.customVirtioDevices = [source.makeConfiguration()]
+            let attachment = try VZDiskImageStorageDeviceAttachment(url: boot.url, readOnly: true)
+            vz.storageDevices = [VZUSBMassStorageDeviceConfiguration(attachment: attachment)]
+            try configureLinuxScreen(vz, config, (1920, 1200), customGPU: nil)
+        } else {
+            // Legacy diagnostic callers retain the independent, fail-closed PMU guard. The app factory always supplies boot.
+            try requirePerformanceMonitoring(on: platform, settings: settings)
+            try configureLinuxScreen(vz, config, display, customGPU: nil)
+        }
         vz.platform = platform
-        vz.bootLoader = try efiBootLoader(for: config, bundle: bundle, secureBoot: false)
-        try configureLinuxScreen(vz, config, display, customGPU: nil)
+        if let boot {
+            let loader = VZEFIBootLoader()
+            loader.variableStore = VZEFIVariableStore(url: boot.variables)
+            vz.bootLoader = loader
+        } else {
+            vz.bootLoader = try efiBootLoader(for: config, bundle: bundle, secureBoot: false)
+        }
     }
 
     /// Turns the emulation on for `platform`. A reason it is off ends the start, or is logged once when the developer default

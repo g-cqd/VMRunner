@@ -59,7 +59,8 @@ struct WindowsGuestTests {
     @Test func aNewWindowsMachineStartsWithTheWindowsPreset() throws {
         let config = windows()
         #expect(config.cpuCount == 4 && config.memoryMiB == 8192 && config.diskGiB == 64)
-        #expect(config.diskInterface == .nvme && config.networkMode == .nat)
+        #expect(config.diskInterface == .virtio && config.networkMode == .nat)
+        #expect(!config.fitsWindowAtStart && !config.automaticallyReconfiguresDisplay)
         #expect(config.displayWidth == 1920 && config.displayHeight == 1200)
         #expect(config.gpu == .apple && config.pointingDevice == .mouse)
         #expect(!config.audioOutput && !config.audioInput && !config.serialConsole && !config.rosetta)
@@ -152,7 +153,7 @@ struct WindowsGuestTests {
     @Test func aWindowsMachineNamesItsPrivateInterfaceAndNeverClaimsASuspendedMemorySnapshot() {
         let config = windows()
         #expect(config.allowsSuspend)
-        #expect(config.privateCapabilities == [.performanceMonitoringEmulation])
+        #expect(config.privateCapabilities == [.performanceMonitoringEmulation, .fineGrainedTrapsEmulation])
         let lines = config.exposures.map(\.text)
         #expect(lines.contains { $0.hasPrefix("Private interface: performance-monitoring emulation.") })
         #expect(!lines.contains { $0.hasPrefix("Suspending writes") })
@@ -172,17 +173,17 @@ struct WindowsGuestTests {
         #expect(VMConfig.new(name: "l", guest: .linux).guestSuspendReason == nil)
     }
 
-    @Test func aWindowsMachineAsksForTheNVMeDiskAndAMacNeverGetsOne() {
-        #expect(windows().usesNVMeMainDisk)
+    @Test func windowsDefaultsToVirtioButRetainsExplicitNVMeStorageConfiguration() {
+        #expect(!windows().usesNVMeMainDisk)
         var other = windows()
-        other.diskInterface = .virtio
-        #expect(!other.usesNVMeMainDisk)
+        other.diskInterface = .nvme
+        #expect(other.usesNVMeMainDisk)
         var mac = VMConfig.new(name: "m", guest: .macOS)
         mac.diskInterface = .nvme
         #expect(!mac.usesNVMeMainDisk)
     }
 
-    @Test func aWindowsMachinesStorageIsAnNVMeDiskThenItsInstallerOnUSB() throws {
+    @Test func aWindowsMachinesStorageIsAVirtioDiskThenItsInstallerOnUSB() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let bundle = VMBundle(url: directory)
@@ -195,7 +196,7 @@ struct WindowsGuestTests {
         let devices = try ConfigurationBuilder.storage(for: config, bundle: bundle)
 
         #expect(devices.count == 2)
-        #expect(devices.first is VZNVMExpressControllerDeviceConfiguration)
+        #expect(devices.first is VZVirtioBlockDeviceConfiguration)
         #expect(devices.last is VZUSBMassStorageDeviceConfiguration)
     }
 
@@ -216,7 +217,7 @@ struct WindowsGuestTests {
     @Test func aWindowsDisplayIsNotCappedAtTheLinuxWidthAndFallsBackToItsOwnDefaultSize() {
         let retinaWindow = CGSize(width: 1800, height: 1100)
         let size = StartDisplay.size(for: windows(), window: retinaWindow, restoring: false)
-        #expect(size.width == 1800 && size.height == 1100, "\(size)")
+        #expect(size.width == 1920 && size.height == 1200, "\(size)")
 
         for (guest, expected) in [(GuestOS.macOS, (1920, 1200)), (.linux, (1280, 800)), (.windows, (1920, 1200))] {
             var config = VMConfig.new(name: "d", guest: guest)
@@ -234,9 +235,9 @@ struct WindowsGuestModelTests {
         MachineModel.DisplaySettings(capturesSystemKeys: true, followsWindow: true, guest: guest, scale: 1, firmwareStartedAt: started)
     }
 
-    @Test func aWindowsGuestIsResizedByTheAppAndHeldForTheFirmwareLikeLinux() {
+    @Test func aWindowsGuestKeepsItsFixedFramebufferMode() {
         let start = ContinuousClock.now
-        #expect(settings(.windows).resizer == .app)
+        #expect(settings(.windows).resizer == .nobody)
         #expect(settings(.windows, started: start).firmwareHoldRemaining(at: start) == DisplayFollower.firmwareHold)
         #expect(settings(.windows, started: nil).firmwareHoldRemaining(at: start) == .zero)
     }

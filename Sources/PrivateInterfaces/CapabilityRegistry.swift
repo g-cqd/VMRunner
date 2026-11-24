@@ -114,6 +114,6 @@ package struct CapabilityRegistry: Sendable {
         self.entries = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// The capabilities of this app: the performance-monitoring switch of the generic platform configuration.
-    package static let standard = Self(entries: [PMUEmulation.entry])
+    /// Generic-platform Boolean capabilities; the framebuffer boot pair has its own narrower execution scope (ADR-0060).
+    package static let standard = Self(entries: [PMUEmulation.entry, WindowsBootEmulation.traps])
 }

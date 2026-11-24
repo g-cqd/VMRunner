@@ -276,7 +276,7 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     }
 
     /// The defaults of a new machine on a host with `hostCPUs` processors and `hostMemoryGiB` of memory: half the host's, up to
-    /// what the guest is given on a large host. A Windows machine gets 4 processors, 8 GiB and a 64 GiB NVMe disk there, no
+    /// what the guest is given on a large host. A Windows machine gets 4 processors, 8 GiB and a 64 GiB Virtio disk there, no
     /// sound, no clipboard sharing and none of the Linux-only features.
     static func new(name: String, guest: GuestOS, hostCPUs: Int, hostMemoryGiB: Int) -> Self {
         let memoryGiB: Int
@@ -302,7 +302,9 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
             config.displayHeight = 800
         case .windows:
             config.pointingDevice = .mouse
-            config.diskInterface = .nvme
+            config.diskInterface = .virtio
+            config.fitsWindowAtStart = false
+            config.automaticallyReconfiguresDisplay = false
             config.audioOutput = false
             config.sharesClipboard = false
         }

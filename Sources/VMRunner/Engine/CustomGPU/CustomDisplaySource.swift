@@ -9,6 +9,11 @@ protocol CustomDisplaySource: AnyObject, Sendable {
     /// The picture and the cursor the guest draws.
     var screen: CustomScreen { get }
 
+    /// A framebuffer overlay leaves Apple's firmware view/input visible until the guest draws.
+    nonisolated var prefersFrameworkOverlay: Bool { get }
+    func beginDisplay(for machine: VZVirtualMachine, failure: @escaping @MainActor (String) -> Void)
+    func endDisplay()
+
     /// What carries the machine's keyboard and pointer from the window to the guest.
     var input: any GuestInputSurface { get }
 
@@ -26,4 +31,10 @@ protocol CustomDisplaySource: AnyObject, Sendable {
     /// USB keyboard and pointer carry the input.
     @available(macOS 27.0, *)
     nonisolated func makeInputConfigurations() -> [VZCustomVirtioDeviceConfiguration]
+}
+
+extension CustomDisplaySource {
+    nonisolated var prefersFrameworkOverlay: Bool { false }
+    func beginDisplay(for machine: VZVirtualMachine, failure: @escaping @MainActor (String) -> Void) {}
+    func endDisplay() {}
 }

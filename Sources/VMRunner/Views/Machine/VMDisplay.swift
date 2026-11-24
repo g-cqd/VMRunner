@@ -1,4 +1,5 @@
 import SwiftUI
+import VirtioGPU
 import Virtualization
 import os
 
@@ -8,6 +9,7 @@ struct VMDisplay: NSViewRepresentable {
     let settings: MachineModel.DisplaySettings
     /// Told, for each resize the app asks of the guest, whether the guest answered it.
     let guestAnswered: (Bool) -> Void
+    var framebuffer: CustomScreen?
 
     func makeCoordinator() -> DisplayResizer { DisplayResizer() }
 
@@ -17,11 +19,17 @@ struct VMDisplay: NSViewRepresentable {
             resizer?.viewResized(to: size)
         }
         configure(container.machineView, resizer: context.coordinator)
+        container.show(framebuffer)
         return container
     }
 
     func updateNSView(_ container: DisplayContainer, context: Context) {
         configure(container.machineView, resizer: context.coordinator)
+        container.show(framebuffer)
+    }
+
+    static func dismantleNSView(_ container: DisplayContainer, coordinator: DisplayResizer) {
+        container.show(nil)
     }
 
     private func configure(_ view: VZVirtualMachineView, resizer: DisplayResizer) {
@@ -119,13 +127,44 @@ final class DisplayResizer {
 }
 
 /// The framework's machine view, hosted like every screen.
-final class DisplayContainer: ScreenContainer {
+final class DisplayContainer: ScreenContainer, ScreenPresenter {
     let machineView: VZVirtualMachineView
+    private let overlay = WindowsFrameOverlay()
+    private weak var screen: CustomScreen?
 
     init() {
         let view = VZVirtualMachineView()
         machineView = view
         super.init(hosting: view)
+        overlay.frame = view.bounds
+        overlay.autoresizingMask = [.width, .height]
+        overlay.imageScaling = .scaleProportionallyUpOrDown
+        overlay.wantsLayer = true
+        overlay.layer?.backgroundColor = NSColor.black.cgColor
+        overlay.isHidden = true
+        view.addSubview(overlay)
+    }
+
+    func show(_ screen: CustomScreen?) {
+        guard self.screen !== screen else { return }
+        self.screen?.detach(self)
+        self.screen = screen
+        overlay.isHidden = true
+        overlay.image = nil
+        screen?.attach(self)
+    }
+
+    func present(frame: ScanoutUpdate) {
+        guard let image = ScreenPicture.cgImage(frame) else { return }
+        overlay.image = NSImage(cgImage: image, size: NSSize(width: Int(frame.width), height: Int(frame.height)))
+        overlay.isHidden = false
+    }
+
+    func present(cursor: CursorState?) {}
+
+    func clear() {
+        overlay.image = nil
+        overlay.isHidden = true
     }
 
     @available(*, unavailable)

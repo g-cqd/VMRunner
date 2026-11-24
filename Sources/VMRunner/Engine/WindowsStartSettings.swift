@@ -21,6 +21,8 @@ struct WindowsStartSettings: Sendable {
     var decision: PrivateCapabilityPolicy.Decision
     var applyPerformanceMonitoring: @Sendable (VZGenericPlatformConfiguration) -> PrivateCapabilityStatus
     var startsWithoutPerformanceMonitoring: Bool
+    var applyFramebufferBoot: @Sendable (VZGenericPlatformConfiguration) -> PrivateCapabilityStatus = { _ in .unavailable(.notRegistered) }
+    var bootMedia: WindowsBootMedia?
 
     /// The settings of this Mac and this app for `config`, which is the configuration the start uses (managed keys applied).
     /// Without a `context`, this Mac's is used with the capability turned off when the kill switch is on in `defaults`.
@@ -29,10 +31,11 @@ struct WindowsStartSettings: Sendable {
         context: PrivateCapabilityContext? = nil, registry: CapabilityRegistry = .standard
     ) -> Self {
         let killSwitch = PrivateInterfacesKillSwitch.isOn(in: defaults)
-        let context = context ?? .current(killed: killSwitch ? [.performanceMonitoringEmulation] : [])
+        let context = context ?? .current(killed: killSwitch ? Set(PrivateCapabilityID.allCases) : [])
         return Self(
             decision: PrivateCapabilityPolicy.decide(posture: config.detectedProfile, managed: managed, killSwitch: killSwitch),
             applyPerformanceMonitoring: { PMUEmulation.apply(to: $0, in: context, registry: registry) },
-            startsWithoutPerformanceMonitoring: WindowsStartsWithoutPMU.isOn(in: defaults))
+            startsWithoutPerformanceMonitoring: WindowsStartsWithoutPMU.isOn(in: defaults),
+            applyFramebufferBoot: { WindowsBootEmulation.apply(to: $0, in: context) })
     }
 }

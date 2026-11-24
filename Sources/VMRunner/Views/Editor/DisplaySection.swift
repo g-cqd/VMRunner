@@ -14,8 +14,13 @@ struct DisplaySection: View {
     var body: some View {
         Section {
             if GuestEditorRows(guest).graphicsDevice { gpuRows }
-            resolutionRows
-            if GuestEditorRows(guest).pixelDensity {
+            if guest == .windows {
+                LabeledContent("Resolution", value: "1920 × 1200 (fixed)")
+                Text(WindowsRequirements.displayNote).font(.caption).foregroundStyle(.secondary)
+            } else {
+                resolutionRows
+            }
+            if guest != .windows, GuestEditorRows(guest).pixelDensity {
                 ValueStepper(
                     title: "Pixel density", value: $pixelsPerInch, range: EditorLimits.pixelsPerInch,
                     step: EditorLimits.pixelsPerInchStep, text: "\(pixelsPerInch) ppi"
@@ -30,8 +35,10 @@ struct DisplaySection: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
-            Toggle("Resize guest display with window", isOn: $followsWindow)
-                .settingHelp(.resizeWithWindow)
+            if guest != .windows {
+                Toggle("Resize guest display with window", isOn: $followsWindow)
+                    .settingHelp(.resizeWithWindow)
+            }
             if GuestEditorRows(guest).pixelsPerPoint, followsWindow {
                 Picker("Guest pixels per point", selection: $pixelsPerPoint) {
                     Text("1× — legible text (recommended)").tag(1)

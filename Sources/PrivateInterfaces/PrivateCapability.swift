@@ -1,11 +1,13 @@
 /// A behaviour the app reaches only through an interface the framework does not document.
 package enum PrivateCapabilityID: String, CaseIterable, Sendable {
     case performanceMonitoringEmulation
+    case fineGrainedTrapsEmulation
 
     /// What the exposure summary, the help and a start error call it.
     package var title: String {
         switch self {
         case .performanceMonitoringEmulation: "performance-monitoring emulation"
+        case .fineGrainedTrapsEmulation: "fine-grained trap emulation"
         }
     }
 }

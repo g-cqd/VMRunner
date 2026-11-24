@@ -44,7 +44,7 @@ struct WindowsNewMachineTests {
             name: "Windows", guest: .windows, hostCPUs: host.activeProcessorCount, hostMemoryGiB: Int(host.physicalMemory >> 30))
         #expect(model.config == expected.withID(id))
         #expect(model.config.name == "Windows" && model.config.guest == .windows)
-        #expect(model.config.diskGiB == 64 && model.config.diskInterface == .nvme && model.config.networkMode == .nat)
+        #expect(model.config.diskGiB == 64 && model.config.diskInterface == .virtio && model.config.networkMode == .nat)
         #expect(model.config.displayWidth == 1920 && model.config.displayHeight == 1200)
         #expect((2...4).contains(model.config.cpuCount) && model.config.memoryMiB <= 8192)
         #expect(model.localPath == nil && model.driverDiscPath == nil && model.expectedSHA256.isEmpty)
@@ -310,13 +310,16 @@ struct WindowsNewMachineTests {
     @Test func theRequirementsPanelSaysExactlyThis() {
         #expect(
             WindowsRequirements.lines == [
-                "Uses a private interface of the virtualization framework (performance-monitoring emulation). It is turned off in "
-                    + "the Isolated and Hardened profiles and by the AllowPrivateInterfaces managed setting.",
+                "Uses private interfaces of the virtualization framework (performance-monitoring and fine-grained trap emulation). "
+                    + "These are off in the Isolated and Hardened profiles and by the AllowPrivateInterfaces managed setting.",
                 "Windows 11 Setup checks for a TPM 2.0 device. This machine has none: the app does not provide one and does not "
                     + "work around the check. Meeting Windows Setup's requirements and the licence terms is up to you.",
                 "No suspend: a Windows machine can only be shut down or stopped.",
                 "Each Windows installation needs its own licence. Insider Preview builds follow the Windows Insider Program's "
                     + "terms and expire; retail builds do not.",
+                "The framebuffer-assisted boot path currently supports macOS build 26A434 only. Other builds are refused until verified.",
+                "Use a Virtio main disk and an ARM64 virtio-win driver disc. In Setup, choose Load driver, "
+                    + "then viostor\\w11\\ARM64; keep compatibility filtering on.",
                 "Windows has no built-in driver for this machine's network device: networking needs a driver disc.",
                 "Secure Boot is off.",
             ])

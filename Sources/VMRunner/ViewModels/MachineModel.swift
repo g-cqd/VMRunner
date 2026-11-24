@@ -31,7 +31,7 @@ final class MachineModel {
         }
 
         var resizer: Resizer {
-            guard followsWindow else { return .nobody }
+            guard followsWindow, guest != .windows else { return .nobody }
             return guest == .macOS ? .framework : .app
         }
 

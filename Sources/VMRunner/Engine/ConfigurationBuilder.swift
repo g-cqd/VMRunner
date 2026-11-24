@@ -71,7 +71,9 @@ enum ConfigurationBuilder {
         switch config.guest {
         case .macOS: try configureMac(vz, config, bundle, display)
         case .linux: try configureLinux(vz, config, bundle, display, customGPU)
-        case .windows: try configureWindows(vz, config, bundle, display, settings: windows ?? .current(for: config))
+        case .windows:
+            try configureWindows(
+                vz, config, bundle, display, settings: windows ?? .current(for: config), source: customGPU, boot: windows?.bootMedia)
         }
 
         vz.storageDevices += try storage(for: config, bundle: bundle)

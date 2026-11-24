@@ -59,6 +59,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         } else {
             try await machine.start()
         }
+        customDisplay?.beginDisplay(for: machine) { [weak self] message in self?.onStoppedWithError?(message) }
         startNetworkCutoff()
     }
 
@@ -72,7 +73,10 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     func pause() async throws { try await machine.pause() }
     func resume() async throws { try await machine.resume() }
     func requestStop() throws { try machine.requestStop() }
-    func stop() async throws { try await machine.stop() }
+    func stop() async throws {
+        try await machine.stop()
+        customDisplay?.endDisplay()
+    }
 
     /// Starts the kill switch once the framework has the machine, so its network card can be reached.
     private func startNetworkCutoff() {
@@ -104,12 +108,18 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     }
 
     nonisolated func guestDidStop(_ virtualMachine: VZVirtualMachine) {
-        Task { @MainActor in self.onGuestStopped?() }
+        Task { @MainActor in
+            self.customDisplay?.endDisplay()
+            self.onGuestStopped?()
+        }
     }
 
     nonisolated func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: any Error) {
         let message = error.localizedDescription
-        Task { @MainActor in self.onStoppedWithError?(message) }
+        Task { @MainActor in
+            self.customDisplay?.endDisplay()
+            self.onStoppedWithError?(message)
+        }
     }
 }
 
@@ -128,9 +138,23 @@ struct VZMachineFactory: MachineFactory {
         try await ProvisioningSeed.prepare(for: ManagedPreferences.current.clamp(config), bundle: bundle)
         // The custom GPU is made here, on the main actor, and handed to the machine, which keeps it for as long as it lives.
         // The path of its keyboard and pointer is read once, now.
-        let customGPU = Self.customGPU(for: config, display: display, inputPath: CustomGPUInputPath.current())
+        let customGPU: (any CustomDisplaySource)?
+        let windowsBoot: WindowsBootMedia?
+        if config.guest == .windows {
+            guard #available(macOS 27.0, *) else {
+                throw SetupError.requiredCapabilityUnavailable(
+                    guest: .windows, capability: "framebuffer-assisted boot", reason: "macOS 27 or later is required")
+            }
+            let media = try await WindowsBootMedia.prepare(in: bundle)
+            windowsBoot = media
+            customGPU = WindowsDisplaySession(variables: media.variables, token: media.token)
+        } else {
+            windowsBoot = nil
+            customGPU = Self.customGPU(for: config, display: display, inputPath: CustomGPUInputPath.current())
+        }
         // A Windows machine's private interface is decided now, once, the way the custom GPU's input path is.
-        let windows = config.guest == .windows ? WindowsStartSettings.current(for: config) : nil
+        var windows = config.guest == .windows ? WindowsStartSettings.current(for: config) : nil
+        windows?.bootMedia = windowsBoot
         let built = try await ConfigurationBuilder.buildInBackground(
             config, bundle: bundle, display: display, customGPU: customGPU, windows: windows)
         let network = built.networkStack.map { NetworkActivity(stack: $0, policy: config.networkPolicy) }

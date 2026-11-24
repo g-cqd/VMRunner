@@ -1,0 +1,34 @@
+---
+status: accepted
+date: 2026-10-26
+supersedes: ADR-0059
+---
+# 0060 — Windows boot uses a bounded framebuffer and a paired capability
+
+## Context
+
+The owner asked to complete the Windows fix in the app, not stop at scratch diagnostics. The [crash study](../research/windows-pmu-crash-2026-10.md) establishes that PMU alone crashes Apple's helper on 26A434. The [boot/display study](../research/windows-boot-display-2026-10.md) establishes that the PMU/trap pair alone also crashes, and that Apple's GOP is Blt-only. The [Setup/storage study](../research/windows-setup-storage-2026-10.md) records owner-observed Windows startup, a live RAM display, a started `1AF4:1042` storage controller and an online 64 GiB Virtio target with ARM64 viostor media attached. None establishes completed installation or accelerated graphics.
+
+ADR-0059's NVMe/display assumptions and one-switch scope are insufficient. Its experimental status, private-interface policy, local read-only media, licence requirements, no TPM and no alteration of Setup checks remain binding.
+
+## Decision
+
+1. **Integrate the owned framebuffer boot path, not a standalone PMU exception.** The app factory prepares a checked embedded EFI image, an owned read-only GPT/FAT16 ESP and a RAM display before applying the paired switches. It never automatically falls back to stock boot. The original standalone PMU unsafe-build guard remains unchanged.
+2. **Keep every private call in `PrivateInterfaces`.** Add the independently probed fine-grained traps Boolean contract, `v@:B` / `B@:`, and a compound boot operation. Only exact build **26A434** is allowed for this path. Preflight both contracts before either setter; validate receiver/dispatch encodings and read back each value. Restore the first original value if the second fails, and discard the platform on any failure regardless of restoration. Do not widen to another build based solely on matching selectors.
+3. **Preserve policy without a diagnostic escape hatch.** Isolated/Hardened, managed refusal and the kill switch deny the pair. `WindowsStartsWithoutPMU` remains a legacy diagnostic option; it cannot relax the app path's prerequisites, policy or read-back failures. Both private interfaces appear in the exposure summary.
+4. **Use a fixed, bounded display.** The owned EFI implementation advertises a reserved-RAM 1920×1200 BGR framebuffer. Its boot-services forwarding ends at ExitBootServices. A public custom-device guest-memory mapping supplies host display copies at a target 15 Hz, with no Windows driver for the observer, no retained mapping across ticks and no frame files. The normal framework view carries owner input and stays visible until a nonblank RAM frame arrives. No acceleration or dynamic guest resolution is claimed.
+5. **Treat firmware metadata as untrusted.** Bound variable-store reads to 1 MiB; require the versioned name/GUID, exact data/name lengths, a per-start 16-byte token, exact dimensions/stride/byte count, page alignment and address-overflow checks. The framework must accept the physical range. A boot generation invalidates the previous display even if the guest reuses the same address. EFI failure or 60 seconds without a readable framebuffer stops the guest with an error. Timing takes an injected clock and a pure tested policy.
+6. **Own the boot lifetime and reboot route.** Never return to firmware while proxy protocols/events point into the EFI image, including partial failures. Each cold start uses a separate fresh owned EFI store, never overwriting the original store; this guarantees old BootOrder cannot skip the prerequisite. Select an installed Microsoft boot manager on disk before removable installer media. Set the bootstrap's own BootNext for normal in-guest reboots. Custom persistent UEFI settings are not supported. Delete the owned medium/store with run leftovers. Guest rewrites of BootNext and installed-system reboot behaviour still need real-guest acceptance.
+7. **Default to proven Virtio block.** New Windows machines use a 64 GiB sparse Virtio disk, 4 CPUs / 8 GiB where the host permits, fixed display and nested virtualization off. Reject NVMe or nesting on the assisted boot path until verified; never silently convert/reformat an existing guest disk. The owner supplies an ARM64 driver disc and uses compatible `viostor/w11/ARM64` through normal Setup loading. Do not force a driver or assume Client `$WinPEDriver$` auto-loading. Network still needs its own ARM64 driver.
+8. **Keep firmware provenance reproducible and offline.** Independently authored C and pinned BSD-2-Clause-Patent EDK II headers are reviewed source under `Firmware/WindowsBoot`. Their notices, full licence and hashes ship in the repository. `vmr windows firmware [--update]` verifies headers and rebuilds with clang/lld; the generated, checksummed owned firmware bytes are compiled into the signed app, requiring no external executable or download at runtime. Native ASan/UBSan tests exercise framebuffer bounds/overlap and ExitBootServices forwarding. No FSL implementation or third-party driver binary is incorporated.
+9. **Keep the Windows requirements honest.** No TPM, suspend or acceleration is added. The app neither downloads Windows nor changes installer files, Setup checks or input. Loading a compatible signed storage driver is not a requirements workaround. Owner-observed installation and installed-system acceptance remain separate from unit tests and the earlier scratch success.
+
+## Consequences
+
+The root app gains firmware media creation, metadata decoding and a display lifecycle adapter; the existing custom-screen presentation is reused. All time-dependent policy and binary layout logic has regression tests. The production framework view retains keyboard/pointer routing. Existing Windows configurations keep their stored settings and disks; the fixed boot mode ignores stale resize preferences and refuses unsupported storage/nesting with a reason. Other guests retain their existing GPU and firmware paths.
+
+No new entitlement, host directory, download host or automatic guest-input channel is added. The custom observer exposes no guest queue protocol and requests reset on accidental queue notifications. The same private-interface security policy governs its Windows boot use. The app remains experimental and ineligible for the Mac App Store. Current signing is ad hoc; Developer ID/notarization remains unverified, not implied by this decision.
+
+## What this does not decide
+
+TPM work (paused), changing Windows Setup checks, accelerating Windows graphics, unattended setup, automatic driver downloads, persistent custom UEFI state, compatibility on another host build, or a completed Windows installation. A normal macOS/Linux boot must not use this compatibility path. Runtime claims belong in the session diary and require a bounded owner-authorised real-guest observation.

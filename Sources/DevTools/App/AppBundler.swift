@@ -70,6 +70,14 @@ struct AppBundler {
     private func assemble(binary: URL) throws {
         try BuildTools.assemble(
             bundle: appURL, executable: Self.productName, binary: binary, infoPlist: root.appending(path: "Resources/Info.plist"))
+        // Binary redistribution must retain the UEFI header notices and full BSD-2-Clause-Patent licence.
+        let firmware = root.appending(path: "Firmware/WindowsBoot")
+        guard FileManager.default.fileExists(atPath: firmware.appending(path: "License.txt").path) else {
+            throw ToolError("Windows bootstrap licence materials are missing; refusing to sign the app")
+        }
+        let resources = appURL.appending(path: "Contents/Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: firmware, to: resources.appending(path: "WindowsBoot"))
     }
 
     // MARK: Verification

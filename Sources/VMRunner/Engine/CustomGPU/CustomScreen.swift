@@ -37,6 +37,11 @@ protocol ScreenPresenter: AnyObject {
     func present(frame: ScanoutUpdate)
     /// The cursor moved, or its picture was set or cleared. `nil` before the guest's first cursor request.
     func present(cursor: CursorState?)
+    func clear()
+}
+
+extension ScreenPresenter {
+    func clear() {}
 }
 
 /// What the guest has drawn on a custom GPU's display: the newest picture of the scanout and the state of the cursor. The
@@ -121,6 +126,16 @@ final class CustomScreen {
     func detach(_ presenter: some ScreenPresenter) {
         guard self.presenter === presenter else { return }
         self.presenter = nil
+    }
+
+    /// A firmware reboot invalidates its previous frame even when the RAM allocator chooses the same address.
+    func clear() {
+        tick?.cancel()
+        tick = nil
+        throttle = FrameThrottle(intervalMilliseconds: throttle.interval)
+        frame = nil
+        cursor = nil
+        presenter?.clear()
     }
 
     func show(_ update: ScanoutUpdate) {

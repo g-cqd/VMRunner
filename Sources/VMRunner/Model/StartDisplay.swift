@@ -77,6 +77,12 @@ enum StartDisplay {
     /// negative number, a few pixels or an absurd number comes from a damaged or hand-edited configuration. It is not used; the
     /// start falls back to the window, and without a usable window to the guest's default size.
     static func decide(for config: VMConfig, window: CGSize?, restoring: Bool) -> Decision {
+        // The Windows bootstrap advertises one tested mode. Never resize the underlying GOP behind its RAM mapping.
+        if config.guest == .windows {
+            return Decision(
+                width: 1920, height: 1200, source: .fixedSize, cap: .notApplicable,
+                rememberedSizeIgnored: config.lastDisplayWidth != nil || config.lastDisplayHeight != nil)
+        }
         var remembered: (width: Int, height: Int)?
         if let width = config.lastDisplayWidth, let height = config.lastDisplayHeight, isValid(width: width, height: height) {
             remembered = (width, height)

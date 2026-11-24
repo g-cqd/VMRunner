@@ -4,6 +4,14 @@ package struct ScanoutUpdate: Equatable, Sendable {
     package let height: UInt32
     package let format: GPUPixelFormat
     package let pixels: [UInt8]
+
+    /// Also used by the bounded Windows RAM framebuffer adapter; the presenter validates byte count before making an image.
+    package init(width: UInt32, height: UInt32, format: GPUPixelFormat, pixels: [UInt8]) {
+        self.width = width
+        self.height = height
+        self.format = format
+        self.pixels = pixels
+    }
 }
 
 /// What the device does with one request: the answer to write back (`nil` on the cursor queue, whose requests get none), the

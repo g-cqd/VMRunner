@@ -292,6 +292,12 @@ extension VMConfig {
             // The guest's commands to its graphics device are parsed by this app, inside its own process.
             items.append(Exposure(level: .medium, text: "Custom GPU: the app parses the guest's graphics commands itself."))
         }
+        if guest == .windows {
+            items.append(
+                Exposure(
+                    level: .low,
+                    text: "RAM framebuffer: the app reads bounded guest display memory and firmware metadata; no host RAM is exposed."))
+        }
         items += privateCapabilities.map(PrivateCapabilityPolicy.exposure(for:))
         if memoryBalloon { items.append(Exposure(level: .low, text: "Memory balloon device present.")) }
         items.append(

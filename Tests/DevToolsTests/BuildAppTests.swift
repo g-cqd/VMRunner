@@ -23,6 +23,7 @@ struct BuildAppTests {
         #expect(verify.status == 0, "\(verify.combined)")
         #expect(FileManager.default.isExecutableFile(atPath: app.appending(path: "Contents/MacOS/VMRunner").path))
         #expect(FileManager.default.fileExists(atPath: app.appending(path: "Contents/Info.plist").path))
+        #expect(FileManager.default.fileExists(atPath: app.appending(path: "Contents/Resources/WindowsBoot/License.txt").path))
         #expect(FileManager.default.isExecutableFile(atPath: app.appending(path: "Contents/Helpers/ContainerRunner").path))
     }
 

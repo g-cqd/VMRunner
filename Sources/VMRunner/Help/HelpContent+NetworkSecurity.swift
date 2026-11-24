@@ -226,13 +226,14 @@ extension HelpCatalog {
             summary: "A few features use a framework switch Apple does not document. Strict profiles turn them off.",
             paragraphs: [
                 "Apple documents what its virtualization framework can do. A few features need something it does not "
-                    + "document. Today there is one: **performance-monitoring emulation**, for Windows on ARM guests.",
+                    + "document. Windows on ARM needs **performance-monitoring emulation** and **fine-grained trap emulation**, "
+                    + "together with the app's framebuffer bootstrap.",
                 "The app reaches it through one checked path. Before each use it confirms that your Mac's macOS build is one "
                     + "the switch was tried on and that the framework still has it in the expected shape, then sets it and "
                     + "reads the value back. If any check fails, the feature stays off and the machine says why.",
                 "A machine that uses a private interface cannot use it under the Isolated or Hardened profile, and your "
                     + "organisation can turn every private interface off with `AllowPrivateInterfaces`. A Windows machine needs "
-                    + "one, so under any of these it does not start. \"What this machine "
+                    + "both, so under any of these it does not start. \"What this machine "
                     + "can reach\" lists each one a machine would use.",
                 "Because the switch is not documented, a macOS update can remove or change it, and an app that uses it cannot "
                     + "be offered on the Mac App Store.",
@@ -242,10 +243,9 @@ extension HelpCatalog {
                     + "app's defaults domain (`defaults write` with the app's bundle identifier, the key and `-bool true`). It "
                     + "is read when a machine starts and is not a setting in the app; any value but an explicit false turns "
                     + "them off. Nothing here changes macOS or switches off any of its protections.",
-                "A second hidden default, `WindowsStartsWithoutPMU`, is for developers who want to watch what Windows does without "
-                    + "the emulation. Set to true, it lets a Windows machine start although the emulation is off or unavailable, and "
-                    + "the log records why; it never switches a working emulation off. It is read when a machine starts and is not a "
-                    + "setting in the app; only an explicit true counts.",
+                "The legacy diagnostic default `WindowsStartsWithoutPMU` accepts only an explicit true. It applies to "
+                    + "standalone developer diagnostics, not the app's framebuffer-assisted boot path. It cannot relax that path's "
+                    + "policy, bootstrap or read-back requirements and never switches a working emulation off.",
             ],
             related: [.securityProfiles, .exposureSummary, .managedSettings, .windowsMachines]
         ),

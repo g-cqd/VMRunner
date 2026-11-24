@@ -37,7 +37,7 @@ private struct RunningScreen<Framework: View>: View {
     @ViewBuilder let framework: Framework
 
     var body: some View {
-        if let source = model.customDisplay {
+        if let source = model.customDisplay, !source.prefersFrameworkOverlay {
             CustomGPUDisplay(source: source, settings: settings, guestAnswered: model.displayResizeAnswered)
         } else {
             framework
@@ -65,7 +65,9 @@ private struct MachinePane: View {
             }
         case .running(.virtualMachine(let machine, let settings)):
             RunningScreen(model: model, settings: settings) {
-                VMDisplay(machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered)
+                VMDisplay(
+                    machine: machine, settings: settings, guestAnswered: model.displayResizeAnswered,
+                    framebuffer: model.customDisplay.flatMap { $0.prefersFrameworkOverlay ? $0.screen : nil })
             }
             .overlay { MachineStatusOverlay(model: model) }
         case .running(.workloadLog(let log)):
