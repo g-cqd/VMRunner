@@ -30,7 +30,7 @@ let package = Package(
         // Debounces settings writes in the app; also brings in swift-collections.
         .package(url: "https://github.com/apple/swift-async-algorithms.git", exact: "1.1.7"),
         // HeapModule backs TestKit's TestClock sleeper queue.
-        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.7.3"),
+        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.7.6"),
     ],
     targets: [
         .executableTarget(
