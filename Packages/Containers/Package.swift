@@ -25,7 +25,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [
         // Release 0.52.1 is the first one that verifies the digest of a pull by digest.
-        .package(url: "https://github.com/apple/containerization.git", exact: "0.52.1")
+        .package(url: "https://github.com/apple/containerization.git", exact: "0.57.0")
     ],
     targets: [
         // The pure parts of the runner (arguments, kernel archive check, verdict, frame summary, loopback link), free of any
