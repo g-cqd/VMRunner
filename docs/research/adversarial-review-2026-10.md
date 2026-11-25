@@ -9,6 +9,8 @@ Study, not a decision record. Five read-only reviews and one review of the signa
 was executed against a running app or guest; confirmed means the code path is unambiguous or was reproduced in a test.
 Status is at the date above; roadmap 0034 tracks what is open.
 
+> **Reconciled 2026-11-25:** Every item marked "in flight" below (network stack DNS framing/private-zone/floor/throttling/DHCP/name-table fixes, download caps/isolation/canonical matching, and workflow linting with  = 0 findings) has since landed on . See  as the single authoritative open risk register.
+
 ## Network stack and policy (attacker: a malicious guest)
 
 | Finding | Severity | Status |
