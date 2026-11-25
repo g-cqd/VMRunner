@@ -51,6 +51,31 @@ struct ControlDispatcherTests {
     }
 
     @Test
+    func expiredTokenIsRefusedAndReportedWithoutLeakingSecret() async throws {
+        let machine = ControlMachine.fake("m")
+        let folder = try ScratchFolder()
+        defer { folder.cleanUp() }
+        let store = try ControlTokenStore(file: folder.url.appending(path: "tokens.json"))
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let made = try store.create(name: "short-lived", capabilities: [.list], now: createdAt, expiresIn: 60)
+        let probe = AsyncEventProbe<ControlDenial>()
+
+        let beforeExpiry = ControlDispatcher(
+            tokens: store, machines: FakeMachines([machine]), now: { createdAt.addingTimeInterval(30) },
+            report: { probe.record($0) })
+        let ok = await beforeExpiry.answer(RPCRequest(id: .number(1), method: "machines.list", params: ["token": .string(made.secret)]))
+        #expect(ok.error == nil)
+
+        let afterExpiry = ControlDispatcher(
+            tokens: store, machines: FakeMachines([machine]), now: { createdAt.addingTimeInterval(61) },
+            report: { probe.record($0) })
+        let denied = await afterExpiry.answer(RPCRequest(id: .number(2), method: "machines.list", params: ["token": .string(made.secret)]))
+        #expect(denied.error?.code == -32001)
+        #expect(probe.events.map(\.reason) == [.expiredToken])
+        #expect(probe.events.first?.tokenID == made.token.id)
+    }
+
+    @Test
     func eachMethodNeedsItsOwnCapability() async throws {
         let machine = ControlMachine.fake("m")
         let rig = try Rig([machine])

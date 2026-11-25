@@ -353,11 +353,15 @@ struct LinuxProvider: Sendable {
 // MARK: Distributions
 
 extension LinuxProvider {
+    /// CentOS Stream compose floor per major release (R-UPD-3 / N-V2).
+    private static let centOSFloors = [9: "20240101", 10: "20250101"]
+
     static func centOSStream(release: Int, flavor: String) -> Self {
         Self(
             host: "mirror.stream.centos.org", directoryPath: "/\(release)-stream/BaseOS/aarch64/iso/",
             iso: .newest(prefix: "CentOS-Stream-\(release)-", suffix: "-aarch64-\(flavor).iso"),
-            checksum: .sibling(suffix: "SHA256SUM"), format: .bsd, trust: HTTPSOnlyTrust())
+            checksum: .sibling(suffix: "SHA256SUM"), format: .bsd, trust: HTTPSOnlyTrust(),
+            minimumVersion: centOSFloors[release])
     }
 
     /// `SHA256SUMS` is signed by the Debian CD signing key (`SHA256SUMS.sign`).

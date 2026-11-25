@@ -34,7 +34,7 @@ struct HostInfoSharingTests {
     @Test(arguments: SecurityProfile.allCases, GuestOS.allCases)
     func eachProfileSetsTheSwitchesAsItsDefinitionSays(profile: SecurityProfile, guest: GuestOS) {
         let applied = machine(guest).applying(profile)
-        let cleared = profile == .isolated || profile == .hardened
+        let cleared = profile == .isolated || profile == .hardened || profile == .agent
         #expect(applied.hostInfo.isEmpty == cleared, "\(profile) \(guest)")
         #expect(applied.detectedProfile == profile, "what is shared must not hide the profile it was applied with")
     }

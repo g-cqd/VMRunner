@@ -157,6 +157,7 @@ public struct ControlDenial: Error, Equatable, Sendable {
         case otherUser = "the client runs as another user"
         case noToken = "no token"
         case unknownToken = "an unknown or revoked token"
+        case expiredToken = "the token has expired"
         case missingCapability = "the token lacks the capability"
         case outsideScope = "the machine is not one of the token's"
         case agentAccessOff = "agent access is off for the machine"

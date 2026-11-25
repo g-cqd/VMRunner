@@ -35,7 +35,7 @@ struct SerialConsoleTests {
     @Test(arguments: SecurityProfile.allCases, GuestOS.allCases)
     func eachProfileSetsTheConsoleAsItsDefinitionSays(profile: SecurityProfile, guest: GuestOS) {
         let applied = machine(guest).applying(profile)
-        let forcedOff = profile == .isolated || profile == .hardened
+        let forcedOff = profile == .isolated || profile == .hardened || profile == .agent
         #expect(applied.serialConsole == !forcedOff, "\(profile) \(guest)")
         #expect(applied.detectedProfile == profile, "a console that is on must not hide the profile it was applied with")
     }

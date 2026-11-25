@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Checks each request against its token and the machine's agent access, then calls the machines (ADR-0056). Every refusal
 /// goes to `report`, which the app logs.
@@ -6,10 +6,17 @@ public struct ControlDispatcher: Sendable {
     private let tokens: ControlTokenStore
     private let machines: any ControlMachines
     private let reportDenial: @Sendable (ControlDenial) -> Void
+    private let now: @Sendable () -> Date
 
-    public init(tokens: ControlTokenStore, machines: any ControlMachines, report: @escaping @Sendable (ControlDenial) -> Void) {
+    public init(
+        tokens: ControlTokenStore,
+        machines: any ControlMachines,
+        now: @escaping @Sendable () -> Date = { Date() },
+        report: @escaping @Sendable (ControlDenial) -> Void
+    ) {
         self.tokens = tokens
         self.machines = machines
+        self.now = now
         reportDenial = report
     }
 
@@ -41,6 +48,7 @@ public struct ControlDispatcher: Sendable {
         }
         guard let secret = call.token else { return denied(.noToken) }
         guard let token = tokens.authenticate(secret) else { return denied(.unknownToken) }
+        guard !token.isExpired(at: now()) else { return denied(.expiredToken, token) }
         guard token.capabilities.contains(call.method.capability) else { return denied(.missingCapability, token) }
         if let machine = call.machine, let allowed = token.machines, !allowed.contains(machine) {
             return denied(.outsideScope, token)

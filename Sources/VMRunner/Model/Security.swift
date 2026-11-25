@@ -4,7 +4,7 @@ import NetPolicy
 /// One-tap starting points for how much of the host a guest can reach. Each profile only sets what it
 /// defines; per-device switches stay editable afterwards.
 enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
-    case standard, contained, isolated, hardened
+    case standard, contained, isolated, hardened, agent
 
     var id: Self { self }
 
@@ -14,6 +14,7 @@ enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
         case .contained: "Contained"
         case .isolated: "Isolated"
         case .hardened: "Hardened"
+        case .agent: "Agent"
         }
     }
 
@@ -30,6 +31,9 @@ enum SecurityProfile: String, CaseIterable, Identifiable, Sendable {
         case .hardened:
             "Isolated, plus a disposable disk (changes are discarded on stop), no suspend files, no memory balloon, "
                 + "no first-boot auto-login or SSH, and a 2-hour runtime limit."
+        case .agent:
+            "Hardened base for autonomous coding agents: disposable disk, allow-listed filtered egress only (no raw NAT, "
+                + "private ranges blocked), no shared folders, no clipboard, no suspend, no private interfaces, and a 2-hour runtime limit."
         }
     }
 }
@@ -137,7 +141,7 @@ extension VMConfig {
         config.driverDiscPath = nil
         config.hostInfo = HostInfoSharing()
         config.secureBoot = secureBootAvailability(hostSupports: hostSupportsSecureBoot) == .available
-        guard profile == .hardened else { return config }
+        guard profile == .hardened || profile == .agent else { return config }
 
         config.ephemeral = true
         config.allowsSuspend = false
@@ -145,6 +149,11 @@ extension VMConfig {
         config.memoryBalloon = false
         config.provisioning.logsInAutomatically = false
         config.provisioning.enablesRemoteLogin = false
+        if profile == .agent {
+            config.networkMode = .filtered
+            config.networkPolicy.mode = .allowListed
+            config.networkPolicy.blockPrivateRanges = true
+        }
         return config
     }
 

@@ -34,7 +34,7 @@ enum PrivateCapabilityPolicy {
     }
 
     /// The profiles that close every private interface.
-    static let closingProfiles: Set<SecurityProfile> = [.isolated, .hardened]
+    static let closingProfiles: Set<SecurityProfile> = [.isolated, .hardened, .agent]
 
     /// `posture` is the profile the machine matches (`VMConfig.detectedProfile`), or nil when its switches have been customized,
     /// which no profile closes. A refusal by the organisation outranks the profile, and the profile outranks the kill switch, so

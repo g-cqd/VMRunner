@@ -26,11 +26,38 @@ public struct ControlToken: Codable, Equatable, Identifiable, Sendable {
     /// The machines the token may act on; nil for every machine whose agent access is on.
     public let machines: [UUID]?
     public let created: Date
+    /// Optional expiry date (N-V5 / V8): nil for legacy tokens created before expiry support; after `expiresAt`, the
+    /// dispatcher refuses the token as `.expired` without requiring manual revocation.
+    public let expiresAt: Date?
     /// SHA-256 of the secret, in lowercase hex.
     let digest: String
 
     fileprivate enum CodingKeys: String, CodingKey {
-        case id, name, capabilities, machines, created, digest
+        case id, name, capabilities, machines, created, expiresAt, digest
+    }
+
+    public init(
+        id: UUID,
+        name: String,
+        capabilities: Set<ControlCapability>,
+        machines: [UUID]? = nil,
+        created: Date,
+        expiresAt: Date? = nil,
+        digest: String
+    ) {
+        self.id = id
+        self.name = name
+        self.capabilities = capabilities
+        self.machines = machines
+        self.created = created
+        self.expiresAt = expiresAt
+        self.digest = digest
+    }
+
+    /// Whether the token has passed its expiry time at `now`.
+    public func isExpired(at now: Date) -> Bool {
+        guard let expiresAt else { return false }
+        return now >= expiresAt
     }
 
     /// Capabilities are written in a fixed order, so the token file is the same on every save. Files written in any order
@@ -42,6 +69,7 @@ public struct ControlToken: Codable, Equatable, Identifiable, Sendable {
         try container.encode(capabilities.sorted { $0.rawValue < $1.rawValue }, forKey: .capabilities)
         try container.encodeIfPresent(machines, forKey: .machines)
         try container.encode(created, forKey: .created)
+        try container.encodeIfPresent(expiresAt, forKey: .expiresAt)
         try container.encode(digest, forKey: .digest)
     }
 }
@@ -54,6 +82,7 @@ extension ControlToken {
         let capabilities: [String]
         let machines: [UUID]?
         let created: Date
+        let expiresAt: Date?
         let digest: String
     }
 
@@ -63,7 +92,7 @@ extension ControlToken {
         let stored = try Stored(from: decoder)
         self.init(
             id: stored.id, name: stored.name, capabilities: Set(stored.capabilities.compactMap(ControlCapability.init(rawValue:))),
-            machines: stored.machines, created: stored.created, digest: stored.digest)
+            machines: stored.machines, created: stored.created, expiresAt: stored.expiresAt, digest: stored.digest)
     }
 }
 

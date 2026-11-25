@@ -7,8 +7,8 @@ import Testing
 /// Whether a private interface may be used: the machine's profile, the managed key and the kill switch, and what the rest of the
 /// app says about them.
 struct PrivateCapabilityPolicyTests {
-    private static let postures: [SecurityProfile?] = [nil, .standard, .contained, .isolated, .hardened]
-    private static let closed: Set<SecurityProfile> = [.isolated, .hardened]
+    private static let postures: [SecurityProfile?] = [nil, .standard, .contained, .isolated, .hardened, .agent]
+    private static let closed: Set<SecurityProfile> = [.isolated, .hardened, .agent]
 
     /// A managed policy where the key is not forced, forced to true, and forced to values that restrict.
     private static var managedCases: [ManagedCase] {

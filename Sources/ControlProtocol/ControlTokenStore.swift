@@ -48,17 +48,26 @@ public final class ControlTokenStore: Sendable {
     /// Every token, oldest first.
     public var all: [ControlToken] { tokens.withLock { $0 } }
 
+    /// Default token lifetime when a caller does not pass an explicit expiry (N-V5 / V8): 30 days.
+    public static let defaultLifetime: TimeInterval = 30 * 86_400
+
     /// Makes a token and returns it with its secret, which is not kept: show it once.
+    /// Pass `expiresIn: nil` only when an explicit non-expiring token is intended; defaults to 30 days (`defaultLifetime`).
     public func create(
-        name: String, capabilities: Set<ControlCapability>, machines: [UUID]? = nil, now: Date = Date()
+        name: String,
+        capabilities: Set<ControlCapability>,
+        machines: [UUID]? = nil,
+        now: Date = Date(),
+        expiresIn: TimeInterval? = defaultLifetime
     ) throws -> (token: ControlToken, secret: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ControlTokenError.emptyName }
         guard trimmed.count <= Self.maximumNameLength else { throw ControlTokenError.nameTooLong(limit: Self.maximumNameLength) }
         guard !capabilities.isEmpty else { throw ControlTokenError.noCapability }
         let secret = ControlSecret.make()
+        let expiresAt = expiresIn.map { now.addingTimeInterval($0) }
         let token = ControlToken(
-            id: UUID(), name: trimmed, capabilities: capabilities, machines: machines, created: now,
+            id: UUID(), name: trimmed, capabilities: capabilities, machines: machines, created: now, expiresAt: expiresAt,
             digest: ControlSecret.digest(of: secret))
         try tokens.withLock { list in
             guard list.count < Self.maximumTokens else { throw ControlTokenError.tooMany(limit: Self.maximumTokens) }
