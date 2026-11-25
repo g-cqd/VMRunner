@@ -39,11 +39,17 @@ enum PrivateCapabilityPolicy {
     /// `posture` is the profile the machine matches (`VMConfig.detectedProfile`), or nil when its switches have been customized,
     /// which no profile closes. A refusal by the organisation outranks the profile, and the profile outranks the kill switch, so
     /// the reason names the party that can change the outcome last.
+    /// When compiled with `-DVMRUNNER_NO_PRIVATE_INTERFACES` (N-V4 enterprise agent build), every private interface is
+    /// unconditionally denied at compile time regardless of profile or defaults.
     static func decide(posture: SecurityProfile?, managed: ManagedPreferences, killSwitch: Bool) -> Decision {
-        if managed.isLocked(managedKey) { return .denied(.managedKey) }
-        if let posture, closingProfiles.contains(posture) { return .denied(.profile(posture)) }
-        if killSwitch { return .denied(.killSwitch) }
-        return .allowed
+        #if VMRUNNER_NO_PRIVATE_INTERFACES
+            return .denied(.managedKey)
+        #else
+            if managed.isLocked(managedKey) { return .denied(.managedKey) }
+            if let posture, closingProfiles.contains(posture) { return .denied(.profile(posture)) }
+            if killSwitch { return .denied(.killSwitch) }
+            return .allowed
+        #endif
     }
 
     /// What the exposure summary says about a private interface a machine would use.
