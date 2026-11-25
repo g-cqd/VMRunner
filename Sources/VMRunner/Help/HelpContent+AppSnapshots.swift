@@ -127,6 +127,9 @@ extension HelpCatalog {
                 "• `AllowPrivateInterfaces`: set to false, no machine uses an interface Apple's framework does not document, "
                     + "and a machine that needs one will not start.",
                 "• `RequireDisposableMachines`: set to true, every machine is disposable.",
+                "• `AllowUnfilteredNAT`: set to false, raw NAT is disabled and switched to allow-listed filtered networking "
+                    + "with private ranges blocked.",
+                "• `RequirePrivateRangeBlock`: set to true, every filtered network blocks private/RFC-1918 ranges.",
                 "• `MaxRuntimeMinutes`: every machine stops after at most that many minutes (from 15 to 1440); 0 sets no limit.",
                 "For the app itself, any of `hidesToolbarInFullScreen`, `keepsRestoreImages`, `holdsLatencyActivity`, "
                     + "`ipswDeviceIdentifier` and `runsControlService` can be set; the matching control is locked.",

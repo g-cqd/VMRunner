@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 import Testing
 
 @testable import VMRunner
@@ -147,6 +148,24 @@ struct ManagedPreferencesTests {
             #expect(text.contains("`\(key)`"), "missing: \(key)")
         }
         #expect(HelpTopic.settings.entry.related.contains(.managedSettings))
+    }
+
+    @Test func agentHostManagedKeysClampNATAndPrivateRanges() {
+        var config = VMConfig.new(name: "agent", guest: .linux)
+        config.networkMode = .nat
+        config.networkPolicy.blockPrivateRanges = false
+
+        let policy = ManagedPreferences { key in
+            switch key {
+            case ManagedKey.allowUnfilteredNAT.rawValue: false
+            case ManagedKey.requirePrivateRangeBlock.rawValue: true
+            default: nil
+            }
+        }
+        let clamped = policy.clamp(config)
+        #expect(clamped.networkMode == .filtered)
+        #expect(clamped.networkPolicy.mode == .allowListed)
+        #expect(clamped.networkPolicy.blockPrivateRanges)
     }
 }
 

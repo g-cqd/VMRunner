@@ -71,11 +71,11 @@ package struct NetworkPolicy: Hashable, Sendable, Codable {
         case reservedName
     }
 
-    enum Decision: Hashable, Sendable {
+    package enum Decision: Hashable, Sendable {
         case allow
         case deny(Reason)
 
-        var isAllowed: Bool { self == .allow }
+        package var isAllowed: Bool { self == .allow }
     }
 
     /// The verdict for a URL, plus whether path rules were part of it.
@@ -147,14 +147,16 @@ package struct NetworkPolicy: Hashable, Sendable, Codable {
     ///     fine). All must pass. For a literal IP host the literal itself is checked too.
     /// - Returns: `.allow`, or `.deny` with the first reason found. Never throws; unparseable input is a denial.
     /// - Note: connect only to addresses you passed here.
-    func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress]) -> Decision {
+    package func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress]) -> Decision {
         evaluate(host: host, port: port, resolvedAddresses: resolvedAddresses, exempting: [])
     }
 
     /// As ``evaluate(host:port:resolvedAddresses:)``, with `floorKinds` not enforced. For the integration tests, which
     /// must reach servers they start on the loopback interface: nothing outside the tests passes a non-empty set
     /// (`UserNetConfig.exemptedFloorKinds` is the only source), and the policy itself has no such setting.
-    func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress], exempting floorKinds: Set<ReservedRangeKind>) -> Decision {
+    package func evaluate(host: String, port: UInt16, resolvedAddresses: [IPAddress], exempting floorKinds: Set<ReservedRangeKind>)
+        -> Decision
+    {
         let form: HostForm
         do {
             form = try HostForm(parsing: host)

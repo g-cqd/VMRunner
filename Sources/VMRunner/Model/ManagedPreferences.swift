@@ -1,4 +1,5 @@
 import Foundation
+import NetPolicy
 
 /// A machine setting an organisation can restrict through managed preferences (ADR-0013). The raw value is the key a
 /// configuration profile forces in the app's domain.
@@ -15,6 +16,10 @@ enum ManagedKey: String, CaseIterable, Sendable {
     case allowContainers = "AllowContainers"
     case requireDisposableMachines = "RequireDisposableMachines"
     case maxRuntimeMinutes = "MaxRuntimeMinutes"
+    /// Forces every machine to disable raw NAT networking (`Agent`/filtered or `none` only, V9).
+    case allowUnfilteredNAT = "AllowUnfilteredNAT"
+    /// Requires every machine to block private/RFC-1918 ranges on filtered networks (V9).
+    case requirePrivateRangeBlock = "RequirePrivateRangeBlock"
 }
 
 /// What an organisation forced in the app's managed preferences, read once. Only a forced value is policy
@@ -24,6 +29,8 @@ struct ManagedPreferences: Equatable, Sendable {
     private(set) var denied: Set<ManagedKey> = []
     /// `RequireDisposableMachines` forced to anything but `false`.
     private(set) var requiresDisposable = false
+    /// `RequirePrivateRangeBlock` forced to anything but `false`.
+    private(set) var requiresPrivateRangeBlock = false
     /// The longest run `MaxRuntimeMinutes` allows, when it is forced to a limit; nil when it is not forced or forced to 0.
     private(set) var maxRuntimeMinutes: Int?
     /// The app's own settings whose value the organisation forced.
@@ -42,6 +49,8 @@ struct ManagedPreferences: Equatable, Sendable {
             switch key {
             case .requireDisposableMachines:
                 requiresDisposable = (value as? Bool) != false
+            case .requirePrivateRangeBlock:
+                requiresPrivateRangeBlock = (value as? Bool) != false
             case .maxRuntimeMinutes:
                 maxRuntimeMinutes = Self.runtimeLimit(forced: value)
             default:
@@ -82,6 +91,7 @@ struct ManagedPreferences: Equatable, Sendable {
     func isLocked(_ key: ManagedKey) -> Bool {
         switch key {
         case .requireDisposableMachines: requiresDisposable
+        case .requirePrivateRangeBlock: requiresPrivateRangeBlock
         case .maxRuntimeMinutes: maxRuntimeMinutes != nil
         default: denied.contains(key)
         }
@@ -101,6 +111,12 @@ struct ManagedPreferences: Equatable, Sendable {
         if denied.contains(.allowControlService) { config.agentAccess = false }
         if denied.contains(.allowProvisioning) { config.provisioningSpecPath = "" }
         if denied.contains(.allowCustomGPU) { config.gpu = .apple }
+        if denied.contains(.allowUnfilteredNAT), config.networkMode == .nat {
+            config.networkMode = .filtered
+            config.networkPolicy.mode = .allowListed
+            config.networkPolicy.blockPrivateRanges = true
+        }
+        if requiresPrivateRangeBlock { config.networkPolicy.blockPrivateRanges = true }
         if requiresDisposable { config.ephemeral = true }
         if let limit = maxRuntimeMinutes, config.maxRuntimeMinutes == 0 || config.maxRuntimeMinutes > limit {
             config.maxRuntimeMinutes = limit

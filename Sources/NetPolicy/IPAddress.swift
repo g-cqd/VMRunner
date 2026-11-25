@@ -17,7 +17,7 @@ package enum IPAddress: Hashable, Sendable {
 
     /// Parses a canonical IPv4 or IPv6 literal. Returns `nil` for anything else, including IPv6 zone
     /// identifiers (`fe80::1%en0`), bracketed hosts, legacy IPv4 spellings, and surrounding whitespace.
-    init?(strictLiteral text: String) {
+    package init?(strictLiteral text: String) {
         if text.contains(":") {
             guard !text.contains("%"), Self.hasCanonicalDottedTail(text), let parsed = IPv6Address(text) else { return nil }
             self = .v6(Self.bits(of: parsed.rawValue))
