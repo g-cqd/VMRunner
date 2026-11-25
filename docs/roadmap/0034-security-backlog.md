@@ -44,7 +44,7 @@ stack findings and the download findings (including the rollback through the uns
    most likely kept the lock after `close`; the lock is now released explicitly, a test shows the mechanism with real system calls, and
    the retry is gone (30 runs of the DevTools suite under load passed). The ThreadSanitizer abort seen once did not recur in two runs of the tsan step; it
    stays unexplained and is watched.
-8. `actionlint` and `zizmor` have never run on the workflows; CI has never run on GitHub.
+8. *Partly fixed (2026-11-25).* `zizmor v1.32.0 --offline` passed with **0 findings** across all 7 workflows; `Scorecard` and `CI` triggered on GitHub (confirm `xcode-27` hosted runner availability).
 9. Decide whether ADR-0012, 0013, 0016, 0017 and 0019 are accepted.
 10. *Fixed.* A macOS install reads its own clone of the restore image (ADR-0031), and a clone that a crash left behind is
     deleted at the next launch. A data directory on a volume that is not APFS cannot clone, so a macOS install there fails
