@@ -124,6 +124,7 @@ extension VMConfig {
         config.rosetta = false
         config.nestedVirtualization = false
         config.socketDevice = false
+        config.vsockForwards = []
         config.bootIntoRecovery = false
         for index in config.sharedFolders.indices { config.sharedFolders[index].readOnly = true }
         for index in config.extraDisks.indices { config.extraDisks[index].readOnly = true }
@@ -291,6 +292,15 @@ extension VMConfig {
             items.append(Exposure(level: .medium, text: "Nested virtualization: the guest can run its own hypervisor."))
         }
         if socketDevice { items.append(Exposure(level: .low, text: "vsock: a host–guest socket channel is present.")) }
+        if socketDevice, !vsockForwards.isEmpty {
+            // Any process of this user can connect to the guest's port through the socket, so it ranks with the console.
+            let bundle = VMBundle(id: id, in: AppPaths.machines)
+            for port in vsockForwards {
+                let path = bundle.vsockForward(port: port).path
+                let text = "Guest vsock port \(port) is reachable from this Mac as a local socket at \(path)"
+                items.append(Exposure(level: .medium, text: text))
+            }
+        }
         if guest == .linux, serialConsole {
             // Any process of this user can type into the guest through the socket, so it ranks with a shared folder.
             let path = VMBundle(id: id, in: AppPaths.machines).consoleSocket().path

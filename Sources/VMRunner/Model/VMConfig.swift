@@ -230,6 +230,11 @@ struct VMConfig: Codable, Identifiable, Hashable, Sendable {
     var memoryBalloon = true
     var entropyDevice = true
     var socketDevice = true
+    /// Guest vsock ports served on local sockets of this Mac while the machine runs (`VsockForwardPlacement`), each in a
+    /// folder only this user can enter. A host-to-guest channel that never touches a network: with a Linux guest whose
+    /// systemd serves SSH on vsock port 22, `ssh` reaches the guest through it while its own traffic stays behind the
+    /// filtered network. Needs the socket device; empty by default, and emptied by the Contained and stricter profiles.
+    var vsockForwards: [UInt32] = []
     /// Linux only: the guest's first serial port (`hvc0`) is reachable from this Mac as a local socket. A host-to-guest control
     /// channel, off by default and off in the Isolated and Hardened profiles.
     var serialConsole = false

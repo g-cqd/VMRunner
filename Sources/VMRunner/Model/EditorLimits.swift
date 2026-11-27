@@ -2,6 +2,9 @@ import NetPolicy
 
 /// Ranges and steps shared by the editor controls and the help text, so the two can't disagree.
 enum EditorLimits {
+    /// The most guest vsock ports one machine forwards, and the range of a port (`VMADDR_PORT_ANY`, the top value, is none).
+    static let maxVsockForwards = 8
+    static let vsockPorts: ClosedRange<UInt32> = 1...(UInt32.max - 1)
     static let maxDiskGiB = 4096
     static let diskStepGiB = 8
     static let newLinuxDiskGiB = 16...2048

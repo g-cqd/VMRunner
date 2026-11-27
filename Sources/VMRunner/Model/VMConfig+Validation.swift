@@ -36,6 +36,7 @@ extension VMConfig {
         try validateText()
         try validateHostPaths()
         try validateRules()
+        try validateVsockForwards()
         try validateContainer()
         try validateGuest()
         try Self.require(diskGiB, in: 1...EditorLimits.maxDiskGiB, "diskGiB")
@@ -82,6 +83,18 @@ extension VMConfig {
 
     /// Each rule list holds at most `maxRulesPerList` rules of at most `maxRuleLength` characters, measured on the text the
     /// policy stores, which is also what `NetworkPolicy.add` measures.
+    private func validateVsockForwards() throws {
+        guard vsockForwards.count <= EditorLimits.maxVsockForwards else {
+            throw Self.corrupted("vsockForwards", "must hold at most \(EditorLimits.maxVsockForwards) ports")
+        }
+        guard vsockForwards.allSatisfy(EditorLimits.vsockPorts.contains) else {
+            throw Self.corrupted("vsockForwards", "must hold ports from 1 to \(EditorLimits.vsockPorts.upperBound)")
+        }
+        guard Set(vsockForwards).count == vsockForwards.count else {
+            throw Self.corrupted("vsockForwards", "must not repeat a port")
+        }
+    }
+
     private func validateRules() throws {
         for list in PolicyList.allCases {
             let rules = networkPolicy.rules(in: list)

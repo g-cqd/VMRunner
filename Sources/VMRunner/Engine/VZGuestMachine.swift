@@ -27,6 +27,10 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     static let cutFailedMessage = "the kill switch could not disconnect its network card, so VMRunner stopped it"
     /// Keeps the host-information share current while the machine lives, when the machine shares anything.
     private let hostInfo: HostInfoPublisher?
+    /// The guest vsock ports to serve on local sockets, and where; served from the start until the machine stops.
+    private let vsockForwards: [(port: UInt32, placement: VsockForwardPlacement)]
+    /// The forwarders serving `vsockForwards` now.
+    private var forwarders: [PortForwarder] = []
 
     var onGuestStopped: (@MainActor () -> Void)?
     var onStoppedWithError: (@MainActor (_ message: String) -> Void)?
@@ -34,6 +38,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     init(
         machine: VZVirtualMachine, customDisplay: (any CustomDisplaySource)? = nil, console: ConsoleBridge? = nil,
         networkCutoff: NetworkCutoff? = nil, hostInfo: HostInfoPublisher? = nil,
+        vsockForwards: [(port: UInt32, placement: VsockForwardPlacement)] = [],
         startOptions: @escaping () throws -> VZMacOSVirtualMachineStartOptions?
     ) {
         self.machine = machine
@@ -41,6 +46,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         self.console = console
         self.networkCutoff = networkCutoff
         self.hostInfo = hostInfo
+        self.vsockForwards = vsockForwards
         self.startOptions = startOptions
         super.init()
         machine.delegate = self
@@ -61,6 +67,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         }
         customDisplay?.beginDisplay(for: machine) { [weak self] message in self?.onStoppedWithError?(message) }
         startNetworkCutoff()
+        startForwarders()
     }
 
     func restoreState(from url: URL) async throws {
@@ -68,6 +75,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
         console?.start()
         try await machine.restoreMachineStateFrom(url: url)
         startNetworkCutoff()
+        startForwarders()
     }
     func saveState(to url: URL) async throws { try await machine.saveMachineStateTo(url: url) }
     func pause() async throws { try await machine.pause() }
@@ -76,6 +84,52 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     func stop() async throws {
         try await machine.stop()
         customDisplay?.endDisplay()
+        stopForwarders()
+    }
+
+    // MARK: Vsock forwards
+
+    /// Serves each forwarded port on its socket. A port that cannot be served is logged and skipped: the machine runs
+    /// without that channel rather than not at all.
+    private func startForwarders() {
+        guard forwarders.isEmpty, !vsockForwards.isEmpty, machine.socketDevices.first is VZVirtioSocketDevice else { return }
+        for (port, placement) in vsockForwards {
+            do {
+                try ConsoleBridge.makePrivateDirectory(at: placement.directory)
+                let forwarder = try PortForwarder(socketPath: placement.path) { [weak self] in
+                    await self?.openVsock(port: port)
+                }
+                forwarder.start()
+                forwarders.append(forwarder)
+                Log.machine.info("Forwarding guest vsock port \(port, privacy: .public) on a local socket")
+            } catch {
+                Log.machine.error(
+                    "Cannot forward guest vsock port \(port, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private func stopForwarders() {
+        for forwarder in forwarders { forwarder.stop() }
+        forwarders = []
+    }
+
+    /// A new connection to guest vsock `port`, or nil when the guest does not accept it. The framework's connection object
+    /// owns its descriptor, so the forwarder gets a duplicate, and the object is kept and closed when the relay is done.
+    private func openVsock(port: UInt32) async -> PortForwarder.Channel? {
+        guard let device = machine.socketDevices.first as? VZVirtioSocketDevice else { return nil }
+        do {
+            let connection = try await device.connect(toPort: port)
+            let descriptor = dup(connection.fileDescriptor)
+            guard descriptor >= 0 else {
+                connection.close()
+                return nil
+            }
+            let owner = VsockConnectionOwner(connection)
+            return PortForwarder.Channel(descriptor: descriptor) { owner.close() }
+        } catch {
+            return nil
+        }
     }
 
     /// Starts the kill switch once the framework has the machine, so its network card can be reached.
@@ -109,6 +163,7 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
 
     nonisolated func guestDidStop(_ virtualMachine: VZVirtualMachine) {
         Task { @MainActor in
+            self.stopForwarders()
             self.customDisplay?.endDisplay()
             self.onGuestStopped?()
         }
@@ -117,9 +172,22 @@ final class VZGuestMachine: NSObject, GuestMachine, VZVirtualMachineDelegate {
     nonisolated func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: any Error) {
         let message = error.localizedDescription
         Task { @MainActor in
+            self.stopForwarders()
             self.customDisplay?.endDisplay()
             self.onStoppedWithError?(message)
         }
+    }
+}
+
+/// Keeps a framework vsock connection, which owns its descriptor, until the relay that uses a duplicate is done, then
+/// closes it on the main actor.
+private final class VsockConnectionOwner: @unchecked Sendable {  // `connection` is only touched on the main actor
+    private let connection: VZVirtioSocketConnection
+
+    init(_ connection: VZVirtioSocketConnection) { self.connection = connection }
+
+    func close() {
+        Task { @MainActor in self.connection.close() }
     }
 }
 
@@ -167,6 +235,7 @@ struct VZMachineFactory: MachineFactory {
                 machine: machine, customDisplay: customGPU, console: built.consoleBridge,
                 networkCutoff: config.hasNetworkCutoff ? NetworkCutoff(config: config) : nil,
                 hostInfo: config.hostInfo.isEmpty ? nil : HostInfoPublisher(directory: bundle.hostInfoFolder, sharing: config.hostInfo),
+                vsockForwards: config.socketDevice ? config.vsockForwards.map { ($0, bundle.vsockForward(port: $0)) } : [],
                 startOptions: { try Self.startOptions(for: config) }),
             network: network,
             suspend: suspend

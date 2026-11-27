@@ -21,10 +21,24 @@ struct ConsoleSocketPlacement: Equatable {
 extension VMBundle {
     /// The placement of this machine's console socket. `shortFolder` is the folder used when the bundle's path is too long.
     func consoleSocket(shortFolder: URL = FileManager.default.temporaryDirectory) -> ConsoleSocketPlacement {
-        let inBundle = url.appending(path: ConsoleSocketPlacement.socketName).path
+        socketPlacement(named: ConsoleSocketPlacement.socketName, shortSuffix: "", shortFolder: shortFolder)
+    }
+
+    /// The placement of the local socket that forwards guest vsock `port`. `shortFolder` is as for ``consoleSocket(shortFolder:)``.
+    func vsockForward(port: UInt32, shortFolder: URL = FileManager.default.temporaryDirectory) -> VsockForwardPlacement {
+        socketPlacement(named: "Vsock-\(port).sock", shortSuffix: "-vsock-\(port)", shortFolder: shortFolder)
+    }
+
+    /// `name` in the bundle when that path fits a local socket, else `<machine><shortSuffix>.sock` in the private short folder.
+    private func socketPlacement(named name: String, shortSuffix: String, shortFolder: URL) -> ConsoleSocketPlacement {
+        let inBundle = url.appending(path: name).path
         if inBundle.utf8.count <= ConsoleBridge.socketPathLimit { return ConsoleSocketPlacement(path: inBundle, directory: url.path) }
         let folder = shortFolder.appending(path: ConsoleSocketPlacement.shortFolderName, directoryHint: .isDirectory).path
-        let name = url.deletingPathExtension().lastPathComponent.lowercased().prefix(ConsoleSocketPlacement.shortNameLength)
-        return ConsoleSocketPlacement(path: "\(folder)/\(name).sock", directory: folder)
+        let machine = url.deletingPathExtension().lastPathComponent.lowercased().prefix(ConsoleSocketPlacement.shortNameLength)
+        return ConsoleSocketPlacement(path: "\(folder)/\(machine)\(shortSuffix).sock", directory: folder)
     }
 }
+
+/// Where a forwarded guest vsock port is served: `Vsock-<port>.sock` in the machine's bundle, or, when that path is too long
+/// for a local socket, `<machine>-vsock-<port>.sock` in the console's private short folder.
+typealias VsockForwardPlacement = ConsoleSocketPlacement

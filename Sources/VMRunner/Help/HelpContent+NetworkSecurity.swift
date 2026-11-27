@@ -300,13 +300,26 @@ extension HelpCatalog {
         .vsock: HelpEntry(
             area: .security,
             title: "Host–guest socket (vsock)",
-            summary: "A private channel between the guest and VMRunner. Nothing uses it yet.",
+            summary: "A private channel between the guest and your Mac, without a network; it can forward guest ports.",
             paragraphs: [
-                "vsock lets a program in the guest talk to the app on your Mac without any network. VMRunner doesn't listen on it today, "
-                    + "so leaving it on or off changes nothing you can see. Contained, Isolated, and Hardened turn it off to keep the "
-                    + "surface small."
+                "vsock lets a program in the guest talk to the app on your Mac without any network. Contained, Isolated, and Hardened "
+                    + "turn it off to keep the surface small.",
+                "A machine can forward guest vsock ports to your Mac: while it runs, each port in its vsockForwards list is served on "
+                    + "a local socket (Vsock-22.sock for port 22, in the machine's folder, or in the console's private folder when "
+                    + "that path is too long). A program on your Mac that connects to the socket is connected to the guest's port. "
+                    + "Nothing is exposed to any network, and the guest's own traffic is untouched, so a machine on the filtered "
+                    + "network can be reached this way while everything it sends leaves as your Mac's own traffic.",
+                "The socket is yours alone (mode 0600, in a folder only you can enter), and \"What this machine can reach\" shows its "
+                    + "path. Anyone who can connect reaches whatever listens on that port in the guest, so treat it like the console. "
+                    + "The profiles that turn vsock off also empty the list.",
             ],
-            related: [.devices]
+            advanced: [
+                "A Linux guest with systemd 256 or later serves SSH on vsock port 22 by itself (sshd-vsock.socket, from "
+                    + "systemd-ssh-generator). Add 22 to vsockForwards, then reach it with ssh -o ProxyCommand=\"nc -U <socket>\" "
+                    + "<user>@<machine>, or put the ProxyCommand in a Host entry of ~/.ssh/config. The list is edited in the "
+                    + "machine's config.json while VMRunner is closed."
+            ],
+            related: [.devices, .serialConsole]
         ),
         .serialConsole: HelpEntry(
             area: .security,
