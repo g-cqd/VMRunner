@@ -5,7 +5,7 @@ import os
 /// logs collected from a user's machine.
 enum Log {
     /// The identifier `Resources/Info.plist` gives the app. It is a placeholder; a test keeps the two in step.
-    static let fallbackSubsystem = "com.example.VMRunner"
+    static let fallbackSubsystem = "studio.aemi.VMRunner"
     /// The built app logs under its own bundle identifier, so the subsystem follows whatever the plist says. Outside the
     /// built app (tests, `swift run`) there is no such identifier and the placeholder stands in.
     static let subsystem = Bundle.main.bundleIdentifier.flatMap { $0.hasPrefix("com.apple.") ? nil : $0 } ?? fallbackSubsystem

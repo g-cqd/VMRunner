@@ -6,14 +6,14 @@ import Testing
 
 struct PreferencesDomainTests {
     @Test func aRunWithoutADataDirectoryUsesTheStandardDomain() {
-        #expect(PreferencesDomain.suiteName(environment: [:], appIdentifier: "com.example.VMRunner") == nil)
-        #expect(PreferencesDomain.suiteName(environment: ["VMRUNNER_DATA_DIR": ""], appIdentifier: "com.example.VMRunner") == nil)
+        #expect(PreferencesDomain.suiteName(environment: [:], appIdentifier: "studio.aemi.VMRunner") == nil)
+        #expect(PreferencesDomain.suiteName(environment: ["VMRUNNER_DATA_DIR": ""], appIdentifier: "studio.aemi.VMRunner") == nil)
     }
 
     @Test func aRunWithADataDirectoryGetsADomainOfItsOwn() {
         #expect(
-            PreferencesDomain.suiteName(environment: ["VMRUNNER_DATA_DIR": "/tmp/run"], appIdentifier: "com.example.VMRunner")
-                == "com.example.VMRunner.data-directory-override")
+            PreferencesDomain.suiteName(environment: ["VMRUNNER_DATA_DIR": "/tmp/run"], appIdentifier: "studio.aemi.VMRunner")
+                == "studio.aemi.VMRunner.data-directory-override")
     }
 }
 
