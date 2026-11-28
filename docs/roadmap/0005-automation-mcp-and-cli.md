@@ -61,7 +61,8 @@ those capabilities, with tests for the capability checks.
   tools, `machines_list`, `machines_state`, `machines_start` and `machines_stop`, each one call of the control service
   with the token. A tool result is the service's JSON as text; a refusal is a tool error that names the control error
   code. Messages are read strictly: one JSON-RPC 2.0 object per line, no batch, no null id, at most 1 MiB and 16 levels
-  deep. The app does not link it.
+  deep. The app does not link it. The protocol itself is AemiMCP's `MCPSyncServer`, configured this strictly (ADR-0056,
+  update 2026-11-28).
 - Tested end to end against the library's own service on sockets under `/tmp`, with machines held in memory: the real
   `vmr` binary for each subcommand, and an MCP session piped into `vmr control mcp`. Not yet run against the app or with
   an MCP client application.

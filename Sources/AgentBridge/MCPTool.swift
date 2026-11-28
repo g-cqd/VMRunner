@@ -1,3 +1,5 @@
+import AemiJSONCore
+import AemiMCP
 public import ControlProtocol
 
 /// The tools the MCP server offers: one for each method of the control service, with the same arguments.
@@ -22,10 +24,18 @@ public enum MCPTool: String, CaseIterable, Sendable {
     }
 
     /// How `tools/list` describes it: a strict input schema (no other argument) and hints on what it changes.
-    var definition: [String: Any] {
-        var schema: [String: Any] = ["type": "object", "properties": properties, "additionalProperties": false]
-        if self != .list { schema["required"] = ["machine"] }
-        return ["name": rawValue, "title": title, "description": summary, "inputSchema": schema, "annotations": annotations]
+    var definition: AemiMCP.MCPTool {
+        AemiMCP.MCPTool(
+            name: rawValue,
+            title: title,
+            description: summary,
+            schema: MCPSchema.object(
+                properties: properties,
+                required: self == .list ? [] : ["machine"],
+                additionalProperties: false
+            ),
+            annotations: annotations
+        )
     }
 
     private var title: String {
@@ -57,24 +67,21 @@ public enum MCPTool: String, CaseIterable, Sendable {
         }
     }
 
-    private var properties: [String: Any] {
-        let machine: [String: Any] = ["type": "string", "description": "The machine's id, as machines_list gives it."]
+    private var properties: KeyValuePairs<String, JSONValue> {
+        let machine = MCPSchema.string("The machine's id, as machines_list gives it.")
         switch self {
         case .list: return [:]
         case .state, .start, .log, .screenshot: return ["machine": machine]
         case .stop:
-            let force: [String: Any] = [
-                "type": "boolean", "description": "Cut the power at once instead of asking the guest to shut down.",
-            ]
-            return ["machine": machine, "force": force]
+            return ["machine": machine, "force": MCPSchema.boolean("Cut the power at once instead of asking the guest to shut down.")]
         }
     }
 
-    private var annotations: [String: Any] {
+    private var annotations: MCPToolAnnotations {
         switch self {
-        case .list, .state, .log, .screenshot: ["readOnlyHint": true, "openWorldHint": false]
-        case .start: ["readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false]
-        case .stop: ["readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false]
+        case .list, .state, .log, .screenshot: MCPToolAnnotations(readOnly: true, openWorld: false)
+        case .start: MCPToolAnnotations(readOnly: false, destructive: false, idempotent: true, openWorld: false)
+        case .stop: MCPToolAnnotations(readOnly: false, destructive: true, idempotent: true, openWorld: false)
         }
     }
 }

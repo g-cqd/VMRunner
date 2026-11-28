@@ -104,13 +104,13 @@ struct ModuleBoundaryTests {
         #expect(control.products.isEmpty, "ControlProtocol depends on no package product: \(control.products)")
     }
 
-    /// The MCP server (roadmap 0005) reaches the service through the control library's client, and reads and writes with the
-    /// console's socket calls: nothing else.
+    /// The MCP server (roadmap 0005) reaches the service through the control library's client, reads and writes with the
+    /// console's socket calls, and speaks the protocol through AemiMCP (ADR-0056, update 2026-11-28): nothing else.
     @Test
-    func theAgentBridgeDependsOnTheControlAndConsoleLibrariesOnly() throws {
+    func theAgentBridgeDependsOnTheControlAndConsoleLibrariesAndAemiMCPOnly() throws {
         let bridge = try Self.dependencies(of: "AgentBridge", in: try Self.manifest())
         #expect(bridge.targets == ["ControlProtocol", "GuestConsole"], "AgentBridge links the control and console libraries only")
-        #expect(bridge.products.isEmpty, "AgentBridge depends on no package product: \(bridge.products)")
+        #expect(bridge.products == ["AemiMCP", "AemiJSONCore"], "AgentBridge's only package products: \(bridge.products)")
     }
 
     @Test

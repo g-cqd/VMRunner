@@ -108,3 +108,11 @@ names a capability a version does not know now loads without it instead of faili
 file that holds `screen`, as the update above says they do for `log`, and keep it unchanged, so remove the token or the
 capability by hand to use them. The status
 stays proposed.)
+
+(Update 2026-11-28: `AgentBridge` now speaks the protocol through AemiMCP's `MCPSyncServer`, the server the family's
+other MCP tools share, configured as strictly as before: the 2025-11-25 and 2025-06-18 versions, `protocolVersion`
+required, no batch, no null id, no member besides `jsonrpc`, `id`, `method` and `params`, at most 16 levels deep, and an
+unknown tool refused as invalid params. So `AgentBridge` depends on two package products, `AemiMCP` and `AemiJSONCore`,
+pinned by revision, with AemiMCP's HTTP trait off; they bring in `aemi`. They are tooling only: the app links neither,
+and `ModuleBoundaryTests` allows `AgentBridge` exactly these two. The tools, their schemas and their results are
+unchanged, and so is the rest of this decision.)

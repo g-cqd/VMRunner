@@ -1,3 +1,4 @@
+import AemiMCP
 public import ControlProtocol
 import Foundation
 import GuestConsole
@@ -36,39 +37,29 @@ public enum MCPStdio {
 
     /// The answer line to one message; nil when it gets none.
     static func answer(to line: Data, caller: ControlCaller) -> Data? {
-        switch MCPServer.action(for: line) {
-        case .reply(let data):
-            return data
-        case .ignore:
-            return nil
-        case .callTool(let id, let tool, let arguments):
-            return run(tool, id: id, arguments: arguments, caller: caller)
-        }
+        MCPServer.answer(to: line) { tool, arguments in run(tool, arguments: arguments, caller: caller) }
     }
 
     /// Calls the tool's control method and answers with its result as text: the service's JSON result, or its error as a tool
     /// error that names the error's code, or why the service could not be reached.
-    static func run(_ tool: MCPTool, id: RPCID, arguments: [String: RPCValue], caller: ControlCaller) -> Data {
+    static func run(_ tool: MCPTool, arguments: [String: RPCValue], caller: ControlCaller) -> MCPToolResult {
         do {
             let answer = try caller.call(tool.method, params: arguments)
-            if let code = answer.errorCode {
-                return MCPServer.toolResult(id: id, text: "error \(code): \(answer.errorMessage ?? "refused")", isError: true)
-            }
-            if tool == .screenshot { return screenshot(from: answer, id: id) }
-            let text = answer.result.flatMap { String(bytes: $0, encoding: .utf8) } ?? "null"
-            return MCPServer.toolResult(id: id, text: text, isError: false)
+            if let code = answer.errorCode { return .error("error \(code): \(answer.errorMessage ?? "refused")") }
+            if tool == .screenshot { return screenshot(from: answer) }
+            return .text(answer.result.flatMap { String(bytes: $0, encoding: .utf8) } ?? "null")
         } catch {
-            return MCPServer.toolResult(id: id, text: "the control service could not be used: \(error)", isError: true)
+            return .error("the control service could not be used: \(error)")
         }
     }
 
     /// A screenshot answer as MCP image content, with its size as text.
-    private static func screenshot(from answer: ControlAnswer, id: RPCID) -> Data {
+    private static func screenshot(from answer: ControlAnswer) -> MCPToolResult {
         guard let json = answer.result, let shot = try? JSONDecoder().decode(ControlScreenshot.self, from: json) else {
-            return MCPServer.toolResult(id: id, text: "the control service's answer cannot be read", isError: true)
+            return .error("the control service's answer cannot be read")
         }
-        return MCPServer.imageResult(
-            id: id, base64: shot.data.base64EncodedString(), mimeType: "image/\(shot.format)",
+        return .image(
+            base64: shot.data.base64EncodedString(), mimeType: "image/\(shot.format)",
             text: "\(shot.width) x \(shot.height) pixels, \(shot.format)")
     }
 

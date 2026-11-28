@@ -1,13 +1,26 @@
+import AemiMCP
 import AgentBridge
 import ControlProtocol
 import Foundation
+import Synchronization
 import Testing
 
 /// The MCP messages one by one: what each line is answered with, and which lines become a control call.
 struct MCPServerTests {
+    /// The answer to `line`, its tool calls answered by `call` (a call fails the test unless one is given).
+    private func reply(
+        _ line: String,
+        call: (AgentBridge.MCPTool, [String: RPCValue]) -> MCPToolResult = { tool, _ in
+            Issue.record("unexpected call of \(tool)")
+            return .error("unexpected")
+        }
+    ) -> Data? {
+        MCPServer.answer(to: Data(line.utf8), call: call)
+    }
+
     /// The answer to `line`, parsed; the test fails when the line is not answered.
     private func answer(_ line: String) throws -> [String: Any] {
-        guard case .reply(let data) = MCPServer.action(for: Data(line.utf8)) else {
+        guard let data = reply(line) else {
             Issue.record("no answer to \(line)")
             return [:]
         }
@@ -75,7 +88,7 @@ struct MCPServerTests {
         let screenshot = try #require(tools.first { $0["name"] as? String == "machines_screenshot" })
         #expect((screenshot["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true)
         #expect((screenshot["inputSchema"] as? [String: Any])?["required"] as? [String] == ["machine"])
-        #expect(MCPTool.screenshot.method == .screenshot)
+        #expect(AgentBridge.MCPTool.screenshot.method == .screenshot)
     }
 
     @Test
@@ -88,16 +101,25 @@ struct MCPServerTests {
         #expect(schema["required"] as? [String] == ["machine"] && schema["additionalProperties"] as? Bool == false)
         let properties = try #require(schema["properties"] as? [String: Any])
         #expect(Array(properties.keys) == ["machine"])
-        #expect(MCPTool.log.method == .log)
+        #expect(AgentBridge.MCPTool.log.method == .log)
     }
 
     @Test
-    func aToolCallBecomesACallOfItsControlMethod() {
+    func aToolCallBecomesACallOfItsControlMethod() throws {
         let line =
             #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"machines_stop","arguments":{"machine":"m","force":true}}}"#
-        let expected = MCPAction.callTool(id: .number(3), tool: .stop, arguments: ["machine": .string("m"), "force": .bool(true)])
-        #expect(MCPServer.action(for: Data(line.utf8)) == expected)
-        #expect(MCPTool.stop.method == .stop)
+        var calls: [(AgentBridge.MCPTool, [String: RPCValue])] = []
+        let data = try #require(
+            reply(line) { tool, arguments in
+                calls.append((tool, arguments))
+                return .text("done")
+            })
+        #expect(calls.count == 1)
+        #expect(calls.first?.0 == .stop)
+        #expect(calls.first?.1 == ["machine": .string("m"), "force": .bool(true)])
+        let answer = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(answer["id"] as? Int == 3)
+        #expect(AgentBridge.MCPTool.stop.method == .stop)
     }
 
     @Test
@@ -116,8 +138,8 @@ struct MCPServerTests {
 
     @Test
     func aNotificationAndAnAnswerAreNotAnswered() {
-        #expect(MCPServer.action(for: Data(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#.utf8)) == .ignore)
-        #expect(MCPServer.action(for: Data(#"{"jsonrpc":"2.0","id":9,"result":{}}"#.utf8)) == .ignore)
+        #expect(reply(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#) == nil)
+        #expect(reply(#"{"jsonrpc":"2.0","id":9,"result":{}}"#) == nil)
     }
 
     @Test(arguments: [
@@ -158,7 +180,8 @@ struct MCPServerTests {
 
     @Test
     func aToolResultCarriesItsTextAndWhetherItFailed() throws {
-        let data = MCPServer.toolResult(id: .string("x"), text: "error -32003: off", isError: true)
+        let line = #"{"jsonrpc":"2.0","id":"x","method":"tools/call","params":{"name":"machines_list"}}"#
+        let data = try #require(reply(line) { _, _ in .error("error -32003: off") })
         let answer = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         let result = try #require(answer["result"] as? [String: Any])
         #expect(result["isError"] as? Bool == true)

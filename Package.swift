@@ -27,6 +27,9 @@ let package = Package(
         // Developer tooling only (DevTools and the `vmr` command line). The VMRunner app and its tests link neither.
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", exact: "1.0.2", traits: []),
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
+        // The MCP server's protocol (AgentBridge, so `vmr control mcp` only); without its HTTP trait. Brings in aemi and AemiJSON.
+        .package(url: "https://github.com/g-cqd/AemiMCP.git", revision: "807efc6822ac7bf332c98799e442f804ece911df", traits: []),
+        .package(url: "https://github.com/g-cqd/AemiJSON.git", revision: "fb4478051725c95614e76b15ac11e9a5c6a502a3"),
         // Debounces settings writes in the app; also brings in swift-collections.
         .package(url: "https://github.com/apple/swift-async-algorithms.git", exact: "1.1.7"),
         // HeapModule backs TestKit's TestClock sleeper queue.
@@ -121,10 +124,17 @@ let package = Package(
         // for the socket calls it reads and writes standard input and output with, and the system frameworks; the app does
         // not link it.
         .target(
-            name: "AgentBridge", dependencies: ["ControlProtocol", "GuestConsole"], path: "Sources/AgentBridge",
+            name: "AgentBridge",
+            dependencies: [
+                "ControlProtocol", "GuestConsole",
+                .product(name: "AemiMCP", package: "AemiMCP"), .product(name: "AemiJSONCore", package: "AemiJSON"),
+            ],
+            path: "Sources/AgentBridge",
             swiftSettings: hardening),
         .testTarget(
-            name: "AgentBridgeTests", dependencies: ["AgentBridge", "ControlProtocol"], path: "Tests/AgentBridgeTests",
+            name: "AgentBridgeTests",
+            dependencies: ["AgentBridge", "ControlProtocol", .product(name: "AemiMCP", package: "AemiMCP")],
+            path: "Tests/AgentBridgeTests",
             swiftSettings: hardening),
 
         // The headless helper of the sandbox helper (roadmap 0025): boots one Linux guest from a JSON descriptor, under an

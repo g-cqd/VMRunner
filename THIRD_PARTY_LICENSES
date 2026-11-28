@@ -8,6 +8,8 @@ Exception):
 - swift-collections: linked into the app through swift-async-algorithms, and into the test support (HeapModule)
 - swift-subprocess and swift-argument-parser: developer tooling only (vmr), never linked into the app
 - swift-system: a dependency of swift-subprocess, so developer tooling only
+- AemiMCP (MIT), with its dependencies aemi (MIT) and AemiJSON (MIT): the MCP server's protocol in AgentBridge, so
+  developer tooling only (`vmr control mcp`), never linked into the app; its HTTP trait is off, so no HTTP stack
 - containerization: the container runner only (`Packages/Containers`, roadmap 0024), a package of its own with its own
   Package.resolved; the app, `vmr` and every test target link none of it. The 24 packages it brings in are all listed there,
   and their licenses are not inventoried yet
